@@ -551,9 +551,9 @@ class SimpleFeatureMap(FeatureMap):
             self.c_norm = c_norm
         
     # magic operator to be able to call the FeatureMap object as a function
-    def __call__(self,x): 
+    def __call__(self,x):
         return self.c_norm*self.f(np.matmul(self.Omega.T,x.T).T + self.xi) # Evaluate the feature map at x
-    
+
     def grad(self,x):
         """Gradient (Jacobian matrix) of Phi, as a (d,m)-numpy array"""
         return self.c_norm*self.f_grad(np.matmul(self.Omega.T,x.T).T + self.xi)*self.Omega
