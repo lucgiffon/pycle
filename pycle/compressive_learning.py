@@ -1,9 +1,12 @@
 """Contains compressive learning algorithms.
 """
 # Main imports
+from collections import defaultdict
+
 import scipy.optimize
 import numpy as np
 import matplotlib.pyplot as plt
+from ckopu.utils import SingletonMeta
 from scipy.optimize import nnls, minimize, LinearConstraint
 from copy import copy
 from pycle.sketching import FeatureMap, SimpleFeatureMap, fourierSketchOfBox, fourierSketchOfGaussian, \
@@ -15,6 +18,31 @@ from sklearn.linear_model import LinearRegression
 ##################################################
 
 # 0.1 Generic solver (stores a sketch and a solution, can run multiple trials of a learning method to specify)
+
+class ObjectiveValuesStorage(metaclass=SingletonMeta):
+
+    def __init__(self):
+        self.dct_objective_values = defaultdict(list)
+
+    def add(self, elm, list_name):
+        self.dct_objective_values[list_name].append(elm)
+
+    def clear(self):
+        self.dct_objective_values = defaultdict(list)
+
+    def get_objective_values(self, list_name):
+        return self.dct_objective_values[list_name]
+
+    def show(self):
+        fig, tpl_axs = plt.subplots(nrows=1, ncols=len(self.dct_objective_values))
+
+        for idx_ax, (name_trace, lst_obj_values) in enumerate(self.dct_objective_values.items()):
+            iter_ids = np.arange(len(lst_obj_values))
+            objective_values = np.array(lst_obj_values)
+            tpl_axs[idx_ax].plot(iter_ids, objective_values)
+            tpl_axs[idx_ax].set_title(name_trace)
+
+        plt.show()
 
 
 class Solver:
@@ -162,7 +190,7 @@ class CLOMP(Solver):
         self.step5_ftol = 1e-6
 
         self.dfo = dfo
-        self.radius_sample = 1.
+        self.radius_sample = 0.01
         self.nb_sample_point = nb_sample_points
 
     # Abtract methods
@@ -219,7 +247,7 @@ class CLOMP(Solver):
             _n_atoms, _Theta = self.n_atoms, self.Theta
         _A = 1j * np.empty((self.Phi.m, _n_atoms))
 
-        # todo maybe rewrite this to not use a loop
+        # todo rewrite this to not use a loop
         if return_jacobian:
             _jac = 1j * np.empty((_n_atoms, self.d_atom, self.Phi.m))
             for k, theta_k in enumerate(_Theta):
@@ -268,9 +296,14 @@ class CLOMP(Solver):
         return np.r_[_Theta.reshape(-1), _alpha]
 
     def _destack_sol(self, p):
-        assert p.size == self.n_atoms * (self.d_atom + 1)
-        Theta = p[:self.d_atom * self.n_atoms].reshape(self.n_atoms, self.d_atom)
-        alpha = p[-self.n_atoms:]
+        assert p.shape[-1] == self.n_atoms * (self.d_atom + 1)
+        if len(p.shape) == 1:
+            Theta = p[:self.d_atom * self.n_atoms].reshape(self.n_atoms, self.d_atom)
+            alpha = p[-self.n_atoms:].reshape(self.n_atoms)
+        else:
+            raise NotImplementedError
+            Theta = p[:, :self.d_atom * self.n_atoms].reshape(-1, self.n_atoms, self.d_atom)
+            alpha = p[:, -self.n_atoms:].reshape(-1, self.n_atoms)
         return alpha, Theta
 
     # Optimization subroutines
@@ -296,16 +329,33 @@ class CLOMP(Solver):
         """
         Find a linear approximation of the gradient
         """
-        sample_points_X = sample_ball(radius=self.radius_sample, npoints=self.nb_sample_point, ndim=theta.size, center=theta)
-        # plt.scatter(theta[0], theta[1], c="red")
-        # plt.scatter(sample_points_X[:, 0], sample_points_X[:, 1], c="blue")
-        # plt.show()
-        fct_values_Y = obj_fun(sample_points_X)
-        # plt.scatter()
+        # todo rename theta if we use this function for all dfos objs
+
+        sample_points_X = sample_ball(radius=self.radius_sample, npoints=self.nb_sample_point*100, ndim=theta.size, center=theta)
+        # fct_values_Y = obj_fun(sample_points_X).squeeze()
+        fct_values_oracle = np.array([obj_fun(elm) for elm in sample_points_X]).squeeze()
+        # todo could be accelerated by removing the for loop
+        fct_values_Y = fct_values_oracle
+        # assert np.isclose(fct_values_Y, fct_values_oracle).all()
+        # todo remove the oracle
+
+        if theta.size > 2 and False:
+            from mpl_toolkits.mplot3d import Axes3D
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            ax.scatter(sample_points_X[:, 0], sample_points_X[:, 1], sample_points_X[:, 2], c="blue")
+            ax.scatter(theta[0], theta[1], theta[2], c="red")
+            ax.set_xlabel('X Label')
+            ax.set_ylabel('Y Label')
+            ax.set_zlabel('Objectif')
+            plt.show()
 
         clf = LinearRegression()
-        clf.fit(sample_points_X, fct_values_Y)
-        lin_param = clf.coef_
+        first_order_pol_X = np.hstack([np.ones((sample_points_X.shape[0], 1)), sample_points_X])
+        clf.fit(first_order_pol_X, fct_values_Y)
+        lin_param = clf.coef_[1:]
+        # score_mse = clf.score(sample_points_X, fct_values_Y)
+        # print(score_mse)
 
         # from mpl_toolkits.mplot3d import Axes3D
         # fig = plt.figure()
@@ -334,7 +384,7 @@ class CLOMP(Solver):
         # ... and its l2 norm
         norm_sketch_theta = self.get_norm_sketch_theta(sketch_theta.reshape(1, -1))
 
-        fun = lambda x: -np.real(np.dot(self.Phi(x).conj(), self.residual)) / self.get_norm_sketch_theta(self.Phi(x))
+        fun = lambda x: -np.real(np.dot(self.Phi(x).conj(), self.residual)) / self.get_norm_sketch_theta(self.Phi(x).reshape(-1, sketch_theta.shape[-1]))
         # Evaluate the cost function
         # fun_value = -np.real(np.vdot(sketch_theta, self.residual)) / norm_sketch_theta  # - to have a min problem
         fun_value = fun(theta.reshape(1, -1))[0]
@@ -347,7 +397,7 @@ class CLOMP(Solver):
                         norm_sketch_theta ** 3))
 
         # todo compare grad with grad_oracle
-
+        ObjectiveValuesStorage().add(fun_value, "fun_val max corr")
         return fun_value, grad
 
     def get_norm_sketch_theta(self, sketch_theta):
@@ -373,6 +423,8 @@ class CLOMP(Solver):
                                       x0=new_theta,
                                       method='L-BFGS-B', jac=True,
                                       bounds=self.bounds_atom)
+        # ObjectiveValuesStorage().show(title="Maximize atom correlation")
+        ObjectiveValuesStorage().clear()
         return sol.x
 
     def find_optimal_weights(self, normalize_atoms=False):
@@ -404,6 +456,16 @@ class CLOMP(Solver):
         Computes the fun. value and grad. of step 5 objective: min_alpha,Theta || z - alpha*A(P_Theta) ||_2,
         at the point given by p (stacked Theta and alpha), and updates the current sol to match.
         """
+        # print("_minimize_cost_from_current_sol_dfo")
+        def eval_obj(x):
+            # can only take on sample at a time
+            (_alpha, _Theta) = self._destack_sol(x)
+
+            sketch_of_solution = _alpha @ self.Phi(_Theta)
+            # sketch_of_solution = self.Phi(_Theta).T @ _alpha
+            r = self.sketch_reweighted - sketch_of_solution
+            return np.linalg.norm(r, axis=-1) ** 2
+
         # De-stack the parameter vector
         (_alpha, _Theta) = self._destack_sol(p)
 
@@ -417,8 +479,14 @@ class CLOMP(Solver):
         # Now that the solution is updated, update the residual
         self.residual = self.sketch_reweighted - self.sketch_of_solution()
 
+        # todo remove the oracles (or condition them)
         # Evaluate the cost function
-        fun = np.linalg.norm(self.residual) ** 2
+        fun_val_oracle = np.linalg.norm(self.residual) ** 2
+
+        fun_val = eval_obj(p)
+        assert np.isclose(fun_val_oracle, fun_val)
+
+        grad = self.get_gradient_estimate(p, eval_obj)
 
         # Evaluate the gradients
         grad_oracle = np.empty((self.d_atom + 1) * self.n_atoms)
@@ -427,7 +495,10 @@ class CLOMP(Solver):
                 self.Jacobians[k] @ self.residual.conj())
         grad_oracle[-self.n_atoms:] = -2 * np.real(self.residual @ self.Atoms.conj())  # Gradient of the weights
 
-        return fun, grad
+        ObjectiveValuesStorage().add(fun_val, "fun_val finetuning")
+        ObjectiveValuesStorage().add(np.linalg.norm(grad - grad_oracle), "norm diff grad finetuning")
+        return fun_val, grad
+        # return fun_val, grad_oracle
 
     def _minimize_cost_from_current_sol(self, p):
         """
@@ -435,7 +506,7 @@ class CLOMP(Solver):
         at the point given by p (stacked Theta and alpha), and updates the current sol to match.
         """
         # De-stack the parameter vector
-        (_alpha, _Theta) = self._destack_sol(p)
+        (_alpha, _Theta) = self._destack_sol(p.reshape(1, -1))
 
         # Update the weigths
         self.alpha = _alpha
@@ -473,6 +544,9 @@ class CLOMP(Solver):
                                       method='L-BFGS-B', jac=True,
                                       bounds=bounds_Theta_alpha, options={'ftol': ftol})
         (self.alpha, self.Theta) = self._destack_sol(sol.x)
+
+        # ObjectiveValuesStorage().show()
+        ObjectiveValuesStorage().clear()
 
     # Instantiation of methods of parent class
     # ========================================
