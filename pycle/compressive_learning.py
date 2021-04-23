@@ -12,6 +12,7 @@ from copy import copy
 from pycle.sketching import FeatureMap, SimpleFeatureMap, fourierSketchOfBox, fourierSketchOfGaussian, \
     estimate_Sigma_from_sketch
 from sklearn.linear_model import LinearRegression
+from pdfo import pdfo
 
 ##################################################
 # 0: abstract template for CL and CL-OMP solvers #
@@ -305,7 +306,8 @@ class CLOMP(Solver):
 
     def _destack_sol(self, p):
         assert p.shape[-1] == self.n_atoms * (self.d_atom + 1)
-        if len(p.shape) == 1:
+        if len(p.shape) == 1 or p.shape[0] == 1:
+            p = p.squeeze()
             Theta = p[:self.d_atom * self.n_atoms].reshape(self.n_atoms, self.d_atom)
             alpha = p[-self.n_atoms:].reshape(self.n_atoms)
         else:
@@ -505,7 +507,8 @@ class CLOMP(Solver):
             if self.compute_oracle:
                 ObjectiveValuesStorage().add(np.linalg.norm(grad - grad_oracle), "norm diff grad finetuning")
 
-        return fun_val, grad
+        return fun_val
+        # return fun_val, grad
 
     def _minimize_cost_from_current_sol(self, p):
         """
@@ -543,13 +546,21 @@ class CLOMP(Solver):
 
         if not self.dfo:
             fct_fun_grad = self._minimize_cost_from_current_sol
+            sol = scipy.optimize.minimize(fct_fun_grad,
+                                          x0=self._stack_sol(),  # Start at current solution
+                                          method='L-BFGS-B', jac=True,
+                                          bounds=bounds_Theta_alpha, options={'ftol': ftol})
         else:
             fct_fun_grad = self._minimize_cost_from_current_sol_dfo
+            sol = pdfo(fct_fun_grad,
+                                          x0=self._stack_sol(),  # Start at current solution
+                                          # method='L-BFGS-B',
+                                          bounds=bounds_Theta_alpha,
+                       options={'maxfev': 1000}
+                       # options={'ftol': ftol}
+                       )
 
-        sol = scipy.optimize.minimize(fct_fun_grad,
-                                      x0=self._stack_sol(),  # Start at current solution
-                                      method='L-BFGS-B', jac=True,
-                                      bounds=bounds_Theta_alpha, options={'ftol': ftol})
+
         (self.alpha, self.Theta) = self._destack_sol(sol.x)
 
         if self.show_curves:
