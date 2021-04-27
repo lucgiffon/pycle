@@ -19,7 +19,10 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE."""
+from collections import defaultdict
 
+from ckopu.utils import SingletonMeta
+from matplotlib import pyplot as plt
 
 """Contains a set of misc. useful tools for the compressive learning toolbox"""
 
@@ -629,3 +632,41 @@ def plotGMM(X=None,P=None,dims=(0,1),d=2,proportionInGMM = None):
     return
 
 
+class ObjectiveValuesStorage(metaclass=SingletonMeta):
+    def __init__(self):
+        self.dct_objective_values = defaultdict(list)
+
+    def add(self, elm, list_name):
+        self.dct_objective_values[list_name].append(elm)
+
+    def clear(self):
+        self.dct_objective_values = defaultdict(list)
+
+    def get_objective_values(self, list_name):
+        return self.dct_objective_values[list_name]
+
+    def show(self):
+        fig, tpl_axs = plt.subplots(nrows=1, ncols=len(self.dct_objective_values))
+
+        for idx_ax, (name_trace, lst_obj_values) in enumerate(self.dct_objective_values.items()):
+            iter_ids = np.arange(len(lst_obj_values))
+            objective_values = np.array(lst_obj_values)
+            try:
+                tpl_axs[idx_ax].plot(iter_ids, objective_values)
+                tpl_axs[idx_ax].set_title(name_trace)
+            except TypeError:
+                assert len(self.dct_objective_values) == 1
+                tpl_axs.plot(iter_ids, objective_values)
+                tpl_axs.set_title(name_trace)
+
+        plt.show()
+
+
+def sample_ball(radius, npoints, ndim=200, center=None):
+    vec = np.random.randn(npoints, ndim)
+    vec /= (np.linalg.norm(vec, axis=1).reshape(-1, 1))
+    vec *= (np.random.uniform(0, radius, size=npoints).reshape(-1, 1) ** (1. / ndim))
+    if center is None:
+        return vec
+    else:
+        return vec + center
