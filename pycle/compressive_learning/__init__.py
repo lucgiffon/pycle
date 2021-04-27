@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from scipy.optimize import nnls, minimize, LinearConstraint
 from copy import copy
 
-from pycle.compressive_learning import CLOMP
 from pycle.compressive_learning.generic.CLOMP import CLOMP
 from pycle.compressive_learning.CLOMP_dGMM import CLOMP_dGMM
 

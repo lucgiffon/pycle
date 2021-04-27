@@ -3,7 +3,7 @@ import scipy.optimize
 from pdfo import pdfo
 from sklearn.linear_model import LinearRegression
 
-from pycle.compressive_learning import Solver
+from pycle.compressive_learning.generic.Solver import Solver
 from pycle.utils import ObjectiveValuesStorage, sample_ball
 
 
@@ -97,7 +97,7 @@ class CLOMP(Solver):
 
     # Generic methods
     # ===============
-    # They should always work, using the instances of the methdos above
+    # They should always work, using the instances of the methods above
     def initialize_empty_solution(self):
         self.n_atoms = 0
         self.alpha = np.empty(0)  # (n_atoms,)-array, weigths of the mixture elements
@@ -219,24 +219,6 @@ class CLOMP(Solver):
 
         return self._get_coeffs_lin_reg(sample_points_X, fct_values_Y)
 
-    def get_gradient_estimate_finetuning(self, current_sol, obj_fun):
-        """
-        Find a linear approximation of the gradient in the finetuning problem of clomp
-        """
-        (_alpha, _Theta) = self._destack_sol(current_sol)
-        nb_atoms = len(_alpha)
-
-        # todo remove this "100"
-        sample_points_X = sample_ball(radius=self.radius_sample, npoints=self.nb_sample_point * 100,
-                                      ndim=current_sol.size, center=current_sol)
-        sample_points_X[:, -nb_atoms:] = _alpha
-        # todo remove alpha from the input if performance is a problem
-
-        fct_values_Y = np.array([obj_fun(elm) for elm in sample_points_X]).squeeze()
-        # todo could be accelerated by removing the for loop
-
-        return self._get_coeffs_lin_reg(sample_points_X, fct_values_Y)
-
     # Optimization subroutines
     def _maximize_atom_correlation_fun_grad_dfo(self, theta):
         """Computes the fun. value and grad. of step 1 objective: max_theta <A(P_theta),r> / <A(P_theta),A(P_theta)>"""
@@ -298,7 +280,7 @@ class CLOMP(Solver):
         return sol.x
 
     def find_optimal_weights(self, normalize_atoms=False):
-        """Using the current atoms matrix, find the optimal weights"""
+        """Using the current atoms matrix, find the optimal weights with scipy's nnls"""
         # Stack real and imaginary parts if necessary
         if np.any(np.iscomplex(self.Atoms)):  # True if complex sketch output
             _A = np.r_[self.Atoms.real, self.Atoms.imag]
@@ -409,6 +391,7 @@ class CLOMP(Solver):
     def minimize_cost_from_current_sol(self, ftol=None):
         if ftol is None:
             ftol = self.step5_ftol
+        # noinspection PyTypeChecker
         bounds_Theta_alpha = self.bounds_atom * self.n_atoms + [
             [self.weight_lower_bound, self.weight_upper_bound]] * self.n_atoms
 
@@ -433,6 +416,24 @@ class CLOMP(Solver):
         if self.show_curves:
             ObjectiveValuesStorage().show()
             ObjectiveValuesStorage().clear()
+
+    def get_gradient_estimate_finetuning(self, current_sol, obj_fun):
+        """
+        Find a linear approximation of the gradient in the finetuning problem of clomp
+        """
+        (_alpha, _Theta) = self._destack_sol(current_sol)
+        nb_atoms = len(_alpha)
+
+        # todo remove this "100"
+        sample_points_X = sample_ball(radius=self.radius_sample, npoints=self.nb_sample_point * 100,
+                                      ndim=current_sol.size, center=current_sol)
+        sample_points_X[:, -nb_atoms:] = _alpha
+        # todo remove alpha from the input if performance is a problem
+
+        fct_values_Y = np.array([obj_fun(elm) for elm in sample_points_X]).squeeze()
+        # todo could be accelerated by removing the for loop
+
+        return self._get_coeffs_lin_reg(sample_points_X, fct_values_Y)
 
     # Instantiation of methods of parent class
     # ========================================
