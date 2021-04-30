@@ -30,6 +30,8 @@ class Solver:
         # Verbose
         self.verbose = verbose
 
+        self.counter_call_sketching_operator = 0
+
     # Abtract methods
     # ===============
     # Methods that have to be instantiated by child classes

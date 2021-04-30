@@ -29,7 +29,9 @@ import matplotlib.pyplot as plt # For verbose
 import scipy.optimize
 import sys          # For error handling
 from copy import copy
-    
+from abc import ABC, abstractmethod
+import abc
+
     
 #######################################
 ### 1: Frequency sampling functions ###
@@ -492,15 +494,39 @@ _dico_nonlinearities = {
 
 # 2.2 FeatureMap objects
 # Abstract feature map class
-class FeatureMap:
+class FeatureMap(ABC):
     """Template for a generic Feature Map. Useful to check if an object is an instance of FeatureMap."""
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        self.counter_call_sketching_operator = 0
+
+    @property
+    @abstractmethod
+    def m(self):
         pass
-    def __call__(self):
+
+    def account_call(self, x):
+        if len(x.shape) == 1:
+            self.counter_call_sketching_operator += 1
+        else:
+            assert len(x.shape) == 2
+            self.counter_call_sketching_operator += x.shape[0]
+
+    def reset_counter(self):
+        self.counter_call_sketching_operator = 0
+
+    @abstractmethod
+    def call(self, x):
         raise NotImplementedError("The way to compute the feature map is not specified.")
-    def grad(self):
+
+    def __call__(self, x):
+        self.account_call(x)
+        return self.call(x)
+
+    @abstractmethod
+    def grad(self, x):
         raise NotImplementedError("The way to compute the gradient of the feature map is not specified.")
-        
+
+
 # TODO find a better name
 class SimpleFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(Omega^T*x + xi)."""
@@ -533,31 +559,37 @@ class SimpleFeatureMap(FeatureMap):
         # 2) extract Omega the projection matrix TODO allow callable Omega for fast transform
         if (isinstance(Omega,np.ndarray) and Omega.ndim == 2):
             self.Omega = Omega
-            (self.d,self.m) = Omega.shape
+            (self.d,self._m) = Omega.shape
         else:
             raise ValueError("The provided projection matrix Omega should be a (d,m) numpy array.")
         # 3) extract the dithering
         if xi is None:
-            self.xi = np.zeros(self.m)
+            self.xi = np.zeros(self._m)
         else:
             self.xi = xi
         # 4) extract the normalization constant
         if isinstance(c_norm, str):
             if c_norm.lower() in ['unit','normalized']:
-                self.c_norm = 1./np.sqrt(self.m)
+                self.c_norm = 1./np.sqrt(self._m)
             else:
                 raise NotImplementedError("The provided c_norm name is not implemented.")
         else:
             self.c_norm = c_norm
-        
-    # magic operator to be able to call the FeatureMap object as a function
-    def __call__(self,x):
-        # return self.c_norm*self.f(np.matmul(self.Omega.T,x.T).T + self.xi) # Evaluate the feature map at x
-        return self.c_norm*self.f(np.matmul(x, self.Omega) + self.xi) # Evaluate the feature map at x
 
-    def grad(self,x):
+        super().__init__()
+
+    @property
+    def m(self):
+        return self._m
+
+    # call the FeatureMap object as a function
+    def call(self, x):
+        # return self.c_norm*self.f(np.matmul(self.Omega.T,x.T).T + self.xi) # Evaluate the feature map at x
+        return self.c_norm * self.f(np.matmul(x, self.Omega) + self.xi)  # Evaluate the feature map at x
+
+    def grad(self, x):
         """Gradient (Jacobian matrix) of Phi, as a (d,m)-numpy array"""
-        return self.c_norm*self.f_grad(np.matmul(self.Omega.T,x.T).T + self.xi)*self.Omega
+        return self.c_norm * self.f_grad(np.matmul(self.Omega.T, x.T).T + self.xi) * self.Omega
     
 
 
@@ -595,28 +627,26 @@ def computeSketch(dataset, featureMap, datasetWeights = None, batch_size = None)
     (n,d) = dataset.shape # number of samples, dimension 
     
     # Determine the sketch dimension and sanity check: the dataset is nonempty and the map works
-    if isinstance(featureMap,FeatureMap): # featureMap is the argument, FeatureMap is the class
+    if isinstance(featureMap, FeatureMap):  # featureMap is the argument, FeatureMap is the class
         m = featureMap.m
     else:
         try:
             m = featureMap(dataset[0]).shape[0]
-        except:
+        except Exception:
             raise ValueError("Unexpected error while calling the sketch feature map:", sys.exc_info()[0])
-    
-    sketch = np.zeros(m)
-    
+
     # Split the batches
     if batch_size is None:
         batch_size = int(1e6/m) # Rough heuristic, best batch size will vary on different machines
     nb_batches = int(np.ceil(n/batch_size))
-        
-    
+
+    sketch = np.zeros(m)
     if datasetWeights is None:
         for b in range(nb_batches):
             sketch = sketch + featureMap(dataset[b*batch_size:(b+1)*batch_size]).sum(axis=0)
         sketch /= n
     else:
-        sketch = datasetWeights@featureMap(X) 
+        sketch = datasetWeights@featureMap(dataset)
     return sketch
 
 #################################

@@ -40,6 +40,7 @@ class CLOMP_CKM(CLOMP):
         self.bounds_atom = bounds.T.tolist()
 
     def randomly_initialize_new_atom(self):
+        # todo modifier ca pour régler le warning de pdfo?
         new_theta = np.random.uniform(self.bounds[0], self.bounds[1])
         return new_theta
 

@@ -19,16 +19,17 @@ class CLOMP(Solver):
     The CLOMP algorithm works by adding new elements to the mixture one by one.
     """
 
-    def __init__(self, Phi, K, d_atom, bounds, dfo=False, nb_sample_points=None, compute_oracle=False,
+    def __init__(self, Phi, K, d_atom, bounds, opt_method="vanilla", dct_opt_method=None,
                  show_curves=False, sketch=None, sketch_weight=1., verbose=0):
         """
-        - Phi: a FeatureMap object
-        - K: int, target number of mixture components
-        - d_atom: dimension of an atom, should be determined by a child class
-        - sketch: the sketch to be fit (can be None)
-        - sketch_weight: float, a re-scaling factor for the data sketch (default 1)
+        :param Phi: a FeatureMap object
+        :param K: int, target number of mixture components
+        :param d_atom: dimension of an atom, should be determined by a child class
+        :param sketch: the sketch to be fit (can be None)
+        :param sketch_weight: float, a re-scaling factor for the data sketch (default 1)
+        :param opt_method: str, one of ["vanilla", "pdfo", "simplex gradient"]
         """
-        # todo preparer ces elements avec des np.empty plutot que de les reremplir a chaque fois
+        # todo optim: preparer ces elements avec des np.empty plutot que de les reremplir a chaque fois avec des concatenations
         self.Theta = None
         self.Atoms = None
         self.alpha = None
@@ -58,11 +59,12 @@ class CLOMP(Solver):
         self.step5_ftol = 1e-6
 
         # Attributes related to dfo opt
-        self.dfo = dfo
+        self.opt_method = opt_method
+        self.dct_opt_method = dct_opt_method or dict()
+
         self.radius_sample = 1.
-        self.nb_sample_point = nb_sample_points
-        self.compute_oracle = compute_oracle
         self.show_curves = show_curves
+        # self.bounds_atom = []
 
     # Abtract methods
     # ===============
@@ -116,8 +118,8 @@ class CLOMP(Solver):
             _n_atoms, _Theta = Theta.shape[0], Theta
         else:
             _n_atoms, _Theta = self.n_atoms, self.Theta
-        _A = 1j * np.empty((self.Phi.m, _n_atoms))
 
+        _A = np.empty((self.Phi.m, _n_atoms), dtype=complex)
         # todo rewrite this to not use a loop
         if return_jacobian:
             _jac = 1j * np.empty((_n_atoms, self.d_atom, self.Phi.m))
@@ -180,6 +182,53 @@ class CLOMP(Solver):
         return alpha, Theta
 
     # Optimization subroutines
+    def _get_coeffs_lin_reg(self, sample_points_X, fct_values_Y):
+        clf = LinearRegression()
+        # stack with a column of one to fit the setting of polynomial interpolation
+        first_order_pol_X = np.hstack([np.ones((sample_points_X.shape[0], 1)), sample_points_X])
+        clf.fit(first_order_pol_X, fct_values_Y)
+        lin_param = clf.coef_[1:]
+
+        return lin_param
+
+    def get_norm_sketch_theta(self, sketch_theta):
+        assert len(sketch_theta.shape) == 2, "sketch_theta should be in 2D (n_samples, dim)"
+
+        norm_sketch_theta = np.linalg.norm(sketch_theta, axis=1)
+        # Trick to avoid division by zero (doesn't change anything because everything will be zero)
+        # if norm_sketch_theta < self.minimum_atom_norm:
+        #     if self.verbose > 1:
+        #         print(f'norm_sketch_theta is too small ({norm_sketch_theta}), changed to {self.minimum_atom_norm}.')
+        #     norm_sketch_theta = self.minimum_atom_norm
+
+        norm_sketch_theta = np.maximum(norm_sketch_theta, self.minimum_atom_norm)
+        return norm_sketch_theta
+
+    ## First subproblem: max atom correlation
+    def maximize_atom_correlation(self, new_theta):
+        if self.opt_method == "vanilla":
+            fct_fun_grad = self._maximize_atom_correlation_fun_grad
+            sol = scipy.optimize.minimize(fct_fun_grad,
+                                          x0=new_theta,
+                                          method='L-BFGS-B', jac=True,
+                                          bounds=self.bounds_atom)
+        elif self.opt_method == "pdfo":
+            fct_fun_grad = self._get_residual_correlation_value
+            nb_iter_max = self.dct_opt_method.get("nb_iter_max_step_1", 100)
+            sol = pdfo(fct_fun_grad,
+                       x0=new_theta,  # Start at current solution
+                       bounds=self.bounds_atom,
+                       options={'maxfev': nb_iter_max * new_theta.size}
+                       )
+        else:
+            raise ValueError(f"Unkown optimization method: {self.opt_method}")
+
+        if self.show_curves:
+            ObjectiveValuesStorage().show()
+            ObjectiveValuesStorage().clear()
+
+        return sol.x
+
     def _maximize_atom_correlation_fun_grad(self, theta):
         """Computes the fun. value and grad. of step 1 objective: max_theta <A(P_theta),r> / <A(P_theta),A(P_theta)>"""
         # Firstly, compute A(P_theta)...
@@ -198,32 +247,12 @@ class CLOMP(Solver):
 
         return fun, grad
 
-    def _get_coeffs_lin_reg(self, sample_points_X, fct_values_Y):
-        clf = LinearRegression()
-        # stack with a column of one to fit the setting of polynomial interpolation
-        first_order_pol_X = np.hstack([np.ones((sample_points_X.shape[0], 1)), sample_points_X])
-        clf.fit(first_order_pol_X, fct_values_Y)
-        lin_param = clf.coef_[1:]
-
-        return lin_param
-
-    def get_gradient_estimate_max_corr(self, theta, obj_fun):
-        """
-        Find a linear approximation of the gradient in the max atom correlation problem of clomp
-        """
-        # todo remove this "100"
-        sample_points_X = sample_ball(radius=self.radius_sample, npoints=self.nb_sample_point * 100, ndim=theta.size,
-                                      center=theta)
-        fct_values_Y = np.array([obj_fun(elm) for elm in sample_points_X]).squeeze()
-        # todo could be accelerated by removing the for loop
-
-        return self._get_coeffs_lin_reg(sample_points_X, fct_values_Y)
-
-    # Optimization subroutines
-    def _maximize_atom_correlation_fun_grad_dfo(self, theta):
+    def _maximize_atom_correlation_fun_grad_simplex_grad(self, theta):
         """Computes the fun. value and grad. of step 1 objective: max_theta <A(P_theta),r> / <A(P_theta),A(P_theta)>"""
+        # todo factoriser le code avec la fonction du dessus
+
         # Firstly, compute A(P_theta)...
-        if self.compute_oracle:
+        if self.dct_opt_method["compute_oracle"]:
             sketch_theta, jacobian_theta = self.sketch_of_atom(theta, return_jacobian=True)
         else:
             sketch_theta = self.sketch_of_atom(theta, return_jacobian=False)
@@ -231,15 +260,15 @@ class CLOMP(Solver):
         # ... and its l2 norm
         norm_sketch_theta = self.get_norm_sketch_theta(sketch_theta.reshape(1, -1))
 
-        fun = lambda x: -np.real(np.dot(self.Phi(x).conj(), self.residual)) / self.get_norm_sketch_theta(
+        cost_fun = lambda x: -np.real(np.dot(self.Phi(x).conj(), self.residual)) / self.get_norm_sketch_theta(
             self.Phi(x).reshape(-1, sketch_theta.shape[-1]))
         # Evaluate the cost function
         # fun_value = -np.real(np.vdot(sketch_theta, self.residual)) / norm_sketch_theta  # - to have a min problem
-        fun_value = fun(theta.reshape(1, -1))[0]
+        fun_value = cost_fun(theta.reshape(1, -1))[0]
 
-        grad = self.get_gradient_estimate_max_corr(theta, fun)
+        grad = self.get_gradient_estimate_max_corr(theta, cost_fun)
 
-        if self.compute_oracle:
+        if self.dct_opt_method["compute_oracle"]:
             grad_oracle = (-np.real(jacobian_theta @ np.conj(self.residual)) / norm_sketch_theta
                            + np.real(
                         np.real(jacobian_theta @ np.conj(sketch_theta)) * np.vdot(sketch_theta, self.residual)) / (
@@ -250,37 +279,38 @@ class CLOMP(Solver):
 
         return fun_value, grad
 
-    def get_norm_sketch_theta(self, sketch_theta):
-        assert len(sketch_theta.shape) == 2, "sketch_theta should be in 2D (n_samples, dim)"
+    def _get_residual_correlation_value(self, theta):
+        """Computes the fun. value and grad. of step 1 objective: max_theta <A(P_theta),r> / <A(P_theta),A(P_theta)>"""
+        # Firstly, compute A(P_theta)...
+        sketch_theta = self.sketch_of_atom(theta, return_jacobian=False).reshape(1, -1)
 
-        norm_sketch_theta = np.linalg.norm(sketch_theta, axis=1)
-        # Trick to avoid division by zero (doesn't change anything because everything will be zero)
-        # if norm_sketch_theta < self.minimum_atom_norm:
-        #     if self.verbose > 1:
-        #         print(f'norm_sketch_theta is too small ({norm_sketch_theta}), changed to {self.minimum_atom_norm}.')
-        #     norm_sketch_theta = self.minimum_atom_norm
-
-        norm_sketch_theta = np.maximum(norm_sketch_theta, self.minimum_atom_norm)
-        return norm_sketch_theta
-
-    def maximize_atom_correlation(self, new_theta):
-        if not self.dfo:
-            fct_fun_grad = self._maximize_atom_correlation_fun_grad
-        else:
-            fct_fun_grad = self._maximize_atom_correlation_fun_grad_dfo
-
-        sol = scipy.optimize.minimize(fct_fun_grad,
-                                      x0=new_theta,
-                                      method='L-BFGS-B', jac=True,
-                                      bounds=self.bounds_atom)
+        fun_value = (-np.real(np.dot(sketch_theta.conj(), self.residual)) /
+                     self.get_norm_sketch_theta(sketch_theta.reshape(-1, sketch_theta.shape[-1])))[0]
 
         if self.show_curves:
-            # ObjectiveValuesStorage().show(title="Maximize atom correlation")
-            ObjectiveValuesStorage().clear()
-        return sol.x
+            ObjectiveValuesStorage().add(fun_value, "fun_val max corr")
 
+        return fun_value
+
+    def get_gradient_estimate_max_corr(self, theta, obj_fun):
+        """
+        Find a linear approximation of the gradient in the max atom correlation problem of clomp
+        """
+        # todo remove this "100"
+        sample_points_X = sample_ball(radius=self.radius_sample, npoints=self.dct_opt_method["nb_sample_point"] * 100, ndim=theta.size,
+                                      center=theta)
+        fct_values_Y = np.array([obj_fun(elm) for elm in sample_points_X]).squeeze()
+        # todo could be accelerated by removing the for loop
+
+        return self._get_coeffs_lin_reg(sample_points_X, fct_values_Y)
+
+    ## Second subproblem: best non negative weights
     def find_optimal_weights(self, normalize_atoms=False):
-        """Using the current atoms matrix, find the optimal weights with scipy's nnls"""
+        """
+        2 Optimisation problem of clomp.
+
+        Using the current atoms matrix, find the optimal weights with scipy's nnls
+        """
         # Stack real and imaginary parts if necessary
         if np.any(np.iscomplex(self.Atoms)):  # True if complex sketch output
             _A = np.r_[self.Atoms.real, self.Atoms.imag]
@@ -303,61 +333,39 @@ class CLOMP(Solver):
         (_alpha, _) = scipy.optimize.nnls(_A, _z)
         return _alpha
 
-    def _minimize_cost_from_current_sol_dfo(self, p):
-        """
-        Computes the fun. value and grad. of step 5 objective: min_alpha,Theta || z - alpha*A(P_Theta) ||_2,
-        at the point given by p (stacked Theta and alpha), and updates the current sol to match.
-        """
+    ## Third subproblem: finetune solution
+    def minimize_cost_from_current_sol(self, ftol=None):
+        if ftol is None:
+            ftol = self.step5_ftol
 
-        def eval_obj(x):
-            # can only take on sample at a time
-            (_alpha, _Theta) = self._destack_sol(x)
-            sketch_of_solution = _alpha @ self.Phi(_Theta)
-            # sketch_of_solution = self.Phi(_Theta).T @ _alpha
-            r = self.sketch_reweighted - sketch_of_solution
-            return np.linalg.norm(r, axis=-1) ** 2
+        bounds_Theta_alpha = self.bounds_atom * self.n_atoms + [
+            [self.weight_lower_bound, self.weight_upper_bound]] * self.n_atoms
 
-        # De-stack the parameter vector
-        (_alpha, _Theta) = self._destack_sol(p)
-
-        # Update the weigths
-        self.alpha = _alpha
-
-        if self.compute_oracle:
-            # Update the atom matrix and compute the Jacobians
-            self.update_atoms(_Theta, update_jacobian=True)
+        if self.opt_method == "vanilla":
+            fct_fun_grad = self._minimize_cost_from_current_sol
+            sol = scipy.optimize.minimize(fct_fun_grad,
+                                          x0=self._stack_sol(),  # Start at current solution
+                                          method='L-BFGS-B', jac=True,
+                                          bounds=bounds_Theta_alpha, options={'ftol': ftol})
+        elif self.opt_method == "pdfo":
+            fct_fun_grad = self.get_global_cost
+            init_x0 = self._stack_sol()
+            nb_iter_max = self.dct_opt_method.get("nb_iter_max_step_5", 5)
+            sol = pdfo(fct_fun_grad,
+                       x0=init_x0,  # Start at current solution
+                       bounds=bounds_Theta_alpha,
+                       options={'maxfev': nb_iter_max * init_x0.size,
+                                # 'rhoend': ftol
+                                }
+                       )
         else:
-            self.update_atoms(_Theta, update_jacobian=False)
+            raise ValueError(f"Unkown optimization method: {self.opt_method}")
 
-        # Now that the solution is updated, update the residual
-        self.residual = self.sketch_reweighted - self.sketch_of_solution()
-
-        # Evaluate the cost function
-        fun_val = eval_obj(p)
-
-        if self.compute_oracle:
-            fun_val_oracle = np.linalg.norm(self.residual) ** 2
-            assert np.isclose(fun_val_oracle, fun_val)
-
-        grad = self.get_gradient_estimate_finetuning(p, eval_obj)
-
-        # Evaluate the gradients
-        if self.compute_oracle:
-            grad_oracle = np.empty((self.d_atom + 1) * self.n_atoms)
-            for k in range(self.n_atoms):  # Gradients of the atoms
-                grad_oracle[k * self.d_atom:(k + 1) * self.d_atom] = -2 * self.alpha[k] * np.real(
-                    self.Jacobians[k] @ self.residual.conj())
-            grad_oracle[-self.n_atoms:] = -2 * np.real(self.residual @ self.Atoms.conj())  # Gradient of the weights
-
-        grad[-self.n_atoms:] = -2 * np.real(self.residual @ self.Atoms.conj())  # Gradient of the weights
+        (self.alpha, self.Theta) = self._destack_sol(sol.x)
 
         if self.show_curves:
-            ObjectiveValuesStorage().add(fun_val, "fun_val finetuning")
-            if self.compute_oracle:
-                ObjectiveValuesStorage().add(np.linalg.norm(grad - grad_oracle), "norm diff grad finetuning")
-
-        return fun_val
-        # return fun_val, grad
+            ObjectiveValuesStorage().show()
+            ObjectiveValuesStorage().clear()
 
     def _minimize_cost_from_current_sol(self, p):
         """
@@ -388,34 +396,78 @@ class CLOMP(Solver):
 
         return fun, grad
 
-    def minimize_cost_from_current_sol(self, ftol=None):
-        if ftol is None:
-            ftol = self.step5_ftol
-        # noinspection PyTypeChecker
-        bounds_Theta_alpha = self.bounds_atom * self.n_atoms + [
-            [self.weight_lower_bound, self.weight_upper_bound]] * self.n_atoms
+    def _minimize_cost_from_current_sol_simplex_grad(self, p):
+        """
+        Computes the fun. value and grad. of step 5 objective: min_alpha,Theta || z - alpha*A(P_Theta) ||_2,
+        at the point given by p (stacked Theta and alpha), and updates the current sol to match.
+        """
 
-        if not self.dfo:
-            fct_fun_grad = self._minimize_cost_from_current_sol
-            sol = scipy.optimize.minimize(fct_fun_grad,
-                                          x0=self._stack_sol(),  # Start at current solution
-                                          method='L-BFGS-B', jac=True,
-                                          bounds=bounds_Theta_alpha, options={'ftol': ftol})
+        def eval_obj(x):
+            # can only take on sample at a time
+            (_alpha, _Theta) = self._destack_sol(x)
+            sketch_of_solution = _alpha @ self.Phi(_Theta)
+            # sketch_of_solution = self.Phi(_Theta).T @ _alpha
+            r = self.sketch_reweighted - sketch_of_solution
+            return np.linalg.norm(r, axis=-1) ** 2
+
+        # De-stack the parameter vector
+        (_alpha, _Theta) = self._destack_sol(p)
+
+        # Update the weigths
+        self.alpha = _alpha
+
+        if self.dct_opt_method["compute_oracle"]:
+            # Update the atom matrix and compute the Jacobians
+            self.update_atoms(_Theta, update_jacobian=True)
         else:
-            fct_fun_grad = self._minimize_cost_from_current_sol_dfo
-            sol = pdfo(fct_fun_grad,
-                       x0=self._stack_sol(),  # Start at current solution
-                       # method='L-BFGS-B',
-                       bounds=bounds_Theta_alpha,
-                       options={'maxfev': 1000}
-                       # options={'ftol': ftol}
-                       )
+            self.update_atoms(_Theta, update_jacobian=False)
 
-        (self.alpha, self.Theta) = self._destack_sol(sol.x)
+        # Now that the solution is updated, update the residual
+        self.residual = self.sketch_reweighted - self.sketch_of_solution()
+
+        # Evaluate the cost function
+        fun_val = eval_obj(p)
+
+        if self.dct_opt_method["compute_oracle"]:
+            fun_val_oracle = np.linalg.norm(self.residual) ** 2
+            assert np.isclose(fun_val_oracle, fun_val)
+
+        # Evaluate the gradients
+        if self.dct_opt_method["compute_oracle"]:
+            grad_oracle = np.empty((self.d_atom + 1) * self.n_atoms)
+            for k in range(self.n_atoms):  # Gradients of the atoms
+                grad_oracle[k * self.d_atom:(k + 1) * self.d_atom] = -2 * self.alpha[k] * np.real(
+                    self.Jacobians[k] @ self.residual.conj())
+            grad_oracle[-self.n_atoms:] = -2 * np.real(self.residual @ self.Atoms.conj())  # Gradient of the weights
+
+        grad = self.get_gradient_estimate_finetuning(p, eval_obj)
+        grad[-self.n_atoms:] = -2 * np.real(self.residual @ self.Atoms.conj())  # Gradient of the weights
 
         if self.show_curves:
-            ObjectiveValuesStorage().show()
-            ObjectiveValuesStorage().clear()
+            ObjectiveValuesStorage().add(fun_val, "fun_val finetuning")
+
+        # return fun_val
+        return fun_val, grad
+
+    def get_global_cost(self, p):
+        """
+        Computes the fun. value of step 5 objective: min_alpha,Theta || z - alpha*A(P_Theta) ||_2,
+        at the point given by p (stacked Theta and alpha).
+
+        Can only take one solution p at a time.
+
+        :param p Stacked Theta and alpha
+        """
+        (_alpha, _Theta) = self._destack_sol(p)
+        sketch_of_solution = _alpha @ self.Phi(_Theta)
+        # sketch_of_solution = self.Phi(_Theta).T @ _alpha
+        r = self.sketch_reweighted - sketch_of_solution
+        fun_val = np.linalg.norm(r, axis=-1) ** 2
+
+        if self.show_curves:
+            ObjectiveValuesStorage().add(fun_val, f"fun_val finetuning {p.shape}")
+
+        return fun_val
 
     def get_gradient_estimate_finetuning(self, current_sol, obj_fun):
         """
