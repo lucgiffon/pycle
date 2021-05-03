@@ -39,7 +39,7 @@ import abc
 
 # 1.0: dithering
 def drawDithering(m,bounds = None):
-    '''Draws m samples a <= x < b, with bounds=(a,b) (default: (0,2*pi)).'''
+    """Draws m samples a <= x < b, with bounds=(a,b) (default: (0,2*pi))."""
     if bounds is None:
         (lowb,highb) = (0,2*np.pi)
     else:
@@ -49,7 +49,7 @@ def drawDithering(m,bounds = None):
 # 1.1: frequency sampling functions
 # 1.1.1: gaussian sampling
 def drawFrequencies_Gaussian(d,m,Sigma = None):
-    '''draws frequencies according to some sampling pattern'''
+    """draws frequencies according to some sampling pattern"""
     if Sigma is None:
         Sigma = np.identity(d)
     Om = np.random.multivariate_normal(np.zeros(d), np.linalg.inv(Sigma), m).T # inverse of sigma
@@ -57,8 +57,8 @@ def drawFrequencies_Gaussian(d,m,Sigma = None):
 
 # 1.1.2: folded gaussian sampling
 def drawFrequencies_FoldedGaussian(d,m,Sigma = None):
-    '''draws frequencies according to some sampling pattern
-    omega = R*Sigma^{-1/2}*phi, for R from folded Gaussian with variance 1, phi uniform''' 
+    """draws frequencies according to some sampling pattern
+    omega = R*Sigma^{-1/2}*phi, for R from folded Gaussian with variance 1, phi uniform"""
     if Sigma is None:
         Sigma = np.identity(d)
     R = np.abs(np.random.randn(m)) # folded standard normal distribution radii
@@ -72,7 +72,7 @@ def drawFrequencies_FoldedGaussian(d,m,Sigma = None):
 
 # 1.1.3: adapted radius sampling
 def sampleFromPDF(pdf,x,nsamples=1):
-    '''x is a vector (the support of the pdf), pdf is the values of pdf eval at x'''
+    """x is a vector (the support of the pdf), pdf is the values of pdf eval at x"""
     # Note that this can be more general than just the adapted radius distribution
     
     pdf = pdf/np.sum(pdf) # ensure pdf is normalized
@@ -89,15 +89,15 @@ def sampleFromPDF(pdf,x,nsamples=1):
     return sampleX
    
 def pdfAdaptedRadius(r,KMeans=False):
-    '''up to a constant'''
+    """up to a constant"""
     if KMeans:
         return r*np.exp(-(r**2)/2)  # Dont take the gradient according to sigma into account
     else:
         return np.sqrt(r**2 + (r**4)/4)*np.exp(-(r**2)/2) 
 
 def drawFrequencies_AdaptedRadius(d,m,Sigma = None,KMeans=False):
-    '''draws frequencies according to some sampling pattern
-    omega = R*Sigma^{-1/2}*phi, for R from adapted with variance 1, phi uniform''' 
+    """draws frequencies according to some sampling pattern
+    omega = R*Sigma^{-1/2}*phi, for R from adapted with variance 1, phi uniform"""
     if Sigma is None:
         Sigma = np.identity(d)
         
@@ -152,8 +152,10 @@ def pdf_diffOfGaussians(r,GMM_upper=None,GMM_lower=None):
     return res
 
 def drawFrequencies_diffOfGaussians(d,m,GMM_upper,GMM_lower=None,verbose=0):
-    '''draws frequencies according to some sampling pattern
-    omega = R*Sigma^{-1/2}*phi, TODO, phi uniform''' 
+    """
+    draws frequencies according to some sampling pattern
+    omega = R*Sigma^{-1/2}*phi, TODO, phi uniform
+    """
     
 
     # reasonable sampling
@@ -823,8 +825,8 @@ def fourierSketchOfGaussian(mu,Sigma,Omega,xi=None,scst=None):
 
 
 def fourierSketchOfGMM(GMM,featureMap):
-    '''Returns the complex exponential sketch of a Gaussian Mixture Model
-    
+    """Returns the complex exponential sketch of a Gaussian Mixture Model
+
     Parameters
     ----------
     GMM: (weigths,means,covariances) tuple, the Gaussian Mixture Model, with
@@ -834,11 +836,11 @@ def fourierSketchOfGMM(GMM,featureMap):
     featureMap: the sketch the sketch featureMap (Phi), provided as either:
         - a SimpleFeatureMap object (i.e., complex exponential or universal quantization periodic map)
         - (Omega,xi): tuple with the (d,m) Fourier projection matrix and the (m,) dither (see above)
-        
+
     Returns
     -------
     z: (m,)-numpy array containing the sketch of the provided GMM
-    '''
+    """
     # Parse GMM input
     (w,mus,Sigmas) = GMM
     K = w.size
@@ -863,9 +865,9 @@ def fourierSketchOfGMM(GMM,featureMap):
     return z
 
 def fourierSketchOfBox(box,featureMap,nb_cat_per_dim=None, dimensions_to_consider=None):
-    '''Returns the complex exponential sketch of the indicator function on a parallellipiped (box).
+    """Returns the complex exponential sketch of the indicator function on a parallellipiped (box).
     For dimensions that flagged as integer, considers the indicator on a set of integers instead.
-    
+
     Parameters
     ----------
     box: (d,2)-numpy array, the boundaries of the box (x in R^d is in the box iff box[i,0] <= x_i <= box[i,1])
@@ -882,11 +884,11 @@ def fourierSketchOfBox(box,featureMap,nb_cat_per_dim=None, dimensions_to_conside
                     The box is restricted to the prescribed dimensions.
                     This is helpful to solve problems on a subsets of all dimensions.
 
-        
+
     Returns
     -------
     z: (m,)-numpy array containing the sketch of the indicator function on the provided box
-    '''
+    """
     ## Parse input
     # Parse box input
     (d,_) = box.shape

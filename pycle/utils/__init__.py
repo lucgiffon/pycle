@@ -1,53 +1,22 @@
-"""MIT License
-
-Copyright (c) 2019 schellekensv
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE."""
-from collections import defaultdict
-
-from pycle.metrics import loglikelihood_GMM
-
-"""Contains a set of misc. useful tools for the compressive learning toolbox"""
-
 import numpy as np
 import scipy.stats
-import scipy.spatial.distance
-import matplotlib.pyplot as plt
 
+from pycle.utils.metrics import loglikelihood_GMM
 
-############################
-#         METHODS          #
-############################
 
 def EM_GMM(X, K, max_iter=20, nRepetitions=1):
     """Usual Expectation-Maximization (EM) algorithm for fitting mixture of Gaussian models (GMM).
-    
+
     Parameters
     ----------
     X: (n,d)-numpy array, the dataset of n examples in dimension d
     K: int, the number of Gaussian modes
-    
+
     Additional Parameters
     ---------------------
     max_iter: int (default 20), the number of EM iterations to perform
     nRepetitions: int (default 1), number of independent EM runs to perform (returns the best)
-        
+
     Returns: a tuple (w,mus,Sigmas) of three numpy arrays
         - w:      (K,)   -numpy array containing the weigths ('mixing coefficients') of the Gaussians
         - mus:    (K,d)  -numpy array containing the means of the Gaussians
@@ -55,17 +24,17 @@ def EM_GMM(X, K, max_iter=20, nRepetitions=1):
     """
     # TODO to improve:
     # - detect early convergence
-    
+
     # Parse input
     (n,d) = X.shape
     lowb = np.amin(X,axis=0)
     uppb = np.amax(X,axis=0)
-    
-    
+
+
     bestGMM = None
     bestScore = -np.inf
-    
-    
+
+
     for rep in range(nRepetitions):
         # Initializations
         w = np.ones(K)
@@ -84,7 +53,7 @@ def EM_GMM(X, K, max_iter=20, nRepetitions=1):
             r = (r.T/np.sum(r,axis=1)).T # Normalize (the posterior probabilities sum to 1). Dirty :-(
 
             # M step: 1) update w
-            w = np.sum(r,axis=0)/n 
+            w = np.sum(r,axis=0)/n
 
             # M step: 2) update centers
             for k in range(K):
@@ -130,33 +99,3 @@ class SingletonMeta(type):
             instance = super().__call__(*args, **kwargs)
             cls._instances[cls] = instance
         return cls._instances[cls]
-
-
-class ObjectiveValuesStorage(metaclass=SingletonMeta):
-    def __init__(self):
-        self.dct_objective_values = defaultdict(list)
-
-    def add(self, elm, list_name):
-        self.dct_objective_values[list_name].append(elm)
-
-    def clear(self):
-        self.dct_objective_values = defaultdict(list)
-
-    def get_objective_values(self, list_name):
-        return self.dct_objective_values[list_name]
-
-    def show(self):
-        fig, tpl_axs = plt.subplots(nrows=1, ncols=len(self.dct_objective_values))
-
-        for idx_ax, (name_trace, lst_obj_values) in enumerate(self.dct_objective_values.items()):
-            iter_ids = np.arange(len(lst_obj_values))
-            objective_values = np.array(lst_obj_values)
-            try:
-                tpl_axs[idx_ax].plot(iter_ids, objective_values)
-                tpl_axs[idx_ax].set_title(name_trace)
-            except TypeError:
-                assert len(self.dct_objective_values) == 1
-                tpl_axs.plot(iter_ids, objective_values)
-                tpl_axs.set_title(name_trace)
-
-        plt.show()

@@ -30,7 +30,7 @@ from pycle.sketching import SimpleFeatureMap, fourierSketchOfBox, fourierSketchO
 
 ## Utility functions to play with the atom representations
 # ========================================================
-from pycle.datasets import sample_ball
+from pycle.utils.datasets import sample_ball
 
 
 def _stackAtom(task, *atom_elements):

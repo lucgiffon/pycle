@@ -1,1 +1,1 @@
-__all__ = ["compressive_learning","sketching","utils"]
+__all__ = ["compressive_learning", "sketching", "utils"]
