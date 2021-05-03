@@ -4,7 +4,8 @@ from pdfo import pdfo
 from sklearn.linear_model import LinearRegression
 
 from pycle.compressive_learning.generic.Solver import Solver
-from pycle.utils import ObjectiveValuesStorage, sample_ball
+from pycle.utils import ObjectiveValuesStorage
+from pycle.datasets import sample_ball
 
 
 # 0.2 CL-OMP template (stores a *mixture model* and implements a generic OMP for it)
