@@ -30,10 +30,12 @@ class CLOMP(Solver):
         :param sketch_weight: float, a re-scaling factor for the data sketch (default 1)
         :param opt_method: str, one of ["vanilla", "pdfo", "simplex gradient"]
         """
-        # todo optim: preparer ces elements avec des np.empty plutot que de les reremplir a chaque fois avec des concatenations
+        # refacc: preparer ces trois elements (theta et atoms)
+        #  avec des np.empty plutot que de les reremplir a chaque fois avec des concatenations
         self.Theta = None
         self.Atoms = None
         self.alpha = None
+
         self.Jacobians = None
         self.current_sol = None
         self.current_sol_cost = None
@@ -42,6 +44,7 @@ class CLOMP(Solver):
         super(CLOMP, self).__init__(Phi, sketch, sketch_weight, verbose)
 
         # Set other values
+        # refacc: le n_atoms
         self.K = K
         self.n_atoms = 0
         self.d_atom = d_atom
@@ -153,6 +156,7 @@ class CLOMP(Solver):
 
     def remove_atom(self, index_to_remove):
         self.n_atoms -= 1
+        # refacc
         self.Theta = np.delete(self.Theta, index_to_remove, axis=0)
         self.Atoms = np.delete(self.Atoms, index_to_remove, axis=1)
 
@@ -163,6 +167,7 @@ class CLOMP(Solver):
     # Stack/de-stack the found atoms
     def _stack_sol(self, alpha=None, Theta=None):
         """Stacks *all* the atoms and their weights into one vector"""
+        # refacc
         if (Theta is not None) and (alpha is not None):
             _Theta, _alpha = Theta, alpha
         else:

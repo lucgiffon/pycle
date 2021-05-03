@@ -22,7 +22,7 @@ def EM_GMM(X, K, max_iter=20, nRepetitions=1):
         - mus:    (K,d)  -numpy array containing the means of the Gaussians
         - Sigmas: (K,d,d)-numpy array containing the covariance matrices of the Gaussians
     """
-    # TODO to improve:
+    # schellekensvTODO to improve:
     # - detect early convergence
 
     # Parse input

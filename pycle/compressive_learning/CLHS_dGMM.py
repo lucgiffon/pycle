@@ -33,6 +33,7 @@ class CLHS_dGMM(CLOMP_dGMM):
         SD_max = np.sqrt(sig[i_max_var])  # max standard deviation
 
         # Split!
+        # refacc do not add and replace. Rather set at position twice.
         self.add_atom(np.append(mu + SD_max * direction_max_var, sig))  # "Right" split
         self.replace_atom(k, np.append(mu - SD_max * direction_max_var, sig))  # "Left" split
 

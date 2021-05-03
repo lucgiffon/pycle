@@ -752,7 +752,7 @@ def CL_GaussianSplitting(task, sketch, featureMap, K, bounds, dimensions_to_cons
     return None
 
 
-# TODO COMPRESSIVE_LEARNING in rough importance order
+# schellekensvTODO COMPRESSIVE_LEARNING in rough importance order
 # - investigate if auto-differentiation might not be smarter
 
 

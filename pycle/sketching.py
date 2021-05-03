@@ -154,7 +154,7 @@ def pdf_diffOfGaussians(r,GMM_upper=None,GMM_lower=None):
 def drawFrequencies_diffOfGaussians(d,m,GMM_upper,GMM_lower=None,verbose=0):
     """
     draws frequencies according to some sampling pattern
-    omega = R*Sigma^{-1/2}*phi, TODO, phi uniform
+    omega = R*Sigma^{-1/2}*phi, schellekensvTODO, phi uniform
     """
     
 
@@ -288,7 +288,7 @@ def _fun_grad_fit_sigmas(p,R,z):
     w = p[:K]
     sigs2 = p[K:]
     n = R.size
-    # Naive implementation, TODO better?
+    # Naive implementation, schellekensvTODO better?
     fun = 0
     grad = np.zeros(2*K)
     for i in range(n):
@@ -529,7 +529,7 @@ class FeatureMap(ABC):
         raise NotImplementedError("The way to compute the gradient of the feature map is not specified.")
 
 
-# TODO find a better name
+# schellekensvTODO find a better name
 class SimpleFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(Omega^T*x + xi)."""
     def __init__(self, f, Omega, xi = None, c_norm = 1.):
@@ -558,7 +558,7 @@ class SimpleFeatureMap(FeatureMap):
         else:
             raise ValueError("The provided feature map f does not match any of the supported types.")
             
-        # 2) extract Omega the projection matrix TODO allow callable Omega for fast transform
+        # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         if (isinstance(Omega,np.ndarray) and Omega.ndim == 2):
             self.Omega = Omega
             (self.d,self._m) = Omega.shape
@@ -684,7 +684,7 @@ def sensisitivty_sketch(featureMap,n = 1,DPdef = 'UDP',sensitivity_type = 1):
     Cfr: Differentially Private Compressive K-means, https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8682829.
     """
     
-    # TODO include real cases (cosine, real universal quantization)
+    # schellekensvTODO include real cases (cosine, real universal quantization)
     
     # The sensitivity is of the type: c_feat*c_
     if isinstance(featureMap,FeatureMap):
@@ -708,7 +708,7 @@ def sensisitivty_sketch(featureMap,n = 1,DPdef = 'UDP',sensitivity_type = 1):
                 return np.sqrt(m)*(c_normalization/n)
             elif DPdef.lower() in ['replace','bdp']:
                 return np.sqrt(m)*np.sqrt(2)*(c_normalization/n)
-    elif featureMapName.lower() == 'universalquantization_complex': # Assuming normalized in [-1,+1], TODO check real/complex case?
+    elif featureMapName.lower() == 'universalquantization_complex': # Assuming normalized in [-1,+1], schellekensvTODO check real/complex case?
         if sensitivity_type == 1:
             if DPdef.lower() in ['remove','add','remove/add','standard','udp']:
                 return m*2*(c_normalization/n)
@@ -772,7 +772,7 @@ def computeSketch_DP(dataset, featureMap, epsilon, delta = 0,DPdef = 'UDP',useIm
     if epsilon == np.inf: # Non-private
         return z_clean
     
-    useBDP = DPdef.lower() in ['replace','bdp'] # otherwise assume UDP, TODO DEFENSIVE
+    useBDP = DPdef.lower() in ['replace','bdp'] # otherwise assume UDP, schellekensvTODO DEFENSIVE
     
     # We will need the sketch size
     m = z_clean.size
@@ -782,7 +782,7 @@ def computeSketch_DP(dataset, featureMap, epsilon, delta = 0,DPdef = 'UDP',useIm
         budget_split_num = 1.
     elif budget_split_num is None:
         budget_split_num = (2*m)/(2*m + 1)
-    # TODO defensive programming to block budget split > 1?
+    # schellekensvTODO defensive programming to block budget split > 1?
     epsilon_num = budget_split_num*epsilon
     
     # Compute numerator noise
@@ -796,7 +796,7 @@ def computeSketch_DP(dataset, featureMap, epsilon, delta = 0,DPdef = 'UDP',useIm
         else: # use usual bounds
             if epsilon >= 1: raise Exception('WARNING: with epsilon >= 1 the sigma bound doesn\'t hold! Privacy is NOT ensured!')
             sigma = np.sqrt(2*np.log(1.25/delta))*S/epsilon_num
-        noise_num = np.random.normal(scale = sigma, size=m) + 1j*np.random.normal(scale = sigma, size=m) # TODO real
+        noise_num = np.random.normal(scale = sigma, size=m) + 1j*np.random.normal(scale = sigma, size=m) # schellekensvTODO real
     else: 
         # Laplacian mechanism
         S = sensisitivty_sketch(featureMap,DPdef = DPdef,sensitivity_type = 1) # L1

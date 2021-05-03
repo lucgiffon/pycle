@@ -73,7 +73,7 @@ def loglikelihood_GMM(P,X,robust = True):
 
 def symmKLdivergence_GMM(P1,P2,Neval = 500000):
     """Computes the symmetric KL divergence between two GMM densities."""
-    # TODO : a version that adapts Neval s.t. convergence?
+    # schellekensvTODO : a version that adapts Neval s.t. convergence?
     # Unpack
     (w1,mu1,Sig1) = P1
     (w2,mu2,Sig2) = P2
@@ -82,7 +82,7 @@ def symmKLdivergence_GMM(P1,P2,Neval = 500000):
 
     Neval # Number of samples to evaluate the KL divergence
 
-    # dumb implem for now, TODO FAST IMPLEM!
+    # dumb implem for now, schellekensvTODO FAST IMPLEM!
     KLestimate = 0.
 
     assignations1 = np.random.choice(K1,Neval,p=w1)

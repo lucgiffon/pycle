@@ -175,7 +175,7 @@ def generateCirclesDataset(K,n,normalize):
     # (note: we enforce that weigths is the *actual* proportions in this dataset)
 
     ## Select number of samples of each mode
-    balanced = True # FOR NOW,TODO CHANGE LATER
+    balanced = True # FOR NOW, schellekensvTODO CHANGE LATER
     if balanced:
         classSizes[:-1] = int(n/K)
         classSizes[-1] = n - (K-1)*int(n/K) # ensure we have exactly n samples in dataset even if n % K != 0
@@ -190,7 +190,7 @@ def generateCirclesDataset(K,n,normalize):
     ## Initialization
     X = None
 
-    ## Some internal params (TODO allow to give them as optional args? kind of arbitrary!)
+    ## Some internal params (schellekensvTODO allow to give them as optional args? kind of arbitrary!)
     #scale_separation = (5/np.sqrt(d)) # Separation of the Gaussians
     #scale_variance_b = np.array([0.05,0.95])/np.sqrt(d) # Bounds on the scale variance (actually, SD)
 
@@ -274,7 +274,7 @@ def generateSpiralDataset(n,normalize=None,return_density=False):
 
     # Compute the density function too
     def pdf(x):
-        # Compute polar coordinates TODO SUPPORT FOR N SPIRALS > 1
+        # Compute polar coordinates schellekensvTODO SUPPORT FOR N SPIRALS > 1
         x1 = x[0] * maxNorm
         x2 = x[1] * maxNorm
         r = np.sqrt(x1**2+x2**2)
