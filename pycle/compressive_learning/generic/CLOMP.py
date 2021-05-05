@@ -48,7 +48,7 @@ class CLOMP(Solver):
         self._alpha = None
         self.boolarr_atoms_of_sol = None
 
-        self.Jacobians = None
+        self._Jacobians = None
 
         # Initialize empty solution
         self.initialize_empty_solution()
@@ -116,9 +116,18 @@ class CLOMP(Solver):
         self.boolarr_atoms_of_sol = np.zeros(self.max_n_atoms, dtype=bool)
 
         # refacc aussi les jacobians, ca doit etre super lent ca
-        self.Jacobians = np.empty((0, self.d_atom, self.Phi.m))  # (n_atoms,d_atom,m)-array, the jacobians of the residual wrt each atom
+        self._Jacobians = np.empty((self.K, self.d_atom, self.Phi.m), dtype=complex)  # (n_atoms,d_atom,m)-array, the jacobians of the residual wrt each atom
         # self.Jacobians = np.empty((0, self.d_atom, self.Phi.m))  # (n_atoms,d_atom,m)-array, the jacobians of the residual wrt each atom
         self.current_sol = (self.alpha, self.Theta)  # Overwrite
+
+    @property
+    def Jacobians(self):
+        # refacc search usages
+        return self._Jacobians[:self.n_atoms, :, :]
+
+    @Jacobians.setter
+    def Jacobians(self, value):
+        self._Jacobians[:self.n_atoms, :, :] = value
 
     @property
     def Atoms(self):
