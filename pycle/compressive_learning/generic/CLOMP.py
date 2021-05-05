@@ -30,24 +30,25 @@ class CLOMP(Solver):
         :param sketch_weight: float, a re-scaling factor for the data sketch (default 1)
         :param opt_method: str, one of ["vanilla", "pdfo", "simplex gradient"]
         """
-        # refacc: preparer ces trois elements (theta et atoms)
-        #  avec des np.empty plutot que de les reremplir a chaque fois avec des concatenations
-        self.Theta = None
-        self.Atoms = None
-        self.alpha = None
-
-        self.Jacobians = None
-        self.current_sol = None
-        self.current_sol_cost = None
-        self.residual = None
         # Call parent class
         super(CLOMP, self).__init__(Phi, sketch, sketch_weight, verbose)
 
         # Set other values
-        # refacc: le n_atoms
+        # refacc: le n_atoms DONE
         self.K = K
-        self.n_atoms = 0
         self.d_atom = d_atom
+        self.max_n_atoms = self.K + 1
+
+        # refacc: DONE preparer ces trois elements (theta et atoms) DONE
+        #  avec des np.empty plutot que de les reremplir a chaque fois avec des concatenations DONE
+        # empty declarations pep compatible
+        # self.n_atoms = 0
+        self._Theta = None
+        self._Atoms = None
+        self._alpha = None
+        self.boolarr_atoms_of_sol = None
+
+        self.Jacobians = None
 
         # Initialize empty solution
         self.initialize_empty_solution()
@@ -105,14 +106,50 @@ class CLOMP(Solver):
     # ===============
     # They should always work, using the instances of the methods above
     def initialize_empty_solution(self):
-        self.n_atoms = 0
-        self.alpha = np.empty(0)  # (n_atoms,)-array, weigths of the mixture elements
-        self.Theta = np.empty((0, self.d_atom))  # (n_atoms,d_atom)-array, all the found parameters in matrix form
-        self.Atoms = np.empty(
-            (self.Phi.m, 0))  # (m,n_atoms)-array, the sketch of the found parameters (m is sketch size)
-        self.Jacobians = np.empty(
-            (0, self.d_atom, self.Phi.m))  # (n_atoms,d_atom,m)-array, the jacobians of the residual wrt each atom
+        # self.alpha = np.empty(0)  # (n_atoms,)-array, weigths of the mixture elements
+        # self.Theta = np.empty((0, self.d_atom))  # (n_atoms,d_atom)-array, all the found parameters in matrix form
+        # self.Atoms = np.empty((self.Phi.m, 0))  # (m,n_atoms)-array, the sketch of the found parameters (m is sketch size)
+        self._alpha = np.empty(self.K)  # (n_atoms,)-array, weigths of the mixture elements
+        self._Theta = np.empty((self.max_n_atoms, self.d_atom))  # (n_atoms+1,d_atom)-array, all the found parameters in matrix form
+        self._Atoms = np.empty((self.Phi.m, self.max_n_atoms), dtype=complex)  # (m,n_atoms+1)-array, the sketch of the found parameters (m is sketch size)
+        # the "+1" are for the extra atom before the replacement step of clomp
+        self.boolarr_atoms_of_sol = np.zeros(self.max_n_atoms, dtype=bool)
+
+        # refacc aussi les jacobians, ca doit etre super lent ca
+        self.Jacobians = np.empty((0, self.d_atom, self.Phi.m))  # (n_atoms,d_atom,m)-array, the jacobians of the residual wrt each atom
+        # self.Jacobians = np.empty((0, self.d_atom, self.Phi.m))  # (n_atoms,d_atom,m)-array, the jacobians of the residual wrt each atom
         self.current_sol = (self.alpha, self.Theta)  # Overwrite
+
+    @property
+    def Atoms(self):
+        # refacc search usages
+        return self._Atoms[:, self.boolarr_atoms_of_sol]
+
+    @Atoms.setter
+    def Atoms(self, value):
+        self._Atoms[:, self.boolarr_atoms_of_sol] = value
+
+    @property
+    def Theta(self):
+        # refacc search usages
+        return self._Theta[self.boolarr_atoms_of_sol, :]
+
+    @Theta.setter
+    def Theta(self, value):
+        self._Theta[self.boolarr_atoms_of_sol, :] = value
+
+    @property
+    def alpha(self):
+        return self._alpha[:self.n_atoms]
+
+    @alpha.setter
+    def alpha(self, value):
+        self._alpha[:self.n_atoms] = value
+
+    @property
+    def n_atoms(self):
+        return np.sum(self.boolarr_atoms_of_sol, dtype=int)
+
 
     def compute_atoms_matrix(self, Theta=None, return_jacobian=False):
         """
@@ -150,31 +187,41 @@ class CLOMP(Solver):
 
     # Add/remove atoms
     def add_atom(self, new_theta):
-        self.n_atoms += 1
-        self.Theta = np.append(self.Theta, [new_theta], axis=0)  # np.r_[self.Theta,new_theta]
-        self.Atoms = np.c_[self.Atoms, self.sketch_of_atom(new_theta)]
+        # refacc DONE
+        assert self.boolarr_atoms_of_sol[self.current_atom_index_to_add] == 0
+        self._Theta[self.current_atom_index_to_add, :] = new_theta
+        self._Atoms[:, self.current_atom_index_to_add] = self.sketch_of_atom(new_theta)
+        # the boolarr stores the position of all atoms that have been set already
+        self.boolarr_atoms_of_sol[self.current_atom_index_to_add] = 1
+
+        # remove self.n_atoms += 1
+        # todo make a filter for #remove and remove them
+        # remove self.Theta = np.append(self.Theta, [new_theta], axis=0)  # np.r_[self.Theta,new_theta]
+        # remove self.Atoms = np.c_[self.Atoms, self.sketch_of_atom(new_theta)]
 
     def remove_atom(self, index_to_remove):
-        self.n_atoms -= 1
-        # refacc
-        self.Theta = np.delete(self.Theta, index_to_remove, axis=0)
-        self.Atoms = np.delete(self.Atoms, index_to_remove, axis=1)
+        self.boolarr_atoms_of_sol[index_to_remove] = 0
+        # remove self.n_atoms -= 1
+        # remove # refacc use a boolean mask DONE
+        # remove self.Theta = np.delete(self.Theta, index_to_remove, axis=0)
+        # remove self.Atoms = np.delete(self.Atoms, index_to_remove, axis=1)
 
     def replace_atom(self, index_to_replace, new_theta):
-        self.Theta[index_to_replace] = new_theta
-        self.Atoms[:, index_to_replace] = self.sketch_of_atom(new_theta)
+        self._Theta[index_to_replace] = new_theta
+        self._Atoms[:, index_to_replace] = self.sketch_of_atom(new_theta)
 
     # Stack/de-stack the found atoms
     def _stack_sol(self, alpha=None, Theta=None):
         """Stacks *all* the atoms and their weights into one vector"""
-        # refacc
         if (Theta is not None) and (alpha is not None):
             _Theta, _alpha = Theta, alpha
         else:
             _Theta, _alpha = self.Theta, self.alpha
+
         return np.r_[_Theta.reshape(-1), _alpha]
 
     def _destack_sol(self, p):
+        # refacc DONE
         assert p.shape[-1] == self.n_atoms * (self.d_atom + 1)
         if len(p.shape) == 1 or p.shape[0] == 1:
             p = p.squeeze()
@@ -238,6 +285,7 @@ class CLOMP(Solver):
     def _maximize_atom_correlation_fun_grad(self, theta):
         """Computes the fun. value and grad. of step 1 objective: max_theta <A(P_theta),r> / <A(P_theta),A(P_theta)>"""
         # Firstly, compute A(P_theta)...
+        # sketch_of_atom is abstract. Implemented by the subclass
         sketch_theta, jacobian_theta = self.sketch_of_atom(theta, return_jacobian=True)
 
         # ... and its l2 norm
@@ -319,6 +367,7 @@ class CLOMP(Solver):
         """
         # Stack real and imaginary parts if necessary
         if np.any(np.iscomplex(self.Atoms)):  # True if complex sketch output
+            # refacc _A and _Z could be prepared with empty array and indexed with bool mask
             _A = np.r_[self.Atoms.real, self.Atoms.imag]
             _z = np.r_[self.sketch_reweighted.real, self.sketch_reweighted.imag]
         else:
@@ -347,15 +396,15 @@ class CLOMP(Solver):
         bounds_Theta_alpha = self.bounds_atom * self.n_atoms + [
             [self.weight_lower_bound, self.weight_upper_bound]] * self.n_atoms
 
+        init_x0 = self._stack_sol()
         if self.opt_method == "vanilla":
             fct_fun_grad = self._minimize_cost_from_current_sol
             sol = scipy.optimize.minimize(fct_fun_grad,
-                                          x0=self._stack_sol(),  # Start at current solution
+                                          x0=init_x0,  # Start at current solution
                                           method='L-BFGS-B', jac=True,
                                           bounds=bounds_Theta_alpha, options={'ftol': ftol})
         elif self.opt_method == "pdfo":
             fct_fun_grad = self.get_global_cost
-            init_x0 = self._stack_sol()
             nb_iter_max = self.dct_opt_method.get("nb_iter_max_step_5", 5)
             sol = pdfo(fct_fun_grad,
                        x0=init_x0,  # Start at current solution
@@ -526,6 +575,7 @@ class CLOMP(Solver):
             self.initialize_empty_solution()
             self.residual = self.sketch_reweighted
 
+            self.current_atom_index_to_add = 0
             # Main loop
             for i_iteration in range(n_iterations):
                 ## Step 1: find new atom theta most correlated with residual
@@ -541,8 +591,11 @@ class CLOMP(Solver):
                     index_to_remove = np.argmin(beta)
                     self.remove_atom(index_to_remove)
                     # Shortcut: if the last added atom is removed, we can skip to next iter
+                    self.current_atom_index_to_add = index_to_remove
                     if index_to_remove == self.K:
                         continue
+                else:
+                    self.current_atom_index_to_add += 1
 
                 ## Step 4: project to find weights
                 self.alpha = self.find_optimal_weights()
@@ -554,11 +607,14 @@ class CLOMP(Solver):
                 self.update_atoms()  # The atoms have changed: we must re-compute their sketches matrix
                 self.residual = self.sketch_reweighted - self.sketch_of_solution()
 
+                # if it is the replacement step, the next atom to change might be anyone,
+                # else it the the increment of the current atom
+
         # Final fine-tuning with increased optimization accuracy
         self.minimize_cost_from_current_sol(ftol=0.02 * self.step5_ftol)
 
         # Normalize weights to unit sum
-        self.alpha /= np.sum(self.alpha)
+        self._alpha /= np.sum(self._alpha)
 
         # Package into the solution attribute
         self.current_sol = (self.alpha, self.Theta)

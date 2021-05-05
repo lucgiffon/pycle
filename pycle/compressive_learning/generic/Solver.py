@@ -25,6 +25,10 @@ class Solver:
         self.update_sketch_and_weight(sketch, sketch_weight)
 
         # Encode current theta and cost value
+
+        self.current_sol = None
+        self.current_sol_cost = None
+        self.residual = None
         self.update_current_sol_and_cost(None)
 
         # Verbose
