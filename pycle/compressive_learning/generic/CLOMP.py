@@ -47,6 +47,7 @@ class CLOMP(Solver):
         self._Atoms = None
         self._alpha = None
         self.boolarr_atoms_of_sol = None
+        self.n_atoms = 0
 
         self._Jacobians = None
 
@@ -114,6 +115,7 @@ class CLOMP(Solver):
         self._Atoms = np.empty((self.Phi.m, self.max_n_atoms), dtype=complex)  # (m,n_atoms+1)-array, the sketch of the found parameters (m is sketch size)
         # the "+1" are for the extra atom before the replacement step of clomp
         self.boolarr_atoms_of_sol = np.zeros(self.max_n_atoms, dtype=bool)
+        self.n_atoms = 0
 
         # refacc aussi les jacobians, ca doit etre super lent ca
         self._Jacobians = np.empty((self.K, self.d_atom, self.Phi.m), dtype=complex)  # (n_atoms,d_atom,m)-array, the jacobians of the residual wrt each atom
@@ -155,9 +157,9 @@ class CLOMP(Solver):
     def alpha(self, value):
         self._alpha[:self.n_atoms] = value
 
-    @property
-    def n_atoms(self):
-        return np.sum(self.boolarr_atoms_of_sol, dtype=int)
+    # @property
+    # def n_atoms(self):
+    #     return np.sum(self.boolarr_atoms_of_sol, dtype=int)
 
 
     def compute_atoms_matrix(self, Theta=None, return_jacobian=False):
@@ -202,15 +204,16 @@ class CLOMP(Solver):
         self._Atoms[:, self.current_atom_index_to_add] = self.sketch_of_atom(new_theta)
         # the boolarr stores the position of all atoms that have been set already
         self.boolarr_atoms_of_sol[self.current_atom_index_to_add] = 1
+        self.n_atoms += 1
 
-        # remove self.n_atoms += 1
         # todo make a filter for #remove and remove them
         # remove self.Theta = np.append(self.Theta, [new_theta], axis=0)  # np.r_[self.Theta,new_theta]
         # remove self.Atoms = np.c_[self.Atoms, self.sketch_of_atom(new_theta)]
 
     def remove_atom(self, index_to_remove):
+        assert self.boolarr_atoms_of_sol[self.current_atom_index_to_add] == 1
         self.boolarr_atoms_of_sol[index_to_remove] = 0
-        # remove self.n_atoms -= 1
+        self.n_atoms -= 1
         # remove # refacc use a boolean mask DONE
         # remove self.Theta = np.delete(self.Theta, index_to_remove, axis=0)
         # remove self.Atoms = np.delete(self.Atoms, index_to_remove, axis=1)
