@@ -6,7 +6,6 @@ import sys
 
 import numpy as np
 
-from pycle.sketching import FeatureMap, SimpleFeatureMap
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 from pycle.sketching.feature_maps.SimpleFeatureMap import SimpleFeatureMap
 

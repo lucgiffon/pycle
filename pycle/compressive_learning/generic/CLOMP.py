@@ -46,10 +46,14 @@ class CLOMP(Solver):
         self._Theta = None
         self._Atoms = None
         self._alpha = None
+        self.__Theta = None
+        self.__Atoms = None
+        self.__alpha = None
         self.boolarr_atoms_of_sol = None
         self.n_atoms = 0
 
         self._Jacobians = None
+        self.__Jacobians = None
 
         # Initialize empty solution
         self.initialize_empty_solution()
@@ -125,42 +129,49 @@ class CLOMP(Solver):
     @property
     def Jacobians(self):
         # refacc search usages
-        return self._Jacobians[:self.n_atoms, :, :]
+        # return self._Jacobians[:self.n_atoms, :, :]
+        return self.__Jacobians
 
     @Jacobians.setter
     def Jacobians(self, value):
         self._Jacobians[:self.n_atoms, :, :] = value
+        self.__Jacobians = value
 
     @property
     def Atoms(self):
         # refacc search usages
-        return self._Atoms[:, self.boolarr_atoms_of_sol]
+        # return self._Atoms[:, self.boolarr_atoms_of_sol]
+        return self.__Atoms
 
     @Atoms.setter
     def Atoms(self, value):
         self._Atoms[:, self.boolarr_atoms_of_sol] = value
+        self.__Atoms = value
 
     @property
     def Theta(self):
         # refacc search usages
-        return self._Theta[self.boolarr_atoms_of_sol, :]
+        # return self._Theta[self.boolarr_atoms_of_sol, :]
+        return self.__Theta
 
     @Theta.setter
     def Theta(self, value):
         self._Theta[self.boolarr_atoms_of_sol, :] = value
+        self.__Theta = value
 
     @property
     def alpha(self):
-        return self._alpha[:self.n_atoms]
+        # return self._alpha[:self.n_atoms]
+        return self.__alpha
 
     @alpha.setter
     def alpha(self, value):
         self._alpha[:self.n_atoms] = value
+        self.__alpha = value
 
     # @property
     # def n_atoms(self):
     #     return np.sum(self.boolarr_atoms_of_sol, dtype=int)
-
 
     def compute_atoms_matrix(self, Theta=None, return_jacobian=False):
         """
@@ -205,6 +216,8 @@ class CLOMP(Solver):
         # the boolarr stores the position of all atoms that have been set already
         self.boolarr_atoms_of_sol[self.current_atom_index_to_add] = 1
         self.n_atoms += 1
+        self.Theta = self._Theta[self.boolarr_atoms_of_sol, :]
+        self.Atoms = self._Atoms[:, self.boolarr_atoms_of_sol]
 
         # todo make a filter for #remove and remove them
         # remove self.Theta = np.append(self.Theta, [new_theta], axis=0)  # np.r_[self.Theta,new_theta]
@@ -214,6 +227,8 @@ class CLOMP(Solver):
         assert self.boolarr_atoms_of_sol[self.current_atom_index_to_add] == 1
         self.boolarr_atoms_of_sol[index_to_remove] = 0
         self.n_atoms -= 1
+        self.Theta = self._Theta[self.boolarr_atoms_of_sol, :]
+        self.Atoms = self._Atoms[:, self.boolarr_atoms_of_sol]
         # remove # refacc use a boolean mask DONE
         # remove self.Theta = np.delete(self.Theta, index_to_remove, axis=0)
         # remove self.Atoms = np.delete(self.Atoms, index_to_remove, axis=1)
