@@ -11,8 +11,8 @@ from pycle.compressive_learning.generic.CLOMP import CLOMP
 from pycle.compressive_learning.CLOMP_dGMM import CLOMP_dGMM
 
 from pycle.compressive_learning.generic.Solver import Solver
-from pycle.sketching import SimpleFeatureMap, fourierSketchOfBox, fourierSketchOfGaussian
-
+from pycle.sketching import fourierSketchOfBox, fourierSketchOfGaussian
+from pycle.sketching.feature_maps.SimpleFeatureMap import SimpleFeatureMap
 
 # todo remove tout ça si ca ne sert a rien
 ##############################################

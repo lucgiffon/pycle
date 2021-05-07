@@ -1,6 +1,6 @@
 import numpy as np
 
-from pycle.sketching import FeatureMap
+from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 
 
 # 0.1 Generic solver (stores a sketch and a solution, can run multiple trials of a learning method to specify)

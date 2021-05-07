@@ -1,7 +1,9 @@
 import numpy as np
 
 from pycle.compressive_learning import CLOMP
-from pycle.sketching import SimpleFeatureMap, fourierSketchOfGaussian, estimate_Sigma_from_sketch
+from pycle.sketching import fourierSketchOfGaussian
+from pycle.sketching.sigma_estimation import estimate_Sigma_from_sketch
+from pycle.sketching.feature_maps.SimpleFeatureMap import SimpleFeatureMap
 
 
 ########################
