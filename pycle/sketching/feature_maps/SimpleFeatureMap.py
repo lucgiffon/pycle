@@ -2,7 +2,7 @@ import numpy as np
 
 from pycle.sketching.feature_maps import _dico_nonlinearities
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
-
+from scipy.sparse.linalg import aslinearoperator
 
 # schellekensvTODO find a better name
 class SimpleFeatureMap(FeatureMap):
@@ -35,11 +35,12 @@ class SimpleFeatureMap(FeatureMap):
             raise ValueError("The provided feature map f does not match any of the supported types.")
 
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
-        if (isinstance(Omega, np.ndarray) and Omega.ndim == 2):
+        try:
             self.Omega = Omega
-            (self.d, self._m) = Omega.shape
-        else:
-            raise ValueError("The provided projection matrix Omega should be a (d,m) numpy array.")
+            (self.d, self._m) = self.Omega.shape
+        except TypeError:
+            raise ValueError("The provided projection matrix Omega should be a (d,m) linear operator.")
+
         # 3) extract the dithering
         if xi is None:
             self.xi = np.zeros(self._m)
