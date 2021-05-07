@@ -2,13 +2,12 @@ import numpy as np
 
 from pycle.sketching.feature_maps import _dico_nonlinearities
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
-from scipy.sparse.linalg import aslinearoperator
+from abc import abstractmethod, ABCMeta
+
 
 # schellekensvTODO find a better name
-class SimpleFeatureMap(FeatureMap):
-    """Feature map the type Phi(x) = c_norm*f(Omega^T*x + xi)."""
-
-    def __init__(self, f, Omega, xi=None, c_norm=1.):
+class SimpleFeatureMap(FeatureMap, metaclass=ABCMeta):
+    def __init__(self, f, xi=None, c_norm=1.):
         """
         - f can be one of the following:
             -- a string for one of the predefined feature maps:
@@ -34,18 +33,14 @@ class SimpleFeatureMap(FeatureMap):
         else:
             raise ValueError("The provided feature map f does not match any of the supported types.")
 
-        # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
-        try:
-            self.Omega = Omega
-            (self.d, self._m) = self.Omega.shape
-        except TypeError:
-            raise ValueError("The provided projection matrix Omega should be a (d,m) linear operator.")
+        self.d, self._m = self.init_shape()
 
         # 3) extract the dithering
         if xi is None:
             self.xi = np.zeros(self._m)
         else:
             self.xi = xi
+
         # 4) extract the normalization constant
         if isinstance(c_norm, str):
             if c_norm.lower() in ['unit', 'normalized']:
@@ -57,15 +52,18 @@ class SimpleFeatureMap(FeatureMap):
 
         super().__init__()
 
+    @abstractmethod
+    def init_shape(self):
+        pass
+
     @property
     def m(self):
         return self._m
 
-    # call the FeatureMap object as a function
+    @abstractmethod
     def call(self, x):
-        # return self.c_norm*self.f(np.matmul(self.Omega.T,x.T).T + self.xi) # Evaluate the feature map at x
-        return self.c_norm * self.f(np.matmul(x, self.Omega) + self.xi)  # Evaluate the feature map at x
+        pass
 
+    @abstractmethod
     def grad(self, x):
-        """Gradient (Jacobian matrix) of Phi, as a (d,m)-numpy array"""
-        return self.c_norm * self.f_grad(np.matmul(self.Omega.T, x.T).T + self.xi) * self.Omega
+        pass
