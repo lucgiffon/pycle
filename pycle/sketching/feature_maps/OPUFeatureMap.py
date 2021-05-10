@@ -23,10 +23,7 @@ class OPUFeatureMap(SimpleFeatureMap):
             self.Sigma = np.identity(self.opu.max_n_features) # todoopu attention a ca
         self.SigFact = np.linalg.inv(np.linalg.cholesky(self.Sigma))
         self.R = np.abs(np.random.randn(self.m))  # folded standard normal distribution radii
-
-        #todoopu to remove
-        self.dummyphi = np.random.randn(self.d, self.m)
-        self.dummyphi = self.dummyphi / np.linalg.norm( self.dummyphi, axis=0)
+        self.norm_scaling = 1. / np.sqrt(self.d) * np.ones(self.m)
 
     def init_shape(self):
         if isinstance(self.opu.device, SimulatedOpuDevice):
@@ -43,10 +40,13 @@ class OPUFeatureMap(SimpleFeatureMap):
         y_enc = self.opu.fit_transform1d(x_enc)
         y_dec = self.decoder.transform(y_enc)
 
-        # y_dec = (self.dummyphi.T @ x.T).T
+        y_dec_expected = np.real(self.opu.device.random_matrix.T @ x.T).T
+        y_dec_expected2 = (np.real(self.opu.device.random_matrix.T) @ x.T).T
+        y_dec_complex = (self.opu.device.random_matrix.T @ x.T).T
+        raise NotImplementedError("OPU feature map is not ready to use yet.")
+        # todo fix this
 
-
-        out = self.R * y_dec
+        out = self.R * y_dec * self.norm_scaling
         # Om = SigFact @ phi * R
         return out
 
