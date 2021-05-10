@@ -123,7 +123,6 @@ class CLOMP(Solver, metaclass=ABCMeta):
             _n_atoms, _Theta = self.n_atoms, self.Theta
 
         # _A = np.empty((self.Phi.m, _n_atoms), dtype=complex)
-        # todo rewrite this to not use a loop
         if return_jacobian:
             # _jac = 1j * np.empty((_n_atoms, self.d_atom, self.Phi.m))
             # for k, theta_k in enumerate(_Theta):
@@ -177,7 +176,7 @@ class CLOMP(Solver, metaclass=ABCMeta):
 
     def _destack_sol(self, p):
         assert p.shape[-1] == self.n_atoms * (self.d_atom + 1)
-        if len(p.shape) == 1 or p.shape[0] == 1:
+        if p.ndim == 1 or p.shape[0] == 1:
             p = p.squeeze()
             Theta = p[:self.d_atom * self.n_atoms].reshape(self.n_atoms, self.d_atom)
             alpha = p[-self.n_atoms:].reshape(self.n_atoms)
@@ -243,7 +242,6 @@ class CLOMP(Solver, metaclass=ABCMeta):
         sketch_theta, jacobian_theta = self.sketch_of_atom(theta, return_jacobian=True)
 
         # ... and its l2 norm
-        # todo reshape inutile
         norm_sketch_theta = self.get_norm_sketch_theta(sketch_theta.reshape(1, -1))
 
         # Evaluate the cost function
