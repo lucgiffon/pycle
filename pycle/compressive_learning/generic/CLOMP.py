@@ -30,13 +30,11 @@ class CLOMP(Solver):
         :param sketch_weight: float, a re-scaling factor for the data sketch (default 1)
         :param opt_method: str, one of ["vanilla", "pdfo", "simplex gradient"]
         """
-        # refacc: preparer ces trois elements (theta et atoms)
-        #  avec des np.empty plutot que de les reremplir a chaque fois avec des concatenations
         self.Theta = None
         self.Atoms = None
         self.alpha = None
-
         self.Jacobians = None
+
         # Call parent class
         super(CLOMP, self).__init__(Phi, sketch, sketch_weight, verbose)
 
