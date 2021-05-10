@@ -1,3 +1,5 @@
+from abc import ABCMeta, abstractmethod
+
 import numpy as np
 import scipy.optimize
 from pdfo import pdfo
@@ -9,7 +11,7 @@ from pycle.utils.datasets import sample_ball
 
 
 # 0.2 CL-OMP template (stores a *mixture model* and implements a generic OMP for it)
-class CLOMP(Solver):
+class CLOMP(Solver, metaclass=ABCMeta):
     """
     Template for Compressive Learning with Orthogonal Matching Pursuit (CL-OMP) solver,
     used to the CL problem
@@ -69,30 +71,33 @@ class CLOMP(Solver):
     # Methods that have to be instantiated by child classes
 
     # Sketch of a single atom
+    @abstractmethod
     def sketch_of_atom(self, theta_k, return_jacobian=False):
         """
-        Computes and returns A_Phi(P_theta_k) for an atom P_theta_k.
-        possibly with the jacobian, of size (d_atom,m)
+        Computes and returns A_Phi(P_theta_k) of size (m, n_atoms) for n_atoms atoms P_theta_k in dimension d_atom.
+        possibly with the jacobian, of size (n_atoms, d_atom, m).
+
+        This function can take one atom in a np.ndarry of shape (d_atom,) or n_atoms in a np.ndarray of shape
+        (n_atoms, d_atoms).
+
+        Note that the sketched atoms matrix will contains the sketched atoms as columns in a np.ndarray of shape
+        (m, n_atoms).
         """
         assert theta_k.size == self.d_atom
-        raise NotImplementedError
-        # if return_jacobian:
-        #     return sketch_of_atom, jacobian
-        # else:
-        #     return sketch_of_atom
 
+    @abstractmethod
     def set_bounds_atom(self, bounds):
         """
         Should set self.bounds_atom to a list of length d_atom of lower and upper bounds, i.e.,
             self.bounds_atom = [[lowerbound_1,upperbound_1], ..., [lowerbound_d_atom,upperbound_d_atom]]
         """
         self.bounds = bounds  # data bounds
-        raise NotImplementedError
         # self.bounds_atom = None
         # return None
 
+    @abstractmethod
     def randomly_initialize_new_atom(self):
-        raise NotImplementedError
+        pass
         # return new_theta
 
     # Generic methods
@@ -117,16 +122,19 @@ class CLOMP(Solver):
         else:
             _n_atoms, _Theta = self.n_atoms, self.Theta
 
-        _A = np.empty((self.Phi.m, _n_atoms), dtype=complex)
+        # _A = np.empty((self.Phi.m, _n_atoms), dtype=complex)
         # todo rewrite this to not use a loop
         if return_jacobian:
-            _jac = 1j * np.empty((_n_atoms, self.d_atom, self.Phi.m))
-            for k, theta_k in enumerate(_Theta):
-                _A[:, k], _jac[k, :, :] = self.sketch_of_atom(theta_k, return_jacobian=True)
+            # _jac = 1j * np.empty((_n_atoms, self.d_atom, self.Phi.m))
+            # for k, theta_k in enumerate(_Theta):
+            #     _A[:, k], _jac[k, :, :] = self.sketch_of_atom(theta_k, return_jacobian=True)
+
+            _A, _jac = self.sketch_of_atom(_Theta, return_jacobian=True)
             return _A, _jac
         else:
-            for k, theta_k in enumerate(_Theta):
-                _A[:, k] = self.sketch_of_atom(theta_k, return_jacobian=False)
+            _A = self.sketch_of_atom(_Theta, return_jacobian=False)
+            # for k, theta_k in enumerate(_Theta):
+            #     _A[:, k] = self.sketch_of_atom(theta_k, return_jacobian=False)
             return _A
 
     def update_atoms(self, Theta=None, update_jacobian=False):
@@ -235,6 +243,7 @@ class CLOMP(Solver):
         sketch_theta, jacobian_theta = self.sketch_of_atom(theta, return_jacobian=True)
 
         # ... and its l2 norm
+        # todo reshape inutile
         norm_sketch_theta = self.get_norm_sketch_theta(sketch_theta.reshape(1, -1))
 
         # Evaluate the cost function
@@ -242,7 +251,7 @@ class CLOMP(Solver):
 
         # Secondly, get the Jacobian
         grad = (-np.real(jacobian_theta @ np.conj(self.residual)) / norm_sketch_theta
-                + np.real(np.real(jacobian_theta @ np.conj(sketch_theta)) * np.vdot(sketch_theta, self.residual)) / (
+                + np.real(np.real(jacobian_theta @ np.conj(sketch_theta)).T * np.vdot(sketch_theta, self.residual)) / (
                         norm_sketch_theta ** 3))
 
         return fun, grad

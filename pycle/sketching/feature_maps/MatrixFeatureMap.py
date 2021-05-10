@@ -24,5 +24,11 @@ class MatrixFeatureMap(SimpleFeatureMap):
         return self.c_norm * self.f(np.matmul(x, self.Omega) + self.xi)  # Evaluate the feature map at x
 
     def grad(self, x):
-        """Gradient (Jacobian matrix) of Phi, as a (d,m)-numpy array"""
-        return self.c_norm * self.f_grad(np.matmul(self.Omega.T, x.T).T + self.xi) * self.Omega
+        """Gradient (Jacobian matrix) of Phi, as a (n_x,d,m)-numpy array. n_x being the batch size of x."""
+        #return self.c_norm * self.f_grad(np.matmul(self.Omega.T, x.T).T + self.xi) * self.Omega
+        f_grad_val = self.f_grad(np.matmul(self.Omega.T, x.T).T + self.xi)
+        new = self.c_norm * np.einsum("ij,kj->ikj", f_grad_val, self.Omega)
+        if x.shape[0] == 1 or x.ndim == 1:
+            return new.squeeze()
+        else:
+            return new

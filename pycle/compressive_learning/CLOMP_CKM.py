@@ -20,9 +20,12 @@ class CLOMP_CKM(CLOMP):
         Computes and returns A_Phi(P_theta_k) for an atom P_theta_k.
         possibly with the jacobian, of size (d_atom,m)
         """
-        assert theta_k.size == self.d_atom
+        if theta_k.ndim == 1:
+            theta_k = theta_k[np.newaxis, :]
 
-        sketch_of_atom = self.Phi(theta_k)
+        # assert theta_k.size == self.d_atom
+
+        sketch_of_atom = self.Phi(theta_k).T
 
         if return_jacobian:
             jacobian = self.Phi.grad(theta_k)
