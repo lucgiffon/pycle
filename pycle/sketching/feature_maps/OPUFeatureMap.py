@@ -3,6 +3,8 @@ from lightonml import OPU
 from lightonml.encoding.base import SeparatedBitPlanEncoder, MixingBitPlanDecoder
 from lightonml.internal.simulated_device import SimulatedOpuDevice
 import numpy as np
+from scipy.linalg import hadamard
+from fht import fht
 
 # schellekensvTODO find a better name
 class OPUFeatureMap(SimpleFeatureMap):
@@ -17,6 +19,9 @@ class OPUFeatureMap(SimpleFeatureMap):
 
         super().__init__(f, **kwargs)
 
+        self.mu_opu, self.std_opu = self.get_distribution_opu()
+        self.opu.fit1d(n_features=self.d)
+
         # todoopu deplacer ca
         self.Sigma = Sigma
         if self.Sigma is None:
@@ -24,6 +29,36 @@ class OPUFeatureMap(SimpleFeatureMap):
         self.SigFact = np.linalg.inv(np.linalg.cholesky(self.Sigma))
         self.R = np.abs(np.random.randn(self.m))  # folded standard normal distribution radii
         self.norm_scaling = 1. / np.sqrt(self.d) * np.ones(self.m)
+
+    def get_distribution_opu(self, light_memory=False):
+        H = hadamard(self.d)
+        B = np.array((self.opu.transform(H > 0) - self.opu.transform(H < 0)))
+        # B = transform_batch(H, opu).T
+
+        sqrt_d = np.sqrt(self.d)
+        # HB = np.array(H @B)
+        # O = 1./in_dim * HB
+        if not light_memory:
+            FHB = np.array([1./self.d * fht(b) * sqrt_d for b in B.T]).T
+            mu = np.mean(FHB)
+            std = np.std(FHB)
+
+        else:
+            sum_mu = 0
+            count = 0
+            for b in B.T:
+                col = 1./self.d * fht(b) * sqrt_d
+                sum_mu += np.sum(col)
+                count += col.size
+            mu = sum_mu / count
+            sum_var = 0
+            for b in B.T:
+                col = 1./self.d * fht(b) * sqrt_d
+                sum_var += np.sum((mu - col)**2)
+            var = sum_var / count
+            std = np.sqrt(var)
+
+        return mu, std
 
     def init_shape(self):
         if isinstance(self.opu.device, SimulatedOpuDevice):
@@ -37,14 +72,15 @@ class OPUFeatureMap(SimpleFeatureMap):
         x = x @ self.SigFact
 
         x_enc = self.encoder.transform(x)
-        y_enc = self.opu.fit_transform1d(x_enc)
+        # todo verifier que les plans de bits sont biens en axis=0
+        y_enc = self.opu.transform(x_enc)
+        # now center the coefficients of the matrix
+        mu_x_enc = self.mu_opu * np.sum(x_enc, axis=1) # sum other all dims
+        y_enc = y_enc - mu_x_enc.reshape(-1, 1)
+        #
+        # now scale the result
+        y_enc = y_enc * 1./(self.std_opu**2)
         y_dec = self.decoder.transform(y_enc)
-
-        y_dec_expected = np.real(self.opu.device.random_matrix.T @ x.T).T
-        y_dec_expected2 = (np.real(self.opu.device.random_matrix.T) @ x.T).T
-        y_dec_complex = (self.opu.device.random_matrix.T @ x.T).T
-        raise NotImplementedError("OPU feature map is not ready to use yet.")
-        # todo fix this
 
         out = self.R * y_dec * self.norm_scaling
         # Om = SigFact @ phi * R
