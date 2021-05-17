@@ -25,7 +25,7 @@ class OPUFeatureMap(SimpleFeatureMap):
         # todoopu deplacer ca
         self.Sigma = Sigma
         if self.Sigma is None:
-            self.Sigma = np.identity(self.opu.max_n_features) # todoopu attention a ca
+            self.Sigma = np.identity(self.opu.max_n_features)  # todoopu attention a ca car ce n'est disponible qu'en mode simulé
         self.SigFact = np.linalg.inv(np.linalg.cholesky(self.Sigma))
         self.R = np.abs(np.random.randn(self.m))  # folded standard normal distribution radii
         self.norm_scaling = 1. / np.sqrt(self.d) * np.ones(self.m)
@@ -75,14 +75,21 @@ class OPUFeatureMap(SimpleFeatureMap):
         # todo verifier que les plans de bits sont biens en axis=0
         y_enc = self.opu.transform(x_enc)
         # now center the coefficients of the matrix
-        mu_x_enc = self.mu_opu * np.sum(x_enc, axis=1) # sum other all dims
+        mu_x_enc = self.mu_opu * np.sum(x_enc, axis=1)  # sum other all dims
         y_enc = y_enc - mu_x_enc.reshape(-1, 1)
-        #
+
         # now scale the result
-        y_enc = y_enc * 1./(self.std_opu**2)
+        y_enc = self.R * y_enc * 1./(self.std_opu**2) * self.norm_scaling
         y_dec = self.decoder.transform(y_enc)
 
-        out = self.R * y_dec * self.norm_scaling
+        # now center the coefficients of the matrix
+        # mu_x = self.mu_opu * np.sum(x, axis=1)  # sum other all dims
+        # y_dec = y_dec - mu_x.reshape(-1, 1)
+        #
+        # now scale the result
+        # y_dec = y_dec * 1./(self.std_opu**2)
+
+        out = y_dec
         # Om = SigFact @ phi * R
         return out
 
