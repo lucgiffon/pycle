@@ -19,7 +19,7 @@ class OPUFeatureMap(SimpleFeatureMap):
 
         super().__init__(f, **kwargs)
 
-        self.mu_opu, self.std_opu = self.get_distribution_opu()
+        self.mu_opu, self.std_opu, self.norm_scaling = self.get_distribution_opu()
         self.opu.fit1d(n_features=self.d)
 
         # todoopu deplacer ca
@@ -28,7 +28,7 @@ class OPUFeatureMap(SimpleFeatureMap):
             self.Sigma = np.identity(self.opu.max_n_features)  # todoopu attention a ca car ce n'est disponible qu'en mode simulé
         self.SigFact = np.linalg.inv(np.linalg.cholesky(self.Sigma))
         self.R = np.abs(np.random.randn(self.m))  # folded standard normal distribution radii
-        self.norm_scaling = 1. / np.sqrt(self.d) * np.ones(self.m)
+        # self.norm_scaling = np.sqrt(self.d) #* np.ones(self.m)
 
     def get_distribution_opu(self, light_memory=False):
         H = hadamard(self.d)
@@ -40,10 +40,13 @@ class OPUFeatureMap(SimpleFeatureMap):
         # O = 1./in_dim * HB
         if not light_memory:
             FHB = np.array([1./self.d * fht(b) * sqrt_d for b in B.T]).T
+            col_norm = np.linalg.norm(FHB, axis=0)
+            FHB /= col_norm
             mu = np.mean(FHB)
             std = np.std(FHB)
 
         else:
+            raise NotImplementedError("The column norm have not been implemented in this case")
             sum_mu = 0
             count = 0
             for b in B.T:
@@ -58,7 +61,7 @@ class OPUFeatureMap(SimpleFeatureMap):
             var = sum_var / count
             std = np.sqrt(var)
 
-        return mu, std
+        return mu, std, col_norm
 
     def init_shape(self):
         if isinstance(self.opu.device, SimulatedOpuDevice):
@@ -72,25 +75,19 @@ class OPUFeatureMap(SimpleFeatureMap):
         x = x @ self.SigFact
 
         x_enc = self.encoder.transform(x)
-        # todo verifier que les plans de bits sont biens en axis=0
         y_enc = self.opu.transform(x_enc)
-        # now center the coefficients of the matrix
-        mu_x_enc = self.mu_opu * np.sum(x_enc, axis=1)  # sum other all dims
-        y_enc = y_enc - mu_x_enc.reshape(-1, 1)
-
-        # now scale the result
-        y_enc = self.R * y_enc * 1./(self.std_opu**2) * self.norm_scaling
+        # now center the coefficients of the matrix then scale the result
+        # mu_x_enc = self.mu_opu * np.sum(x_enc, axis=1)  # sum other all dims
+        # y_enc = y_enc - mu_x_enc.reshape(-1, 1)
+        # y_enc = self.R * y_enc * 1./self.std_opu * 1./self.norm_scaling
         y_dec = self.decoder.transform(y_enc)
 
-        # now center the coefficients of the matrix
-        # mu_x = self.mu_opu * np.sum(x, axis=1)  # sum other all dims
-        # y_dec = y_dec - mu_x.reshape(-1, 1)
-        #
-        # now scale the result
-        # y_dec = y_dec * 1./(self.std_opu**2)
+        # now center the coefficients of the matrix then scale the result
+        mu_x = self.mu_opu * np.sum(x, axis=1)  # sum other all dims
+        y_dec = y_dec - mu_x.reshape(-1, 1)
+        y_dec = self.R * y_dec * 1./self.std_opu *  1./self.norm_scaling
 
         out = y_dec
-        # Om = SigFact @ phi * R
         return out
 
     # call the FeatureMap object as a function
