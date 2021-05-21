@@ -6,6 +6,7 @@ import numpy as np
 from scipy.linalg import hadamard
 from fht import fht
 
+
 # schellekensvTODO find a better name
 class OPUFeatureMap(SimpleFeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
@@ -19,7 +20,8 @@ class OPUFeatureMap(SimpleFeatureMap):
 
         super().__init__(f, **kwargs)
 
-        self.mu_opu, self.std_opu, self.norm_scaling = self.get_distribution_opu()
+        self.mu_opu, self.std_opu, self.norm_scaling = self.get_distribution_opu(light_memory=True)
+        # self.mu_opu, self.std_opu, self.norm_scaling = self.get_distribution_opu(light_memory=False)
         self.opu.fit1d(n_features=self.d)
 
         # todoopu deplacer ca
@@ -31,14 +33,16 @@ class OPUFeatureMap(SimpleFeatureMap):
         # self.norm_scaling = np.sqrt(self.d) #* np.ones(self.m)
 
     def get_distribution_opu(self, light_memory=False):
-        H = hadamard(self.d)
-        B = np.array((self.opu.transform(H > 0) - self.opu.transform(H < 0)))
-        # B = transform_batch(H, opu).T
 
-        sqrt_d = np.sqrt(self.d)
-        # HB = np.array(H @B)
-        # O = 1./in_dim * HB
         if not light_memory:
+            H = hadamard(self.d)
+            B = np.array((self.opu.transform(H > 0) - self.opu.transform(H < 0)))
+            # B = transform_batch(H, opu).T
+
+            sqrt_d = np.sqrt(self.d)
+            # HB = np.array(H @B)
+            # O = 1./in_dim * HB
+
             FHB = np.array([1./self.d * fht(b) * sqrt_d for b in B.T]).T
             col_norm = np.linalg.norm(FHB, axis=0)
             FHB /= col_norm
@@ -46,22 +50,32 @@ class OPUFeatureMap(SimpleFeatureMap):
             std = np.std(FHB)
 
         else:
-            raise NotImplementedError("The column norm have not been implemented in this case")
-            sum_mu = 0
-            count = 0
-            for b in B.T:
-                col = 1./self.d * fht(b) * sqrt_d
-                sum_mu += np.sum(col)
-                count += col.size
-            mu = sum_mu / count
-            sum_var = 0
-            for b in B.T:
-                col = 1./self.d * fht(b) * sqrt_d
-                sum_var += np.sum((mu - col)**2)
-            var = sum_var / count
-            std = np.sqrt(var)
+            mu = self.mu_estimation_ones()
+            # todo choisir le n_iter dynamiquement
+            # std = np.sqrt(self.var_estimation_randn(n_iter=100))
+            std = np.sqrt(self.var_estimation_ones())
+            col_norm = np.sqrt(self.d) * np.ones(self.m)
 
         return mu, std, col_norm
+
+    def mu_estimation_ones(self):
+        ones = np.ones(self.d)
+        y = self.opu.transform(ones)
+        return np.sum(y) / (self.m * self.d)
+
+    def var_estimation_ones(self):
+        ones = np.ones(self.d)
+        y = self.opu.transform(ones)
+        D_var = np.var(y)
+        return D_var / self.d
+
+    def var_estimation_randn(self, n_iter=1):
+        mu = self.mu_estimation_ones()
+        x = np.random.randn(n_iter, self.d)
+        y = np.array(self._OPU(x))
+        D_var_plus_mu = np.var(y)
+        var = D_var_plus_mu / self.d - (mu ** 2)
+        return var
 
     def init_shape(self):
         if isinstance(self.opu.device, SimulatedOpuDevice):
@@ -69,11 +83,7 @@ class OPUFeatureMap(SimpleFeatureMap):
         else:
             return None, self.opu.n_components
 
-    def applyOPU(self, x):
-        if x.ndim == 1:
-            x = x.reshape(1, -1)
-        x = x @ self.SigFact
-
+    def _OPU(self, x):
         x_enc = self.encoder.transform(x)
         y_enc = self.opu.transform(x_enc)
         # now center the coefficients of the matrix then scale the result
@@ -81,6 +91,21 @@ class OPUFeatureMap(SimpleFeatureMap):
         # y_enc = y_enc - mu_x_enc.reshape(-1, 1)
         # y_enc = self.R * y_enc * 1./self.std_opu * 1./self.norm_scaling
         y_dec = self.decoder.transform(y_enc)
+        return y_dec
+
+    def applyOPU(self, x):
+        if x.ndim == 1:
+            x = x.reshape(1, -1)
+        x = x @ self.SigFact
+
+        # x_enc = self.encoder.transform(x)
+        # y_enc = self.opu.transform(x_enc)
+        # # now center the coefficients of the matrix then scale the result
+        # # mu_x_enc = self.mu_opu * np.sum(x_enc, axis=1)  # sum other all dims
+        # # y_enc = y_enc - mu_x_enc.reshape(-1, 1)
+        # # y_enc = self.R * y_enc * 1./self.std_opu * 1./self.norm_scaling
+        # y_dec = self.decoder.transform(y_enc)
+        y_dec = self._OPU(x)
 
         # now center the coefficients of the matrix then scale the result
         mu_x = self.mu_opu * np.sum(x, axis=1)  # sum other all dims
