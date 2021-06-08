@@ -1,6 +1,6 @@
 """temporary module provided by lighton. It should be replaced with the official release at some point."""
 
-from lightonml.encoding.base import preserve_type, BaseTransformer, MixingBitPlanDecoder, SeparatedBitPlanEncoder as OldSeparatedBitPlanEncoder
+from lightonml.encoding.base import preserve_type, BaseTransformer, SeparatedBitPlanEncoder as OldSeparatedBitPlanEncoder
 import numexpr as ne
 import numpy as np
 

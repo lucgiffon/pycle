@@ -1,7 +1,6 @@
 from pycle.sketching.feature_maps.SimpleFeatureMap import SimpleFeatureMap
 from lightonml import OPU
-from pycle.utils.opu import SeparatedBitPlanDecoder, SeparatedBitPlanEncoder, QuantizedSeparatedBitPlanEncoder, \
-    QuantizedMixingBitPlanDecoder
+from lightonml.encoding.base import SeparatedBitPlanDecoder, SeparatedBitPlanEncoder
 from lightonml.internal.simulated_device import SimulatedOpuDevice
 import numpy as np
 from scipy.linalg import hadamard
@@ -14,7 +13,7 @@ def enc_dec_opu_transform(opu, x, precision_encoding=8):
     # encoder = QuantizedSeparatedBitPlanEncoder(base=2, n_bits=precision_encoding)
     # x_enc = encoder.transform(x)
     x_enc = encoder.fit_transform(x)
-    y_enc = opu.transform(x_enc)
+    y_enc = opu.linear_transform(x_enc)
     decoder = SeparatedBitPlanDecoder(**encoder.get_params())
     # decoder = QuantizedMixingBitPlanDecoder(n_bits=precision_encoding, decoding_decay=2)
     y_dec = decoder.transform(y_enc)
