@@ -37,7 +37,7 @@ class OPUDistributionEstimator:
 
     def calibrate_opu(self):
         H = hadamard(self.d)
-        B = np.array((self.opu.transform(H > 0) - self.opu.transform(H < 0)))
+        B = np.array((self.opu.linear_transform(H > 0) - self.opu.linear_transform(H < 0)))
         sqrt_d = np.sqrt(self.d)
         FHB = np.array([1. / self.d * fht(b) * sqrt_d for b in B.T]).T
         # FHB = H @ B / self.d
@@ -60,7 +60,7 @@ class OPUDistributionEstimator:
         if self.use_calibration:
             y = self.FHB @ ones
         else:
-            y = self.opu.transform(ones)
+            y = self.opu.linear_transform(ones)
 
         return np.sum(y) / (self.m * self.d)
 
@@ -85,7 +85,7 @@ class OPUDistributionEstimator:
         if self.use_calibration:
             y = self.FHB @ ones
         else:
-            y = self.opu.transform(ones)
+            y = self.opu.linear_transform(ones)
 
         D_var = np.var(y)
         return D_var / self.d
