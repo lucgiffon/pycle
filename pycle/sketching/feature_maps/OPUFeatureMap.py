@@ -1,3 +1,5 @@
+from pycle.sketching.distribution_estimation import mu_estimation_ones, var_estimation_ones, var_estimation_randn, \
+    var_estimation_any
 from pycle.sketching.feature_maps.SimpleFeatureMap import SimpleFeatureMap
 from lightonml import OPU
 from lightonml.encoding.base import SeparatedBitPlanDecoder, SeparatedBitPlanEncoder
@@ -33,7 +35,21 @@ class OPUDistributionEstimator:
             self.FHB = None
 
     def OPU(self, x):
-        return enc_dec_opu_transform(self.opu, x)
+        return np.array(enc_dec_opu_transform(self.opu, x))
+
+    def transform(self, x, direct=False):
+
+        assert 0 < x.ndim <= 2
+        if self.use_calibration:
+            y = x @ self.FHB
+        else:
+            if direct:
+                y = self.opu.linear_transform(x)
+            else:
+                if x.ndim == 1: x = x.reshape(1, -1)
+                y = self.OPU(x)
+
+        return y
 
     def calibrate_opu(self):
         H = hadamard(self.d)
@@ -55,16 +71,18 @@ class OPUDistributionEstimator:
             raise ValueError(f"Unknown method: {method}.")
 
     def _mu_estimation_ones(self):
-        ones = np.ones(self.d)
+        result = mu_estimation_ones(lambda x: self.transform(x, direct=True),
+                                  self.d)
+        # ones = np.ones(self.d)
+        # if self.use_calibration:
+        #     y = self.FHB @ ones
+        # else:
+        #     y = self.opu.linear_transform(ones)
+        # result2 = np.sum(y) / (self.m * self.d)
+        # assert result == result2
+        return result
 
-        if self.use_calibration:
-            y = self.FHB @ ones
-        else:
-            y = self.opu.linear_transform(ones)
-
-        return np.sum(y) / (self.m * self.d)
-
-    def var_estimation(self, method="std", n_iter=1):
+    def var_estimation(self, method="var", n_iter=1):
         if method == "ones":
             return self._var_estimation_ones()
         elif method == "any":
@@ -80,43 +98,53 @@ class OPUDistributionEstimator:
             raise ValueError(f"Unknown method: {method}.")
 
     def _var_estimation_ones(self):
-        ones = np.ones(self.d)
-
-        if self.use_calibration:
-            y = self.FHB @ ones
-        else:
-            y = self.opu.linear_transform(ones)
-
-        D_var = np.var(y)
-        return D_var / self.d
+        result = var_estimation_ones(lambda x: self.transform(x, direct=True),
+                                     self.d)
+        # ones = np.ones(self.d)
+        # if self.use_calibration:
+        #     y = ones @ self.FHB
+        # else:
+        #     y = self.opu.linear_transform(ones)
+        # D_var = np.var(y)
+        # result2 = D_var / self.d
+        # assert result == result2
+        return result
 
     def _var_estimation_randn(self, n_iter=1):
-        mu = self._mu_estimation_ones()
-        x = np.random.randn(n_iter, self.d)
+        result = var_estimation_randn(lambda x: self.transform(x),
+                                      self.d, n_iter)
 
-        if self.use_calibration:
-            y = x @ self.FHB
-        else:
-            y = np.array(self.OPU(x))
+        # mu = self._mu_estimation_ones()
+        # x = np.random.randn(n_iter, self.d)
+        #
+        # if self.use_calibration:
+        #     y = x @ self.FHB
+        # else:
+        #     y = self.OPU(x)
 
-        D_var_plus_mu = np.var(y)
-        var = D_var_plus_mu / self.d - (mu ** 2)
-        return var
+        # D_var_plus_mu = np.var(y)
+        # var = D_var_plus_mu / self.d - (mu ** 2)
+
+        # assert np.isclose(var, result)
+        return result
 
     def _var_estimation_any(self, n_iter=1):
-        # only works if mu is zero
-        X = np.random.rand(n_iter, self.d)
-        X_norm_2 = np.linalg.norm(X, axis=1).reshape(n_iter, -1)
-        X /= X_norm_2
-
-        if self.use_calibration:
-            Y = X @ self.FHB
-        else:
-            Y = np.array(self.OPU(X))
-
-        Y_norm_2 = np.linalg.norm(Y) ** 2
-        var = Y_norm_2 / Y.size
-        return var
+        result = var_estimation_any(lambda x: self.transform(x),
+                                    self.d, n_iter)
+        # # only works if mu is zero
+        # X = np.random.rand(n_iter, self.d)
+        # X_norm_2 = np.linalg.norm(X, axis=1).reshape(n_iter, -1)
+        # X /= X_norm_2
+        #
+        # if self.use_calibration:
+        #     Y = X @ self.FHB
+        # else:
+        #     Y = self.OPU(X)
+        #
+        # Y_norm_2 = np.linalg.norm(Y) ** 2
+        # var = Y_norm_2 / Y.size
+        # assert var == result
+        return result
 
 
 # schellekensvTODO find a better name
@@ -199,9 +227,21 @@ class OPUFeatureMap(SimpleFeatureMap):
 
 if __name__ == "__main__":
     opu = OPU(n_components=2, opu_device=SimulatedOpuDevice(),
-              max_n_features=2, core="lazuli")
+              max_n_features=2)
     opu.fit1d(n_features=2)
     # Phi = OPUFeatureMap("ComplexExponential", opu)
     sample = np.random.rand(1, 2)
     enc_dec_opu_transform(opu, sample)
     enc_dec_opu_transform(opu, sample)
+
+    opudistestim = OPUDistributionEstimator(opu, 2)
+    opudistestim.mu_estimation("ones")
+    opudistestim.var_estimation("ones")
+    opudistestim.var_estimation("any")
+    opudistestim.var_estimation("randn")
+    opudistestim = OPUDistributionEstimator(opu, 2, use_calibration=True)
+    opudistestim.mu_estimation("ones")
+    opudistestim.var_estimation("ones")
+    opudistestim.var_estimation("any")
+    opudistestim.var_estimation("randn")
+    opudistestim.var_estimation("var")
