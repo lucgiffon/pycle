@@ -29,12 +29,13 @@ def var_estimation_randn(lin_op_fct, dim, n_iter=1, mu_not_zero=False):
 
 def var_estimation_any(lin_op_fct, dim, n_iter=1):
     # only works if mu is zero
-    X = np.random.rand(n_iter, dim)
-    X_norm_2 = np.linalg.norm(X, axis=1).reshape(n_iter, -1)
-    X /= X_norm_2
-    Y = lin_op_fct(X)
-    Y_norm_2 = np.linalg.norm(Y) ** 2
-    var = Y_norm_2 / Y.size
+    X = np.random.randn(n_iter, dim)
+    X_norm_2 = np.linalg.norm(X, axis=1).reshape(n_iter, -1)  # the vector of all samples norms
+    X /= X_norm_2  # samples in X are now of norm 1
+    Y = lin_op_fct(X)  # linear transformation of X
+    Y_squared = Y ** 2
+    Y_norm_2 = np.sum(Y_squared)  # sum of all the Y_{i,j}^2
+    var = Y_norm_2 / Y.size  # get the mean value of Y_{i,j}^2
     return var
 
 
