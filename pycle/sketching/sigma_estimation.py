@@ -6,6 +6,7 @@ import scipy.optimize
 from matplotlib import pyplot as plt
 
 from pycle.sketching import SimpleFeatureMap, computeSketch
+from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 from pycle.sketching.frequency_sampling import drawFrequencies
 
 
@@ -148,6 +149,8 @@ def estimate_Sigma(dataset, m0, K=None, c=20, n0=None, drawFreq_type="AR", nIter
     (n, d) = dataset.shape
     # X is the subsampled dataset containing only n0 examples
     if n0 is not None and n0 < n:
+        if 0 < n0 <= 1:
+            n0 = int(n0 * n)
         X = dataset[np.random.choice(n, n0, replace=False)]
     else:
         X = dataset
@@ -168,7 +171,7 @@ def estimate_Sigma(dataset, m0, K=None, c=20, n0=None, drawFreq_type="AR", nIter
         Omega0 = drawFrequencies(drawFreq_type, d, m0, Sigma=(weights_bar, sigma2_bar_matrix))
 
         # Compute unnormalized complex exponential sketch
-        Phi0 = SimpleFeatureMap("ComplexExponential", Omega0)
+        Phi0 = MatrixFeatureMap("ComplexExponential", Omega0)
         z0 = computeSketch(X, Phi0)
 
         should_plot = verbose > 1 or (verbose > 0 and i >= nIterations - 1)
