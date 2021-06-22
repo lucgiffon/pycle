@@ -41,11 +41,11 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
 
     Other Parameters
     ----------------
-    separation_scale: scale driving the average separation of the Gaussians (larger for well-separated modes)
+    separation_scale: scale driving the average separation of the Gaussians (larger for well-separated modes) sqrt(variance inter cluster)
     separation_min: minimal distance separation to impose between the centers
     covariance_variability_inter: diversity of Gaussian covariances between the clusters (if = 1 all clusters have the same covariance matrix scale, if > 1 the clusters have covariances of different scales)
     covariance_variability_intra: diversity of the covariance matrix inside each cluster (if = 1 all dimensions have the same variance (isotropic Gaussian), if > 1 the covariance matrix has different entries for each dimension)
-    all_covariance_scaling: a re-scaling factor that re-scales the covariance of all Gaussians (redundant with separation_scale)
+    all_covariance_scaling: a re-scaling factor that re-scales the covariance of all Gaussians sigma_intra
 
     """
     ## STEP 0: Parse input generation parameters
