@@ -233,3 +233,17 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None):
         Omega[intg_index] = Omega_intg
 
     return Omega
+
+
+def multi_scale_frequency_sampling(dim, m, scale_min, scale_max, nb_scales, sampling_method):
+    scales = np.logspace(scale_min, scale_max, num=nb_scales)
+    Omega = np.empty((dim, m*nb_scales))
+    for i_scale, sigma in enumerate(scales):
+        frequencies_sigma = drawFrequencies(sampling_method, dim, m, sigma * np.eye(dim))
+        Omega[:, i_scale*m:(i_scale+1)*m] = frequencies_sigma
+    return Omega
+
+
+if __name__ == "__main__":
+    om = multi_scale_frequency_sampling(10, 20, -4, 0, 5, "arkm")
+    print(om.shape)
