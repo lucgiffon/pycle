@@ -237,10 +237,25 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None):
 
 def multi_scale_frequency_sampling(dim, m, scale_min, scale_max, nb_scales, sampling_method):
     scales = np.logspace(scale_min, scale_max, num=nb_scales)
-    Omega = np.empty((dim, m*nb_scales))
-    for i_scale, sigma in enumerate(scales):
-        frequencies_sigma = drawFrequencies(sampling_method, dim, m, sigma * np.eye(dim))
-        Omega[:, i_scale*m:(i_scale+1)*m] = frequencies_sigma
+    Omega = np.zeros((dim, m))
+    size_each_scale = m // nb_scales
+    remaining_frequencies = m % nb_scales
+    index_frequency = 0
+    for sigma in scales:
+        # choose the number of frequencies to sample.
+        # if m is not dividable by nb_scales, there is a remaining to distribute amond the first frequencies sampled.
+        if remaining_frequencies > 0:
+            nb_frequencies_scale = size_each_scale + 1  # +1 to distribute the frequencies
+            remaining_frequencies -= 1
+        else:
+            nb_frequencies_scale = size_each_scale
+
+        frequencies_sigma = drawFrequencies(sampling_method, dim, nb_frequencies_scale, sigma * np.eye(dim))
+
+        next_index_frequency = index_frequency + nb_frequencies_scale
+        Omega[:, index_frequency:next_index_frequency] = frequencies_sigma
+        index_frequency = next_index_frequency
+
     return Omega
 
 
