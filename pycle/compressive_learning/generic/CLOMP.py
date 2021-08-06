@@ -214,10 +214,11 @@ class CLOMP(Solver, metaclass=ABCMeta):
     def maximize_atom_correlation(self, new_theta):
         if self.opt_method == "vanilla":
             fct_fun_grad = self._maximize_atom_correlation_fun_grad
+            nb_iter_max = self.dct_opt_method.get("maxiter", 15000) # 15000 is the default maxiter for BFGS with scipy
             sol = scipy.optimize.minimize(fct_fun_grad,
                                           x0=new_theta,
                                           method='L-BFGS-B', jac=True,
-                                          bounds=self.bounds_atom)
+                                          bounds=self.bounds_atom, options={'maxiter': nb_iter_max})
         elif self.opt_method == "pdfo":
             fct_fun_grad = self._get_residual_correlation_value
             nb_iter_max = self.dct_opt_method.get("nb_iter_max_step_1", 100)
@@ -351,10 +352,11 @@ class CLOMP(Solver, metaclass=ABCMeta):
         init_x0 = self._stack_sol()
         if self.opt_method == "vanilla":
             fct_fun_grad = self._minimize_cost_from_current_sol
+            nb_iter_max = self.dct_opt_method.get("maxiter", 15000)  # 15000 is the default maxiter for BFGS with scipy
             sol = scipy.optimize.minimize(fct_fun_grad,
                                           x0=init_x0,  # Start at current solution
                                           method='L-BFGS-B', jac=True,
-                                          bounds=bounds_Theta_alpha, options={'ftol': ftol})
+                                          bounds=bounds_Theta_alpha, options={'ftol': ftol, 'maxiter': nb_iter_max})
         elif self.opt_method == "pdfo":
             fct_fun_grad = self.get_global_cost
             nb_iter_max = self.dct_opt_method.get("nb_iter_max_step_5", 5)
