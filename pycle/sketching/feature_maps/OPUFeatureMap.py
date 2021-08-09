@@ -151,18 +151,21 @@ class OPUDistributionEstimator:
 class OPUFeatureMap(SimpleFeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
 
-    def __init__(self, f, opu, Sigma=None, light_memory=True, **kwargs):
+    def __init__(self, f, opu, Sigma=None, light_memory=True, re_center_result=False, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         # todoopu initialiser l'opu
         self.opu = opu
         self.light_memory = light_memory
 
         super().__init__(f, **kwargs)
-        self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, use_calibration=not light_memory)
+        self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, use_calibration=(not light_memory))
+        self.light_memory = light_memory
+        self.switch_use_calibration_forward = False  # if True, use the calibrated OPU (the implicit matrix of the OPU) for the forward multiplication
+        self.switch_use_calibration_backward = False  # same, but for the gradient (backward) computation
 
         self.mu_opu, self.std_opu, self.norm_scaling = self.get_distribution_opu()
         # self.mu_opu, self.std_opu, self.norm_scaling = self.get_distribution_opu(light_memory=False)
-
+        self.re_center_result = re_center_result
         # todoopu deplacer ca
         self.Sigma = Sigma
         if self.Sigma is None:
@@ -175,7 +178,7 @@ class OPUFeatureMap(SimpleFeatureMap):
         if not self.light_memory:
             mu = self.distribution_estimator.mu_estimation(method="mean")
             std = np.sqrt(self.distribution_estimator.var_estimation(method="var"))
-            col_norm = np.linalg.norm(self.distribution_estimator.opu, axis=0)
+            col_norm = np.linalg.norm(self.distribution_estimator.FHB, axis=0)
 
         else:
             # todo choisir le n_iter dynamiquement
@@ -191,8 +194,21 @@ class OPUFeatureMap(SimpleFeatureMap):
         else:
             return None, self.opu.n_components
 
+    def set_use_calibration_forward(self, boolean):
+        if boolean is True and self.light_memory is True:
+            raise ValueError("Can't switch calibration ON when light_memory is True")
+        self.switch_use_calibration_forward = boolean
+
+    def set_use_calibration_backward(self, boolean):
+        if boolean is True and self.light_memory is True:
+            raise ValueError("Can't switch calibration ON when light_memory is True")
+        self.switch_use_calibration_backward = boolean
+
     def _OPU(self, x):
-        return enc_dec_opu_transform(self.opu, x)
+        if self.switch_use_calibration_forward:
+            return x @ self.calibrated_matrix
+        else:
+            return enc_dec_opu_transform(self.opu, x)
 
     def applyOPU(self, x):
         if x.ndim == 1:
@@ -209,8 +225,10 @@ class OPUFeatureMap(SimpleFeatureMap):
         y_dec = self._OPU(x)
 
         # now center the coefficients of the matrix then scale the result
-        mu_x = self.mu_opu * np.sum(x, axis=1)  # sum other all dims
-        y_dec = y_dec - mu_x.reshape(-1, 1)
+        if self.re_center_result:
+            mu_x = self.mu_opu * np.sum(x, axis=1)  # sum other all dims
+            y_dec = y_dec - mu_x.reshape(-1, 1)
+
         y_dec = self.R * y_dec * 1./self.std_opu * 1./self.norm_scaling
 
         out = y_dec
@@ -221,8 +239,26 @@ class OPUFeatureMap(SimpleFeatureMap):
         # return self.c_norm*self.f(np.matmul(self.Omega.T,x.T).T + self.xi) # Evaluate the feature map at x
         return self.c_norm * self.f(self.applyOPU(x) + self.xi)  # Evaluate the feature map at x
 
+    @property
+    def calibrated_matrix(self):
+        return self.distribution_estimator.FHB
+
+    @property
+    def Omega(self):
+        return self.R * self.calibrated_matrix * 1./self.std_opu * 1./self.norm_scaling
+
     def grad(self, x):
-        raise NotImplementedError("OPU doesn't have a gradient.")
+        if self.switch_use_calibration_backward:
+            f_grad_val = self.f_grad(np.matmul(self.Omega.T, self.SigFact @ x.T).T + self.xi)
+            new = self.c_norm * np.einsum("ij,kj->ikj", f_grad_val, self.Omega)
+            if x.shape[0] == 1 or x.ndim == 1:
+                return new.squeeze()
+            else:
+                return new
+            # # todo adapt gradient computation to the calibrated OPU scenario (account for multiplications in forward pass)
+            # raise NotImplementedError("I must adapt the gradient computation")
+        else:
+            raise NotImplementedError("OPU doesn't have a gradient.")
 
 
 if __name__ == "__main__":
