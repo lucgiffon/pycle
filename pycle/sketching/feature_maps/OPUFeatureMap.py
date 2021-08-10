@@ -11,6 +11,16 @@ from fht import fht
 
 # note that the encoder and decoder are instantitated here once and for all (and not at each function call)
 def enc_dec_opu_transform(opu, x, precision_encoding=8):
+    """
+    Encode x in binary for OPU transformation then decode.
+    This function just makes a linear random transformation of x using the opu.
+
+
+    :param opu:
+    :param x:
+    :param precision_encoding:
+    :return:
+    """
     encoder = SeparatedBitPlanEncoder(precision=precision_encoding)
     # encoder = QuantizedSeparatedBitPlanEncoder(base=2, n_bits=precision_encoding)
     # x_enc = encoder.transform(x)
@@ -22,8 +32,31 @@ def enc_dec_opu_transform(opu, x, precision_encoding=8):
     return y_dec
 
 
+def calibrate_lin_op(fct_lin_op, dim):
+    first_pow_of_2_gt_d = 2 ** int(np.ceil(np.log2(dim)))
+    H = hadamard(first_pow_of_2_gt_d)
+    H_truncated_left = H[:dim, :dim]
+    H_truncated_right = H[:dim, dim:]
+    B_truncated_left = np.array(
+        fct_lin_op(H_truncated_left > 0) - fct_lin_op(H_truncated_left < 0))
+    B_truncated_right = np.array(
+        fct_lin_op(H_truncated_right.T > 0) - fct_lin_op(H_truncated_right.T < 0))
+    B = np.vstack([B_truncated_left, B_truncated_right])
+    # B = np.array((self.opu.linear_transform(H > 0) - self.opu.linear_transform(H < 0)))
+    sqrt_d = np.sqrt(first_pow_of_2_gt_d)
+    FHB = np.array([1. / first_pow_of_2_gt_d * fht(b) * sqrt_d for b in B.T]).T
+    # FHB = H @ B / self.d
+    return FHB[:dim]
+
+
 class OPUDistributionEstimator:
     def __init__(self, opu, input_dim, use_calibration=False):
+        """
+
+        :param opu:
+        :param input_dim:
+        :param use_calibration: If False, lighter memory but parameter estimation is less accurate.
+        """
         self.opu = opu
         self.d = input_dim
         self.m = self.opu.n_components
@@ -38,7 +71,12 @@ class OPUDistributionEstimator:
         return np.array(enc_dec_opu_transform(self.opu, x))
 
     def transform(self, x, direct=False):
+        """
 
+        :param x:
+        :param direct: if True, transforms x without encoding/decoding wrapping.
+        :return:
+        """
         assert 0 < x.ndim <= 2
         if self.use_calibration:
             y = x @ self.FHB
@@ -52,14 +90,15 @@ class OPUDistributionEstimator:
         return y
 
     def calibrate_opu(self):
-        H = hadamard(self.d)
-        B = np.array((self.opu.linear_transform(H > 0) - self.opu.linear_transform(H < 0)))
-        sqrt_d = np.sqrt(self.d)
-        FHB = np.array([1. / self.d * fht(b) * sqrt_d for b in B.T]).T
-        # FHB = H @ B / self.d
-        return FHB
+        return calibrate_lin_op(lambda x: self.opu.linear_transform(x), self.d)
+
 
     def mu_estimation(self, method="ones"):
+        """
+
+        :param method: Choose in ["ones", "mean"]
+        :return:
+        """
         if method == "ones":
             return self._mu_estimation_ones()
         elif method == "mean":
@@ -73,16 +112,15 @@ class OPUDistributionEstimator:
     def _mu_estimation_ones(self):
         result = mu_estimation_ones(lambda x: self.transform(x, direct=True),
                                   self.d)
-        # ones = np.ones(self.d)
-        # if self.use_calibration:
-        #     y = self.FHB @ ones
-        # else:
-        #     y = self.opu.linear_transform(ones)
-        # result2 = np.sum(y) / (self.m * self.d)
-        # assert result == result2
         return result
 
     def var_estimation(self, method="var", n_iter=1):
+        """
+
+        :param method: Choose in ["ones", "any", "randn", "var"]
+        :param n_iter: Number of iterations for methods "any" and "randn". No effect otherwise.
+        :return:
+        """
         if method == "ones":
             return self._var_estimation_ones()
         elif method == "any":
@@ -100,54 +138,19 @@ class OPUDistributionEstimator:
     def _var_estimation_ones(self):
         result = var_estimation_ones(lambda x: self.transform(x, direct=True),
                                      self.d)
-        # ones = np.ones(self.d)
-        # if self.use_calibration:
-        #     y = ones @ self.FHB
-        # else:
-        #     y = self.opu.linear_transform(ones)
-        # D_var = np.var(y)
-        # result2 = D_var / self.d
-        # assert result == result2
         return result
 
     def _var_estimation_randn(self, n_iter=1):
         result = var_estimation_randn(lambda x: self.transform(x),
                                       self.d, n_iter)
-
-        # mu = self._mu_estimation_ones()
-        # x = np.random.randn(n_iter, self.d)
-        #
-        # if self.use_calibration:
-        #     y = x @ self.FHB
-        # else:
-        #     y = self.OPU(x)
-
-        # D_var_plus_mu = np.var(y)
-        # var = D_var_plus_mu / self.d - (mu ** 2)
-
-        # assert np.isclose(var, result)
         return result
 
     def _var_estimation_any(self, n_iter=1):
         result = var_estimation_any(lambda x: self.transform(x),
                                     self.d, n_iter)
-        # # only works if mu is zero
-        # X = np.random.rand(n_iter, self.d)
-        # X_norm_2 = np.linalg.norm(X, axis=1).reshape(n_iter, -1)
-        # X /= X_norm_2
-        #
-        # if self.use_calibration:
-        #     Y = X @ self.FHB
-        # else:
-        #     Y = self.OPU(X)
-        #
-        # Y_norm_2 = np.linalg.norm(Y) ** 2
-        # var = Y_norm_2 / Y.size
-        # assert var == result
         return result
 
 
-# schellekensvTODO find a better name
 class OPUFeatureMap(SimpleFeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
 
@@ -255,8 +258,6 @@ class OPUFeatureMap(SimpleFeatureMap):
                 return new.squeeze()
             else:
                 return new
-            # # todo adapt gradient computation to the calibrated OPU scenario (account for multiplications in forward pass)
-            # raise NotImplementedError("I must adapt the gradient computation")
         else:
             raise NotImplementedError("OPU doesn't have a gradient.")
 
