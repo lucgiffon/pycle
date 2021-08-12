@@ -34,7 +34,9 @@ def test_calibrate_lin_op(my_lst_lin_op):
         dim = lin_op.shape[0]
         calibrated_lin_op = calibrate_lin_op(lambda x: x @ lin_op, dim)
         assert np.isclose(calibrated_lin_op, lin_op).all(), f"idx {idx} failed"
-
+        var_lin_op = np.var(lin_op)
+        var_calibrated = np.var(calibrated_lin_op)
+        assert np.isclose(var_calibrated, var_lin_op).all(), f"idx {idx} failed var estimation"
 
 def test_enc_dec_opu_transform():
     dim = 16
