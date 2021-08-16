@@ -50,7 +50,7 @@ def calibrate_lin_op(fct_lin_op, dim):
 
 
 class OPUDistributionEstimator:
-    def __init__(self, opu, input_dim, use_calibration=False):
+    def __init__(self, opu, input_dim, compute_calibration=False, use_calibration_transform=False):
         """
 
         :param opu:
@@ -61,8 +61,10 @@ class OPUDistributionEstimator:
         self.d = input_dim
         self.m = self.opu.n_components
 
-        self.use_calibration = use_calibration
-        if self.use_calibration:
+        self.use_calibration_transform = use_calibration_transform
+        self.compute_calibration = compute_calibration
+        assert use_calibration_transform is False or compute_calibration is True
+        if self.compute_calibration:
             self.FHB = self.calibrate_opu()
         else:
             self.FHB = None
@@ -78,7 +80,7 @@ class OPUDistributionEstimator:
         :return:
         """
         assert 0 < x.ndim <= 2
-        if self.use_calibration:
+        if self.use_calibration_transform:
             y = x @ self.FHB
         else:
             if direct:
@@ -105,7 +107,7 @@ class OPUDistributionEstimator:
             try:
                 return np.mean(self.FHB)
             except TypeError as e:
-                raise ValueError(f"Method `mean` only works with `use_calibration` flag.")
+                raise ValueError(f"Method `mean` only works with `compute_calibration` flag.")
         else:
             raise ValueError(f"Unknown method: {method}.")
 
@@ -131,7 +133,7 @@ class OPUDistributionEstimator:
             try:
                 return np.var(self.FHB)
             except TypeError:
-                raise ValueError(f"Method `var` only works with `use_calibration` flag.")
+                raise ValueError(f"Method `var` only works with `compute_calibration` flag.")
         else:
             raise ValueError(f"Unknown method: {method}.")
 
@@ -154,17 +156,17 @@ class OPUDistributionEstimator:
 class OPUFeatureMap(SimpleFeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
 
-    def __init__(self, f, opu, Sigma=None, light_memory=True, re_center_result=False, **kwargs):
+    def __init__(self, f, opu, Sigma=None, calibration_param_estimation=False, calibration_forward=False, calibration_backward=False, re_center_result=False, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         # todoopu initialiser l'opu
         self.opu = opu
-        self.light_memory = light_memory
 
         super().__init__(f, **kwargs)
-        self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, use_calibration=(not light_memory))
-        self.light_memory = light_memory
-        self.switch_use_calibration_forward = False  # if True, use the calibrated OPU (the implicit matrix of the OPU) for the forward multiplication
-        self.switch_use_calibration_backward = False  # same, but for the gradient (backward) computation
+        self.light_memory = not (calibration_param_estimation or calibration_forward or calibration_backward)
+        self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory), use_calibration_transform=calibration_param_estimation)
+        self.calibration_param_estimation = calibration_param_estimation
+        self.switch_use_calibration_forward = calibration_forward  # if True, use the calibrated OPU (the implicit matrix of the OPU) for the forward multiplication
+        self.switch_use_calibration_backward = calibration_backward  # same, but for the gradient (backward) computation
 
         self.mu_opu, self.std_opu, self.norm_scaling = self.get_distribution_opu()
         # self.mu_opu, self.std_opu, self.norm_scaling = self.get_distribution_opu(light_memory=False)
@@ -178,13 +180,15 @@ class OPUFeatureMap(SimpleFeatureMap):
         # self.norm_scaling = np.sqrt(self.d) #* np.ones(self.m)
 
     def get_distribution_opu(self):
-        if not self.light_memory:
+        if self.calibration_param_estimation:
             mu = self.distribution_estimator.mu_estimation(method="mean")
             std = np.sqrt(self.distribution_estimator.var_estimation(method="var"))
-            col_norm = np.linalg.norm(self.distribution_estimator.FHB, axis=0)
+            # multiplied by 1/std because we want the norm of the matrix
+            # whose coefficients are sampled in N(0,1)
+            col_norm = np.linalg.norm(self.distribution_estimator.FHB * 1./std, axis=0)
 
         else:
-            # todo choisir le n_iter dynamiquement
+            # todo choisir le n_iter dynamiquement et utiliser une autre methode que "ones"
             mu = self.distribution_estimator.mu_estimation(method="ones")
             std = np.sqrt(self.distribution_estimator.var_estimation(method="ones"))
             col_norm = np.sqrt(self.d) * np.ones(self.m)
