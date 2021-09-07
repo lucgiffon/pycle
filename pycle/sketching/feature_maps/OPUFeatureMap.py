@@ -5,6 +5,7 @@ from lightonml import OPU
 from lightonml.encoding.base import SeparatedBitPlanDecoder, SeparatedBitPlanEncoder
 from lightonml.internal.simulated_device import SimulatedOpuDevice
 import numpy as np
+from pycle.sketching.frequency_sampling import sampleFromPDF, pdfAdaptedRadius
 from scipy.linalg import hadamard
 from fht import fht
 
@@ -156,13 +157,14 @@ class OPUDistributionEstimator:
 class OPUFeatureMap(SimpleFeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
 
-    def __init__(self, f, opu, Sigma=None, calibration_param_estimation=False, calibration_forward=False, calibration_backward=False, re_center_result=False, **kwargs):
+    def __init__(self, f, opu, dimension=None, Sigma=None, calibration_param_estimation=False, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, sampling_method="FG", **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         # todoopu initialiser l'opu
         self.opu = opu
+        self.provided_dimension = dimension
 
         super().__init__(f, **kwargs)
-        self.light_memory = not (calibration_param_estimation or calibration_forward or calibration_backward)
+        self.light_memory = (not (calibration_param_estimation or calibration_forward or calibration_backward)) or (not calibrate_always)
         self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory), use_calibration_transform=calibration_param_estimation)
         self.calibration_param_estimation = calibration_param_estimation
         self.switch_use_calibration_forward = calibration_forward  # if True, use the calibrated OPU (the implicit matrix of the OPU) for the forward multiplication
@@ -176,7 +178,16 @@ class OPUFeatureMap(SimpleFeatureMap):
         if self.Sigma is None:
             self.Sigma = np.identity(self.opu.max_n_features)  # todoopu attention a ca car ce n'est disponible qu'en mode simulé
         self.SigFact = np.linalg.inv(np.linalg.cholesky(self.Sigma))
-        self.R = np.abs(np.random.randn(self.m))  # folded standard normal distribution radii
+        self.sampling_method = sampling_method
+        if sampling_method == "FG":
+            self.R = np.abs(np.random.randn(self.m))  # folded standard normal distribution radii
+        elif sampling_method == "G":
+            self.R = np.sqrt(np.random.chisquare(self.d, self.m))
+        elif sampling_method == "ARKM":
+            r = np.linspace(0, 5, 2001)
+            self.R = sampleFromPDF(pdfAdaptedRadius(r, KMeans=True), r, nsamples=self.m)
+        else:
+            raise ValueError(f"Unknown sampling_method: {sampling_method}")
         # self.norm_scaling = np.sqrt(self.d) #* np.ones(self.m)
 
     def get_distribution_opu(self):
@@ -199,7 +210,7 @@ class OPUFeatureMap(SimpleFeatureMap):
         if isinstance(self.opu.device, SimulatedOpuDevice):
             return self.opu.max_n_features, self.opu.n_components
         else:
-            return None, self.opu.n_components
+            return self.provided_dimension, self.opu.n_components
 
     def set_use_calibration_forward(self, boolean):
         if boolean is True and self.light_memory is True:
@@ -216,6 +227,14 @@ class OPUFeatureMap(SimpleFeatureMap):
             return x @ self.calibrated_matrix
         else:
             return enc_dec_opu_transform(self.opu, x)
+
+    def get_randn_mat(self, mu=0, sigma=1.):
+        if self.light_memory is True:
+            raise ValueError("The OPU implicit matrix is unknown when light_memory is True.")
+        if self.re_center_result:
+            return ((self.calibrated_matrix - self.mu_opu) * 1./self.std_opu) * sigma + mu
+        else:
+            return (self.calibrated_matrix * 1./self.std_opu) * sigma + mu
 
     def applyOPU(self, x):
         if x.ndim == 1:

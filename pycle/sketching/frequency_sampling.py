@@ -14,21 +14,31 @@ def drawDithering(m, bounds=None):
     return np.random.uniform(low=lowb, high=highb, size=m)
 
 
-def drawFrequencies_Gaussian(d, m, Sigma=None):
+def drawFrequencies_Gaussian(d, m, Sigma=None, randn_mat_0_1=None):
     """draws frequencies according to some sampling pattern"""
+
+
     if Sigma is None:
         Sigma = np.identity(d)
-    Om = np.random.multivariate_normal(np.zeros(d), np.linalg.inv(Sigma), m).T  # inverse of sigma
+
+    if randn_mat_0_1 is None:
+        Om = np.random.multivariate_normal(np.zeros(d), np.linalg.inv(Sigma), m).T  # inverse of sigma
+    else:
+        assert randn_mat_0_1.shape == (d, m)
+        Om = np.linalg.inv(Sigma) @ randn_mat_0_1
     return Om
 
 
-def drawFrequencies_FoldedGaussian(d, m, Sigma=None):
+def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None):
     """draws frequencies according to some sampling pattern
     omega = R*Sigma^{-1/2}*phi, for R from folded Gaussian with variance 1, phi uniform"""
     if Sigma is None:
         Sigma = np.identity(d)
     R = np.abs(np.random.randn(m))  # folded standard normal distribution radii
-    phi = np.random.randn(d, m)
+    if randn_mat_0_1 is None:
+        phi = np.random.randn(d, m)
+    else:
+        phi = randn_mat_0_1
     phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
     SigFact = np.linalg.inv(np.linalg.cholesky(Sigma))
 
@@ -63,7 +73,7 @@ def pdfAdaptedRadius(r, KMeans=False):
         return np.sqrt(r ** 2 + (r ** 4) / 4) * np.exp(-(r ** 2) / 2)
 
 
-def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False):
+def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=None):
     """draws frequencies according to some sampling pattern
     omega = R*Sigma^{-1/2}*phi, for R from adapted with variance 1, phi uniform"""
     if Sigma is None:
@@ -73,7 +83,10 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False):
     r = np.linspace(0, 5, 2001)
     R = sampleFromPDF(pdfAdaptedRadius(r, KMeans), r, nsamples=m)
 
-    phi = np.random.randn(d, m)
+    if randn_mat_0_1 is None:
+        phi = np.random.randn(d, m)
+    else:
+        phi = randn_mat_0_1
     phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
     SigFact = np.linalg.inv(np.linalg.cholesky(Sigma))
 
@@ -151,7 +164,7 @@ def drawFrequencies_diffOfGaussians(d, m, GMM_upper, GMM_lower=None, verbose=0):
     return Om
 
 
-def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None):
+def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1=None):
     """Draw the 'frequencies' or projection matrix Omega for sketching.
 
     Arguments:
@@ -179,14 +192,14 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None):
     """
     # Parse drawType input
     if drawType.lower() in ["drawfrequencies_gaussian", "gaussian", "g"]:
-        drawFunc = drawFrequencies_Gaussian
+        drawFunc = lambda *args, **kwargs: drawFrequencies_Gaussian(*args, **kwargs, randn_mat_0_1=randn_mat_0_1)
     elif drawType.lower() in ["drawfrequencies_foldedgaussian", "foldedgaussian", "folded_gaussian", "fg"]:
-        drawFunc = drawFrequencies_FoldedGaussian
+        drawFunc = lambda *args, **kwargs: drawFrequencies_FoldedGaussian(*args, **kwargs, randn_mat_0_1=randn_mat_0_1)
     elif drawType.lower() in ["drawfrequencies_adapted", "adaptedradius", "adapted_radius", "ar"]:
-        drawFunc = drawFrequencies_AdaptedRadius
+        drawFunc = lambda *args, **kwargs: drawFrequencies_AdaptedRadius(*args, **kwargs, randn_mat_0_1=randn_mat_0_1)
     elif drawType.lower() in ["drawfrequencies_adapted_kmeans", "adaptedradius_kmeans", "adapted_radius_kmeans", "arkm",
                               "ar-km"]:
-        drawFunc = lambda _a, _b, _c: drawFrequencies_AdaptedRadius(_a, _b, _c, KMeans=True)
+        drawFunc = lambda _a, _b, _c: drawFrequencies_AdaptedRadius(_a, _b, _c, KMeans=True, randn_mat_0_1=randn_mat_0_1)
     else:
         raise ValueError("drawType not recognized")
 
