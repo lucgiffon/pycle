@@ -164,7 +164,7 @@ class OPUFeatureMap(SimpleFeatureMap):
         self.provided_dimension = dimension
 
         super().__init__(f, **kwargs)
-        self.light_memory = (not (calibration_param_estimation or calibration_forward or calibration_backward)) or (not calibrate_always)
+        self.light_memory = (not (calibration_param_estimation or calibration_forward or calibration_backward)) and (not calibrate_always)
         self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory), use_calibration_transform=calibration_param_estimation)
         self.calibration_param_estimation = calibration_param_estimation
         self.switch_use_calibration_forward = calibration_forward  # if True, use the calibrated OPU (the implicit matrix of the OPU) for the forward multiplication
