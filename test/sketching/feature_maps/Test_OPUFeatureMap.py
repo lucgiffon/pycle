@@ -1,8 +1,11 @@
 import pytest
 import numpy as np
+import pycle.sketching.frequency_sampling
+
 from lightonml import OPU
 from lightonml.internal.simulated_device import SimulatedOpuDevice
-from pycle.sketching.feature_maps.OPUFeatureMap import calibrate_lin_op, enc_dec_opu_transform
+from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
+from pycle.sketching.feature_maps.OPUFeatureMap import calibrate_lin_op, enc_dec_opu_transform, OPUFeatureMap
 
 
 @pytest.fixture
@@ -57,3 +60,42 @@ def test_enc_dec_opu_transform():
 
     assert np.isclose(res_lin_comb, lin_comb_res, atol=1e-2).all()
 
+def test_calibration_OPUFeatureMap(my_dim):
+    sampling_method = "ARKM"
+    sketch_dim = my_dim * 2
+    Sigma = np.eye(my_dim) * 0.876
+    nb_input = 10
+    seed = 0
+    # seed = np.random.randint(0, 2**10)
+
+    opu = OPU(n_components=sketch_dim, opu_device=SimulatedOpuDevice(),
+              max_n_features=my_dim)
+    opu.fit1d(n_features=my_dim)
+    OFM = OPUFeatureMap(f="ComplexExponential",
+                            dimension=my_dim,
+                            opu=opu,
+                            Sigma=Sigma,
+                            calibration_param_estimation=True,
+                            calibration_forward=True,
+                            calibration_backward=True,
+                            calibrate_always=True,
+                            re_center_result=False,
+                            sampling_method=sampling_method,
+                        seed=seed)
+
+    randn_opu_matrix_0_1 = OFM.get_randn_mat()
+    Omega = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
+                                                               randn_mat_0_1=randn_opu_matrix_0_1, seed=seed)
+    MFM = MatrixFeatureMap("ComplexExponential", Omega)
+
+    input_mat = np.random.randn(nb_input, my_dim)
+
+    ofm_output = OFM(input_mat)
+    mfm_output = MFM(input_mat)
+
+    assert np.isclose(ofm_output, mfm_output).all()
+
+    input_vec = np.random.randn(1, my_dim)
+    ofm_output_grad = OFM.grad(input_vec)
+    mfm_output_grad = MFM.grad(input_vec)
+    assert np.isclose(ofm_output_grad, mfm_output_grad).all()

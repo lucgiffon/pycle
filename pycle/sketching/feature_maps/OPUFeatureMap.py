@@ -157,7 +157,7 @@ class OPUDistributionEstimator:
 class OPUFeatureMap(SimpleFeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
 
-    def __init__(self, f, opu, dimension=None, Sigma=None, calibration_param_estimation=False, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, sampling_method="FG", **kwargs):
+    def __init__(self, f, opu, dimension=None, Sigma=None, calibration_param_estimation=False, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, sampling_method="FG", seed=None, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         # todoopu initialiser l'opu
         self.opu = opu
@@ -178,14 +178,16 @@ class OPUFeatureMap(SimpleFeatureMap):
         if self.Sigma is None:
             self.Sigma = np.identity(self.opu.max_n_features)  # todoopu attention a ca car ce n'est disponible qu'en mode simulé
         self.SigFact = np.linalg.inv(np.linalg.cholesky(self.Sigma))
+        self._Omega = None
         self.sampling_method = sampling_method
+        randomstate = np.random.RandomState(seed)
         if sampling_method == "FG":
-            self.R = np.abs(np.random.randn(self.m))  # folded standard normal distribution radii
+            self.R = np.abs(randomstate.randn(self.m))  # folded standard normal distribution radii
         elif sampling_method == "G":
-            self.R = np.sqrt(np.random.chisquare(self.d, self.m))
+            self.R = np.sqrt(randomstate.chisquare(self.d, self.m))
         elif sampling_method == "ARKM":
             r = np.linspace(0, 5, 2001)
-            self.R = sampleFromPDF(pdfAdaptedRadius(r, KMeans=True), r, nsamples=self.m)
+            self.R = sampleFromPDF(pdfAdaptedRadius(r, KMeans=True), r, nsamples=self.m, seed=seed)
         else:
             raise ValueError(f"Unknown sampling_method: {sampling_method}")
         # self.norm_scaling = np.sqrt(self.d) #* np.ones(self.m)
@@ -271,11 +273,13 @@ class OPUFeatureMap(SimpleFeatureMap):
 
     @property
     def Omega(self):
-        return self.R * self.calibrated_matrix * 1./self.std_opu * 1./self.norm_scaling
+        if self._Omega is None:
+            self._Omega = self.SigFact @ (self.calibrated_matrix * 1./self.std_opu * 1./self.norm_scaling) * self.R
+        return self._Omega
 
     def grad(self, x):
         if self.switch_use_calibration_backward:
-            f_grad_val = self.f_grad(np.matmul(self.Omega.T, self.SigFact @ x.T).T + self.xi)
+            f_grad_val = self.f_grad(np.matmul(self.Omega.T, x.T).T + self.xi)
             new = self.c_norm * np.einsum("ij,kj->ikj", f_grad_val, self.Omega)
             if x.shape[0] == 1 or x.ndim == 1:
                 return new.squeeze()

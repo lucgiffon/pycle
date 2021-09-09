@@ -14,7 +14,7 @@ def drawDithering(m, bounds=None):
     return np.random.uniform(low=lowb, high=highb, size=m)
 
 
-def drawFrequencies_Gaussian(d, m, Sigma=None, randn_mat_0_1=None):
+def drawFrequencies_Gaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None):
     """draws frequencies according to some sampling pattern"""
 
 
@@ -22,21 +22,21 @@ def drawFrequencies_Gaussian(d, m, Sigma=None, randn_mat_0_1=None):
         Sigma = np.identity(d)
 
     if randn_mat_0_1 is None:
-        Om = np.random.multivariate_normal(np.zeros(d), np.linalg.inv(Sigma), m).T  # inverse of sigma
+        Om = np.random.RandomState(seed).multivariate_normal(np.zeros(d), np.linalg.inv(Sigma), m).T  # inverse of sigma
     else:
         assert randn_mat_0_1.shape == (d, m)
         Om = np.linalg.inv(Sigma) @ randn_mat_0_1
     return Om
 
 
-def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None):
+def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None):
     """draws frequencies according to some sampling pattern
     omega = R*Sigma^{-1/2}*phi, for R from folded Gaussian with variance 1, phi uniform"""
     if Sigma is None:
         Sigma = np.identity(d)
-    R = np.abs(np.random.randn(m))  # folded standard normal distribution radii
+    R = np.abs(np.random.RandomState(seed).randn(m))  # folded standard normal distribution radii
     if randn_mat_0_1 is None:
-        phi = np.random.randn(d, m)
+        phi = np.random.RandomState(seed).randn(d, m)
     else:
         phi = randn_mat_0_1
     phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
@@ -47,7 +47,7 @@ def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None):
     return Om
 
 
-def sampleFromPDF(pdf, x, nsamples=1):
+def sampleFromPDF(pdf, x, nsamples=1, seed=None):
     """x is a vector (the support of the pdf), pdf is the values of pdf eval at x"""
     # Note that this can be more general than just the adapted radius distribution
 
@@ -58,7 +58,7 @@ def sampleFromPDF(pdf, x, nsamples=1):
     # necessary?
     cdf[-1] = 1.
 
-    sampleCdf = np.random.uniform(0, 1, nsamples)
+    sampleCdf = np.random.RandomState(seed).uniform(0, 1, nsamples)
 
     sampleX = np.interp(sampleCdf, cdf, x)
 
@@ -73,7 +73,7 @@ def pdfAdaptedRadius(r, KMeans=False):
         return np.sqrt(r ** 2 + (r ** 4) / 4) * np.exp(-(r ** 2) / 2)
 
 
-def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=None):
+def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=None, seed=None):
     """draws frequencies according to some sampling pattern
     omega = R*Sigma^{-1/2}*phi, for R from adapted with variance 1, phi uniform"""
     if Sigma is None:
@@ -81,7 +81,7 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
 
     # Sample the radii
     r = np.linspace(0, 5, 2001)
-    R = sampleFromPDF(pdfAdaptedRadius(r, KMeans), r, nsamples=m)
+    R = sampleFromPDF(pdfAdaptedRadius(r, KMeans), r, nsamples=m, seed=seed)
 
     if randn_mat_0_1 is None:
         phi = np.random.randn(d, m)
@@ -164,7 +164,7 @@ def drawFrequencies_diffOfGaussians(d, m, GMM_upper, GMM_lower=None, verbose=0):
     return Om
 
 
-def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1=None):
+def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1=None, seed=None):
     """Draw the 'frequencies' or projection matrix Omega for sketching.
 
     Arguments:
@@ -192,14 +192,14 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
     """
     # Parse drawType input
     if drawType.lower() in ["drawfrequencies_gaussian", "gaussian", "g"]:
-        drawFunc = lambda *args, **kwargs: drawFrequencies_Gaussian(*args, **kwargs, randn_mat_0_1=randn_mat_0_1)
+        drawFunc = lambda *args, **kwargs: drawFrequencies_Gaussian(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed)
     elif drawType.lower() in ["drawfrequencies_foldedgaussian", "foldedgaussian", "folded_gaussian", "fg"]:
-        drawFunc = lambda *args, **kwargs: drawFrequencies_FoldedGaussian(*args, **kwargs, randn_mat_0_1=randn_mat_0_1)
+        drawFunc = lambda *args, **kwargs: drawFrequencies_FoldedGaussian(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed)
     elif drawType.lower() in ["drawfrequencies_adapted", "adaptedradius", "adapted_radius", "ar"]:
-        drawFunc = lambda *args, **kwargs: drawFrequencies_AdaptedRadius(*args, **kwargs, randn_mat_0_1=randn_mat_0_1)
+        drawFunc = lambda *args, **kwargs: drawFrequencies_AdaptedRadius(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed)
     elif drawType.lower() in ["drawfrequencies_adapted_kmeans", "adaptedradius_kmeans", "adapted_radius_kmeans", "arkm",
                               "ar-km"]:
-        drawFunc = lambda _a, _b, _c: drawFrequencies_AdaptedRadius(_a, _b, _c, KMeans=True, randn_mat_0_1=randn_mat_0_1)
+        drawFunc = lambda _a, _b, _c: drawFrequencies_AdaptedRadius(_a, _b, _c, KMeans=True, randn_mat_0_1=randn_mat_0_1, seed=seed)
     else:
         raise ValueError("drawType not recognized")
 
