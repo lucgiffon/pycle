@@ -39,8 +39,9 @@ def test_var_estimation_randn(my_lst_lin_op, my_dim):
         var_oracle = np.var(lin_op)
         var_estimated = var_estimation_randn(lambda x: x @ lin_op, dim=my_dim, n_iter=1)
         assert np.isclose(var_oracle, var_estimated, atol=1), f"lin_op indice {idx} failed with n_iter=1"
+        n_iter = 10000
         var_estimated = var_estimation_randn(lambda x: x @ lin_op, dim=my_dim, n_iter=10000)
-        assert np.isclose(var_oracle, var_estimated, atol=1e-3), f"lin_op indice {idx} failed with n_iter=1000"
+        assert np.isclose(var_oracle, var_estimated, atol=1e-3), f"lin_op indice {idx} failed with n_iter={n_iter}"
 
 
 def test_var_estimation_any(my_lst_lin_op, my_dim):

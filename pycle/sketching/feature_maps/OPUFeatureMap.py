@@ -11,13 +11,12 @@ from fht import fht
 
 
 # note that the encoder and decoder are instantitated here once and for all (and not at each function call)
-def enc_dec_opu_transform(opu, x, precision_encoding=8):
+def enc_dec_fct(fct, x, precision_encoding=8):
     """
     Encode x in binary for OPU transformation then decode.
-    This function just makes a linear random transformation of x using the opu.
+    This function just makes a transformation of x with an encoding/decoding (noisy) step.
 
-
-    :param opu:
+    :param fct: fct that can take x as input
     :param x:
     :param precision_encoding:
     :return:
@@ -26,7 +25,7 @@ def enc_dec_opu_transform(opu, x, precision_encoding=8):
     # encoder = QuantizedSeparatedBitPlanEncoder(base=2, n_bits=precision_encoding)
     # x_enc = encoder.transform(x)
     x_enc = encoder.fit_transform(x)
-    y_enc = opu.linear_transform(x_enc)
+    y_enc = fct(x_enc)
     decoder = SeparatedBitPlanDecoder(**encoder.get_params())
     # decoder = QuantizedMixingBitPlanDecoder(n_bits=precision_encoding, decoding_decay=2)
     y_dec = decoder.transform(y_enc)
@@ -71,7 +70,7 @@ class OPUDistributionEstimator:
             self.FHB = None
 
     def OPU(self, x):
-        return np.array(enc_dec_opu_transform(self.opu, x))
+        return np.array(enc_dec_fct(self.opu.linear_transform, x))
 
     def transform(self, x, direct=False):
         """
@@ -225,10 +224,12 @@ class OPUFeatureMap(SimpleFeatureMap):
         self.switch_use_calibration_backward = boolean
 
     def _OPU(self, x):
-        if self.switch_use_calibration_forward:
+        if self.switch_use_calibration_forward and not self.encoding_decoding:
             return x @ self.calibrated_matrix
+        elif self.switch_use_calibration_forward and self.encoding_decoding:
+            return enc_dec_fct(lambda inp: inp @ self.calibrated_matrix, x)
         else:
-            return enc_dec_opu_transform(self.opu, x)
+            return enc_dec_fct(self.opu.linear_transform, x)
 
     def get_randn_mat(self, mu=0, sigma=1.):
         if self.light_memory is True:
@@ -295,8 +296,8 @@ if __name__ == "__main__":
     opu.fit1d(n_features=2)
     # Phi = OPUFeatureMap("ComplexExponential", opu)
     sample = np.random.rand(1, 2)
-    enc_dec_opu_transform(opu, sample)
-    enc_dec_opu_transform(opu, sample)
+    enc_dec_fct(opu.linear_transform, sample)
+    enc_dec_fct(opu.linear_transform, sample)
 
     opudistestim = OPUDistributionEstimator(opu, 2)
     opudistestim.mu_estimation("ones")

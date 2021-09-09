@@ -5,7 +5,7 @@ import pycle.sketching.frequency_sampling
 from lightonml import OPU
 from lightonml.internal.simulated_device import SimulatedOpuDevice
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
-from pycle.sketching.feature_maps.OPUFeatureMap import calibrate_lin_op, enc_dec_opu_transform, OPUFeatureMap
+from pycle.sketching.feature_maps.OPUFeatureMap import calibrate_lin_op, enc_dec_fct, OPUFeatureMap
 
 
 @pytest.fixture
@@ -52,10 +52,10 @@ def test_enc_dec_opu_transform():
     alpha_1 = np.random.randn(1)
     alpha_2 = np.random.randn(1)
     lin_comb = alpha_1 * rand_vec_1 + alpha_2 * rand_vec_2
-    res_lin_comb = enc_dec_opu_transform(opu, lin_comb.reshape(1, -1))
+    res_lin_comb = enc_dec_fct(opu.linear_transform, lin_comb.reshape(1, -1))
 
-    res_rand_vec_1 = enc_dec_opu_transform(opu, rand_vec_1.reshape(1, -1))
-    res_rand_vec_2 = enc_dec_opu_transform(opu, rand_vec_2.reshape(1, -1))
+    res_rand_vec_1 = enc_dec_fct(opu.linear_transform, rand_vec_1.reshape(1, -1))
+    res_rand_vec_2 = enc_dec_fct(opu.linear_transform, rand_vec_2.reshape(1, -1))
     lin_comb_res = alpha_1 * res_rand_vec_1 + alpha_2 * res_rand_vec_2
 
     assert np.isclose(res_lin_comb, lin_comb_res, atol=1e-2).all()

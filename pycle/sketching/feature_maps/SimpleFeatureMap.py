@@ -7,7 +7,7 @@ from abc import abstractmethod, ABCMeta
 
 # schellekensvTODO find a better name
 class SimpleFeatureMap(FeatureMap, metaclass=ABCMeta):
-    def __init__(self, f, xi=None, c_norm=1.):
+    def __init__(self, f, xi=None, c_norm=1., encoding_decoding=False):
         """
         - f can be one of the following:
             -- a string for one of the predefined feature maps:
@@ -49,6 +49,8 @@ class SimpleFeatureMap(FeatureMap, metaclass=ABCMeta):
                 raise NotImplementedError("The provided c_norm name is not implemented.")
         else:
             self.c_norm = c_norm
+
+        self.encoding_decoding = encoding_decoding
 
         super().__init__()
 
