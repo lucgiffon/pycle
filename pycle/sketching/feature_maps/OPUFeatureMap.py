@@ -50,7 +50,7 @@ def calibrate_lin_op(fct_lin_op, dim):
 
 
 class OPUDistributionEstimator:
-    def __init__(self, opu, input_dim, compute_calibration=False, use_calibration_transform=False):
+    def __init__(self, opu, input_dim, compute_calibration=False, use_calibration_transform=False, encoding_decoding_precision=8):
         """
 
         :param opu:
@@ -69,8 +69,10 @@ class OPUDistributionEstimator:
         else:
             self.FHB = None
 
+        self.encoding_decoding_precision = encoding_decoding_precision
+
     def OPU(self, x):
-        return np.array(enc_dec_fct(self.opu.linear_transform, x))
+        return np.array(enc_dec_fct(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision))
 
     def transform(self, x, direct=False):
         """
@@ -164,7 +166,7 @@ class OPUFeatureMap(SimpleFeatureMap):
 
         super().__init__(f, **kwargs)
         self.light_memory = (not (calibration_param_estimation or calibration_forward or calibration_backward)) and (not calibrate_always)
-        self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory), use_calibration_transform=calibration_param_estimation)
+        self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory), use_calibration_transform=calibration_param_estimation, encoding_decoding_precision=self.encoding_decoding_precision)
         self.calibration_param_estimation = calibration_param_estimation
         self.switch_use_calibration_forward = calibration_forward  # if True, use the calibrated OPU (the implicit matrix of the OPU) for the forward multiplication
         self.switch_use_calibration_backward = calibration_backward  # same, but for the gradient (backward) computation
@@ -227,9 +229,9 @@ class OPUFeatureMap(SimpleFeatureMap):
         if self.switch_use_calibration_forward and not self.encoding_decoding:
             return x @ self.calibrated_matrix
         elif self.switch_use_calibration_forward and self.encoding_decoding:
-            return enc_dec_fct(lambda inp: inp @ self.calibrated_matrix, x)
+            return enc_dec_fct(lambda inp: inp @ self.calibrated_matrix, x, precision_encoding=self.encoding_decoding_precision)
         else:
-            return enc_dec_fct(self.opu.linear_transform, x)
+            return enc_dec_fct(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision)
 
     def get_randn_mat(self, mu=0, sigma=1.):
         if self.light_memory is True:

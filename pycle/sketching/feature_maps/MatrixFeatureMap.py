@@ -21,7 +21,7 @@ class MatrixFeatureMap(SimpleFeatureMap):
 
     def _apply_mat(self, x):
         if self.encoding_decoding:
-            return enc_dec_fct(lambda inp: np.matmul(inp, self.Omega), x)
+            return enc_dec_fct(lambda inp: np.matmul(inp, self.Omega), x, precision_encoding=self.encoding_decoding_precision)
         else:
             return np.matmul(x, self.Omega)
 

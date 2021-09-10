@@ -7,7 +7,7 @@ from abc import abstractmethod, ABCMeta
 
 # schellekensvTODO find a better name
 class SimpleFeatureMap(FeatureMap, metaclass=ABCMeta):
-    def __init__(self, f, xi=None, c_norm=1., encoding_decoding=False):
+    def __init__(self, f, xi=None, c_norm=1., encoding_decoding=False, encoding_decoding_precision=8):
         """
         - f can be one of the following:
             -- a string for one of the predefined feature maps:
@@ -51,6 +51,7 @@ class SimpleFeatureMap(FeatureMap, metaclass=ABCMeta):
             self.c_norm = c_norm
 
         self.encoding_decoding = encoding_decoding
+        self.encoding_decoding_precision = encoding_decoding_precision
 
         super().__init__()
 
