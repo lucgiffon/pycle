@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.stats
+from lightonml.encoding.base import SeparatedBitPlanEncoder, SeparatedBitPlanDecoder
 
 from pycle.utils.metrics import loglikelihood_GMM
 
@@ -99,3 +100,38 @@ class SingletonMeta(type):
             instance = super().__call__(*args, **kwargs)
             cls._instances[cls] = instance
         return cls._instances[cls]
+
+
+def enc_dec_fct(fct, x, precision_encoding=8):
+    """
+    Encode x in binary for OPU transformation then decode.
+    This function just makes a transformation of x with an encoding/decoding (noisy) step.
+
+    :param fct: fct that can take x as input
+    :param x:
+    :param precision_encoding:
+    :return:
+    """
+    encoder = SeparatedBitPlanEncoder(precision=precision_encoding)
+    x_enc = encoder.fit_transform(x)
+    y_enc = fct(x_enc)
+    decoder = SeparatedBitPlanDecoder(**encoder.get_params())
+    y_dec = decoder.transform(y_enc)
+    return y_dec
+
+
+def only_quantification_fct(fct, x, precision_encoding=8):
+    """
+    Only make quantification of x before applying the fct.
+
+    :param fct: fct that can take x as input
+    :param x:
+    :param precision_encoding:
+    :return:
+    """
+    encoder = SeparatedBitPlanEncoder(precision=precision_encoding)
+    x_enc = encoder.fit_transform(x)
+    decoder = SeparatedBitPlanDecoder(**encoder.get_params())
+    x_dec = decoder.transform(x_enc)
+    y_dec = fct(x_dec)
+    return y_dec

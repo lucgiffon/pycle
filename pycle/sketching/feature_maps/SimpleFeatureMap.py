@@ -6,8 +6,11 @@ from abc import abstractmethod, ABCMeta
 
 
 # schellekensvTODO find a better name
+from pycle.utils import enc_dec_fct, only_quantification_fct
+
+
 class SimpleFeatureMap(FeatureMap, metaclass=ABCMeta):
-    def __init__(self, f, xi=None, c_norm=1., encoding_decoding=False, encoding_decoding_precision=8):
+    def __init__(self, f, xi=None, c_norm=1., encoding_decoding=False, quantification=False, encoding_decoding_precision=8):
         """
         - f can be one of the following:
             -- a string for one of the predefined feature maps:
@@ -51,9 +54,19 @@ class SimpleFeatureMap(FeatureMap, metaclass=ABCMeta):
             self.c_norm = c_norm
 
         self.encoding_decoding = encoding_decoding
+        self.quantification = quantification
+        assert encoding_decoding is False or quantification is False
         self.encoding_decoding_precision = encoding_decoding_precision
 
         super().__init__()
+
+    def wrap_transform(self, transform, x, *args, **kwargs):
+        if self.encoding_decoding:
+            return lambda: enc_dec_fct(transform, x, *args, **kwargs)
+        elif self.quantification:
+            return lambda: only_quantification_fct(transform, x, *args, **kwargs)
+        else:
+            return lambda: transform(x)
 
     @abstractmethod
     def init_shape(self):

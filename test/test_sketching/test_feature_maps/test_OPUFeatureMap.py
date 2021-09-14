@@ -5,7 +5,8 @@ import pycle.sketching.frequency_sampling
 from lightonml import OPU
 from lightonml.internal.simulated_device import SimulatedOpuDevice
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
-from pycle.sketching.feature_maps.OPUFeatureMap import calibrate_lin_op, enc_dec_fct, OPUFeatureMap
+from pycle.sketching.feature_maps.OPUFeatureMap import calibrate_lin_op, OPUFeatureMap
+from pycle.utils import enc_dec_fct
 
 
 @pytest.fixture

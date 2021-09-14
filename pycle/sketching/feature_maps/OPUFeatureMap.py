@@ -2,34 +2,12 @@ from pycle.sketching.distribution_estimation import mu_estimation_ones, var_esti
     var_estimation_any
 from pycle.sketching.feature_maps.SimpleFeatureMap import SimpleFeatureMap
 from lightonml import OPU
-from lightonml.encoding.base import SeparatedBitPlanDecoder, SeparatedBitPlanEncoder
 from lightonml.internal.simulated_device import SimulatedOpuDevice
 import numpy as np
 from pycle.sketching.frequency_sampling import sampleFromPDF, pdfAdaptedRadius
+from pycle.utils import enc_dec_fct
 from scipy.linalg import hadamard
 from fht import fht
-
-
-# note that the encoder and decoder are instantitated here once and for all (and not at each function call)
-def enc_dec_fct(fct, x, precision_encoding=8):
-    """
-    Encode x in binary for OPU transformation then decode.
-    This function just makes a transformation of x with an encoding/decoding (noisy) step.
-
-    :param fct: fct that can take x as input
-    :param x:
-    :param precision_encoding:
-    :return:
-    """
-    encoder = SeparatedBitPlanEncoder(precision=precision_encoding)
-    # encoder = QuantizedSeparatedBitPlanEncoder(base=2, n_bits=precision_encoding)
-    # x_enc = encoder.transform(x)
-    x_enc = encoder.fit_transform(x)
-    y_enc = fct(x_enc)
-    decoder = SeparatedBitPlanDecoder(**encoder.get_params())
-    # decoder = QuantizedMixingBitPlanDecoder(n_bits=precision_encoding, decoding_decay=2)
-    y_dec = decoder.transform(y_enc)
-    return y_dec
 
 
 def calibrate_lin_op(fct_lin_op, dim):
@@ -226,12 +204,10 @@ class OPUFeatureMap(SimpleFeatureMap):
         self.switch_use_calibration_backward = boolean
 
     def _OPU(self, x):
-        if self.switch_use_calibration_forward and not self.encoding_decoding:
-            return x @ self.calibrated_matrix
-        elif self.switch_use_calibration_forward and self.encoding_decoding:
-            return enc_dec_fct(lambda inp: inp @ self.calibrated_matrix, x, precision_encoding=self.encoding_decoding_precision)
+        if self.switch_use_calibration_forward:
+            return self.wrap_transform(lambda inp: inp @ self.calibrated_matrix, x, precision_encoding=self.encoding_decoding_precision)()
         else:
-            return enc_dec_fct(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision)
+            return self.wrap_transform(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision)()
 
     def get_randn_mat(self, mu=0, sigma=1.):
         if self.light_memory is True:

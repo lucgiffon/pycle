@@ -1,5 +1,5 @@
 import numpy as np
-from pycle.sketching.feature_maps.OPUFeatureMap import enc_dec_fct
+from pycle.utils import enc_dec_fct
 
 from pycle.sketching.feature_maps.SimpleFeatureMap import SimpleFeatureMap
 
@@ -20,10 +20,7 @@ class MatrixFeatureMap(SimpleFeatureMap):
             raise ValueError("The provided projection matrix Omega should be a (d,m) linear operator.")
 
     def _apply_mat(self, x):
-        if self.encoding_decoding:
-            return enc_dec_fct(lambda inp: np.matmul(inp, self.Omega), x, precision_encoding=self.encoding_decoding_precision)
-        else:
-            return np.matmul(x, self.Omega)
+        return self.wrap_transform(lambda inp: np.matmul(inp, self.Omega), x, precision_encoding=self.encoding_decoding_precision)()
 
     # call the FeatureMap object as a function
     def call(self, x):
