@@ -65,6 +65,15 @@ class Solver(metaclass=ABCMeta):
     # Generic methods
     # ===============
     # They should always work, using the instances of the methdos above
+    def update_sketch_and_weight(self, sketch=None, sketch_weight=None):
+        """Updates the residual and cost to the current solution. If sol given, also updates it."""
+        if sketch is not None:
+            self.sketch = sketch
+        if sketch_weight is not None:
+            assert isinstance(sketch_weight, float) or isinstance(sketch_weight, int)
+            self.sketch_weight = sketch_weight
+        self.sketch_reweighted = self.sketch_weight * self.sketch
+
     def fit_several_times(self, n_repetitions=1, forget_current_sol=False):
         # todo never used
         """Solves the problem n times. If a sketch is given, updates it."""
@@ -88,12 +97,3 @@ class Solver(metaclass=ABCMeta):
         # Set the current sol to the best one we found
         self.current_sol, self.current_sol_cost = best_sol, best_sol_cost
         return self.current_sol
-
-    def update_sketch_and_weight(self, sketch=None, sketch_weight=None):
-        """Updates the residual and cost to the current solution. If sol given, also updates it."""
-        if sketch is not None:
-            self.sketch = sketch
-        if sketch_weight is not None:
-            assert isinstance(sketch_weight, float) or isinstance(sketch_weight, int)
-            self.sketch_weight = sketch_weight
-        self.sketch_reweighted = self.sketch_weight * self.sketch
