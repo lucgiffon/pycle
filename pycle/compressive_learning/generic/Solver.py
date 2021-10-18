@@ -1,10 +1,12 @@
+from abc import ABCMeta, abstractmethod
+
 import numpy as np
 
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 
 
 # 0.1 Generic solver (stores a sketch and a solution, can run multiple trials of a learning method to specify)
-class Solver:
+class Solver(metaclass=ABCMeta):
     """
     Template for a compressive learning solver, used to solve the problem
         min_(theta) || sketch_weight * z - A_Phi(P_theta) ||_2.
@@ -40,6 +42,7 @@ class Solver:
     # Abtract methods
     # ===============
     # Methods that have to be instantiated by child classes
+    @abstractmethod
     def sketch_of_solution(self, sol=None):
         """
         Should return the sketch of the given solution, A_Phi(P_theta).
@@ -49,8 +52,14 @@ class Solver:
         """
         raise NotImplementedError
 
+    @abstractmethod
     def fit_once(self, random_restart=False):
         """Optimizes the cost to the given sketch, by starting at the current solution"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_current_sol_and_cost(self, sol=None):
+        """Updates the residual and cost to the current solution. If sol given, also updates it."""
         raise NotImplementedError
 
     # Generic methods
@@ -88,18 +97,3 @@ class Solver:
             assert isinstance(sketch_weight, float) or isinstance(sketch_weight, int)
             self.sketch_weight = sketch_weight
         self.sketch_reweighted = self.sketch_weight * self.sketch
-
-    def update_current_sol_and_cost(self, sol=None):
-        """Updates the residual and cost to the current solution. If sol given, also updates it."""
-
-        # Update current sol if argument given
-        if sol is not None:
-            self.current_sol = sol
-
-        # Update residual and cost
-        if self.current_sol is not None:
-            self.residual = self.sketch_reweighted - self.sketch_of_solution(self.current_sol)
-            self.current_sol_cost = np.linalg.norm(self.residual)
-        else:
-            self.current_sol, self.residual = None, self.sketch_reweighted
-            self.current_sol_cost = np.inf

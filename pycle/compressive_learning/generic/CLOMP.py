@@ -5,13 +5,13 @@ import scipy.optimize
 from pdfo import pdfo
 from sklearn.linear_model import LinearRegression
 
-from pycle.compressive_learning.generic.Solver import Solver
+from pycle.compressive_learning.generic.SolverNumpy import SolverNumpy
 from pycle.utils.optim import ObjectiveValuesStorage
 from pycle.utils.datasets import sample_ball
 
 
 # 0.2 CL-OMP template (stores a *mixture model* and implements a generic OMP for it)
-class CLOMP(Solver, metaclass=ABCMeta):
+class CLOMP(SolverNumpy, metaclass=ABCMeta):
     """
     Template for Compressive Learning with Orthogonal Matching Pursuit (CL-OMP) solver,
     used to the CL problem
