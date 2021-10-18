@@ -5,7 +5,7 @@ import numpy as np
 import scipy.optimize
 from matplotlib import pyplot as plt
 
-from pycle.sketching import SimpleFeatureMap, computeSketch
+from pycle.sketching import computeSketch
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 from pycle.sketching.frequency_sampling import drawFrequencies
 

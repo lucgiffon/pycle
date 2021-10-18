@@ -5,12 +5,13 @@ Sketching functions
 import sys
 
 import numpy as np
+import torch
 
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
-from pycle.sketching.feature_maps.SimpleFeatureMap import SimpleFeatureMap
+from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 
 
-def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=None):
+def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=None, use_torch=False):
     """
     Computes the sketch of a dataset given a generic feature map.
 
@@ -49,10 +50,15 @@ def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=None):
         batch_size = int(1e6 / m)  # Rough heuristic, best batch size will vary on different machines
     nb_batches = int(np.ceil(n / batch_size))
 
-    sketch = np.zeros(m)
+    if use_torch:
+        sketch = torch.zeros(m)
+        sum_arg = {"dim": 0}
+    else:
+        sketch = np.zeros(m)
+        sum_arg = {"axis": 0}
     if datasetWeights is None:
         for b in range(nb_batches):
-            sketch = sketch + featureMap(dataset[b * batch_size:(b + 1) * batch_size]).sum(axis=0)
+            sketch = sketch + featureMap(dataset[b * batch_size:(b + 1) * batch_size]).sum(**sum_arg)
         sketch /= n
     else:
         sketch = datasetWeights @ featureMap(dataset)
@@ -253,7 +259,7 @@ def fourierSketchOfGMM(GMM, featureMap):
     K = w.size
 
     # Parse featureMap input
-    if isinstance(featureMap, SimpleFeatureMap):
+    if isinstance(featureMap, MatrixFeatureMap):
         Omega = featureMap.Omega
         xi = featureMap.xi
         d = featureMap.d
@@ -304,7 +310,7 @@ def fourierSketchOfBox(box, featureMap, nb_cat_per_dim=None, dimensions_to_consi
     l_box = (box[:, 1] - box[:, 0]) / 2  # Length (well, half of the length) of the box in each dimension
 
     # Parse featureMap input
-    if isinstance(featureMap, SimpleFeatureMap):
+    if isinstance(featureMap, MatrixFeatureMap):
         Omega = featureMap.Omega
         xi = featureMap.xi
         d = featureMap.d

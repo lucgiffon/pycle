@@ -1,6 +1,6 @@
+from pycle.sketching import FeatureMap
 from pycle.sketching.distribution_estimation import mu_estimation_ones, var_estimation_ones, var_estimation_randn, \
     var_estimation_any
-from pycle.sketching.feature_maps.SimpleFeatureMap import SimpleFeatureMap
 from lightonml import OPU
 from lightonml.internal.simulated_device import SimulatedOpuDevice
 import numpy as np
@@ -133,7 +133,7 @@ class OPUDistributionEstimator:
         return result
 
 
-class OPUFeatureMap(SimpleFeatureMap):
+class OPUFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
 
     def __init__(self, f, opu, dimension=None, Sigma=None, calibration_param_estimation=False, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, sampling_method="FG", seed=None, **kwargs):
@@ -143,6 +143,7 @@ class OPUFeatureMap(SimpleFeatureMap):
         self.provided_dimension = dimension
 
         super().__init__(f, **kwargs)
+        assert self.use_torch is False, "OPU feature map has not torch support yet."
         self.light_memory = (not (calibration_param_estimation or calibration_forward or calibration_backward)) and (not calibrate_always)
         self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory), use_calibration_transform=calibration_param_estimation, encoding_decoding_precision=self.encoding_decoding_precision)
         self.calibration_param_estimation = calibration_param_estimation
@@ -178,6 +179,7 @@ class OPUFeatureMap(SimpleFeatureMap):
             # multiplied by 1/std because we want the norm of the matrix
             # whose coefficients are sampled in N(0,1)
             col_norm = np.linalg.norm(self.distribution_estimator.FHB * 1./std, axis=0)
+            col_norm[np.where(col_norm == 0)] = np.inf
 
         else:
             # todo choisir le n_iter dynamiquement et utiliser une autre methode que "ones"
@@ -237,7 +239,6 @@ class OPUFeatureMap(SimpleFeatureMap):
             y_dec = y_dec - mu_x.reshape(-1, 1)
 
         y_dec = self.R * y_dec * 1./self.std_opu * 1./self.norm_scaling
-
         out = y_dec
         return out
 

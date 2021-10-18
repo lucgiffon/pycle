@@ -2,10 +2,20 @@
 Common sketch nonlinearities and derivatives
 """
 import numpy as np
+import torch
 
 
-def _complexExponential(t, T=2 * np.pi):
-    return np.exp(1j * (2 * np.pi) * t / T)
+def _complexExponential(t, T=2 * np.pi, use_torch=False):
+    if use_torch:
+        outer_exp = torch.exp
+    else:
+        outer_exp = np.exp
+
+    return outer_exp(1j * (2 * np.pi) * t / T)
+
+
+def _complexExponentialTorch(t, T=2 * np.pi):
+    return _complexExponential(t, T, use_torch=True)
 
 
 def _complexExponential_grad(t, T=2 * np.pi):
@@ -59,4 +69,9 @@ _dico_nonlinearities = {
     "sawtooth": (_sawtoothWave, None),
     "sawtooth_complex": (_sawtoothWave_complex, None),
     "cosine": (lambda x: np.cos(x), lambda x: -np.sin(x))
+}
+
+# dict of nonlinearities for torch (no gradient provided because autodiff)
+_dico_nonlinearities_torch = {
+    "complexexponential": (_complexExponentialTorch, None)
 }

@@ -22,6 +22,7 @@ class Solver:
         self.Phi = Phi
 
         # Encode sketch and sketch weight
+        self.sketch = None
         self.update_sketch_and_weight(sketch, sketch_weight)
 
         # Encode current theta and cost value
@@ -56,6 +57,7 @@ class Solver:
     # ===============
     # They should always work, using the instances of the methdos above
     def fit_several_times(self, n_repetitions=1, forget_current_sol=False):
+        # todo never used
         """Solves the problem n times. If a sketch is given, updates it."""
 
         # Initialization
