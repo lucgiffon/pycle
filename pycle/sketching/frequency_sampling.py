@@ -3,7 +3,7 @@ Frequency sampling functions
 """
 import numpy as np
 from matplotlib import pyplot as plt
-
+import torch
 
 def drawDithering(m, bounds=None):
     """Draws m samples a <= x < b, with bounds=(a,b) (default: (0,2*pi))."""
@@ -164,7 +164,7 @@ def drawFrequencies_diffOfGaussians(d, m, GMM_upper, GMM_lower=None, verbose=0):
     return Om
 
 
-def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1=None, seed=None):
+def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1=None, seed=None, use_torch=False):
     """Draw the 'frequencies' or projection matrix Omega for sketching.
 
     Arguments:
@@ -245,7 +245,10 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
 
         Omega[intg_index] = Omega_intg
 
-    return Omega
+    if use_torch:
+        return torch.from_numpy(Omega)
+    else:
+        return Omega
 
 
 def multi_scale_frequency_sampling(dim, m, scale_min, scale_max, nb_scales, sampling_method):

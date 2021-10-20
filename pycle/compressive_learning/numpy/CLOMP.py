@@ -5,7 +5,7 @@ import scipy.optimize
 from pdfo import pdfo
 from sklearn.linear_model import LinearRegression
 
-from pycle.compressive_learning.generic.SolverNumpy import SolverNumpy
+from pycle.compressive_learning.numpy.SolverNumpy import SolverNumpy
 from pycle.utils.optim import ObjectiveValuesStorage
 from pycle.utils.datasets import sample_ball
 
@@ -22,11 +22,11 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
     The CLOMP algorithm works by adding new elements to the mixture one by one.
     """
 
-    def __init__(self, Phi, K, d_atom, bounds, opt_method="vanilla", dct_opt_method=None,
+    def __init__(self, phi, nb_mixtures, d_atom, bounds, opt_method="vanilla", dct_opt_method=None,
                  show_curves=False, sketch=None, sketch_weight=1., verbose=0):
         """
-        :param Phi: a FeatureMap object
-        :param K: int, target number of mixture components
+        :param phi: a FeatureMap object
+        :param nb_mixtures: int, target number of mixture components
         :param d_atom: dimension of an atom, should be determined by a child class
         :param sketch: the sketch to be fit (can be None)
         :param sketch_weight: float, a re-scaling factor for the data sketch (default 1)
@@ -38,10 +38,10 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         self.Jacobians = None
 
         # Call parent class
-        super(CLOMP, self).__init__(Phi, sketch, sketch_weight, verbose)
+        super(CLOMP, self).__init__(phi, sketch, sketch_weight, verbose)
 
         # Set other values
-        self.K = K
+        self.nb_mixtures = nb_mixtures
         self.n_atoms = 0
         self.d_atom = d_atom
 
@@ -63,14 +63,12 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         self.dct_opt_method = dct_opt_method or dict()
 
         self.radius_sample = 1.
-        self.show_curves = show_curves
-        # self.bounds_atom = []
+        self.show_curves = show_curves  # todo fix that, it doesn't work
 
     # Abtract methods
     # ===============
     # Methods that have to be instantiated by child classes
 
-    # Sketch of a single atom
     @abstractmethod
     def sketch_of_atom(self, theta_k, return_jacobian=False):
         """
@@ -108,9 +106,9 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         self.alpha = np.empty(0)  # (n_atoms,)-array, weigths of the mixture elements
         self.Theta = np.empty((0, self.d_atom))  # (n_atoms,d_atom)-array, all the found parameters in matrix form
         self.Atoms = np.empty(
-            (self.Phi.m, 0))  # (m,n_atoms)-array, the sketch of the found parameters (m is sketch size)
+            (self.phi.m, 0))  # (m,n_atoms)-array, the sketch of the found parameters (m is sketch size)
         self.Jacobians = np.empty(
-            (0, self.d_atom, self.Phi.m))  # (n_atoms,d_atom,m)-array, the jacobians of the residual wrt each atom
+            (0, self.d_atom, self.phi.m))  # (n_atoms,d_atom,m)-array, the jacobians of the residual wrt each atom
         self.current_sol = (self.alpha, self.Theta)  # Overwrite
 
     def compute_atoms_matrix(self, Theta=None, return_jacobian=False):
@@ -257,7 +255,7 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
 
     def _maximize_atom_correlation_fun_grad_simplex_grad(self, theta):
         """Computes the fun. value and grad. of step 1 objective: max_theta <A(P_theta),r> / <A(P_theta),A(P_theta)>"""
-        # todo factoriser le code avec la fonction du dessus
+        # todo dfo  factoriser le code avec la fonction du dessus
 
         # Firstly, compute A(P_theta)...
         if self.dct_opt_method["compute_oracle"]:
@@ -268,8 +266,8 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         # ... and its l2 norm
         norm_sketch_theta = self.get_norm_sketch_theta(sketch_theta.reshape(1, -1))
 
-        cost_fun = lambda x: -np.real(np.dot(self.Phi(x).conj(), self.residual)) / self.get_norm_sketch_theta(
-            self.Phi(x).reshape(-1, sketch_theta.shape[-1]))
+        cost_fun = lambda x: -np.real(np.dot(self.phi(x).conj(), self.residual)) / self.get_norm_sketch_theta(
+            self.phi(x).reshape(-1, sketch_theta.shape[-1]))
         # Evaluate the cost function
         # fun_value = -np.real(np.vdot(sketch_theta, self.residual)) / norm_sketch_theta  # - to have a min problem
         fun_value = cost_fun(theta.reshape(1, -1))[0]
@@ -304,11 +302,11 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         """
         Find a linear approximation of the gradient in the max atom correlation problem of clomp
         """
-        # todo remove this "100"
+        # todo dfo  remove this "100"
         sample_points_X = sample_ball(radius=self.radius_sample, npoints=self.dct_opt_method["nb_sample_point"] * 100, ndim=theta.size,
                                       center=theta)
         fct_values_Y = np.array([obj_fun(elm) for elm in sample_points_X]).squeeze()
-        # todo could be accelerated by removing the for loop
+        # todo dfo  could be accelerated by removing the for loop
 
         return self._get_coeffs_lin_reg(sample_points_X, fct_values_Y)
 
@@ -414,7 +412,7 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         def eval_obj(x):
             # can only take on sample at a time
             (_alpha, _Theta) = self._destack_sol(x)
-            sketch_of_solution = _alpha @ self.Phi(_Theta)
+            sketch_of_solution = _alpha @ self.phi(_Theta)
             # sketch_of_solution = self.Phi(_Theta).T @ _alpha
             r = self.sketch_reweighted - sketch_of_solution
             return np.linalg.norm(r, axis=-1) ** 2
@@ -468,7 +466,7 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         :param p Stacked Theta and alpha
         """
         (_alpha, _Theta) = self._destack_sol(p)
-        sketch_of_solution = _alpha @ self.Phi(_Theta)
+        sketch_of_solution = _alpha @ self.phi(_Theta)
         # sketch_of_solution = self.Phi(_Theta).T @ _alpha
         r = self.sketch_reweighted - sketch_of_solution
         fun_val = np.linalg.norm(r, axis=-1) ** 2
@@ -485,14 +483,14 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         (_alpha, _Theta) = self._destack_sol(current_sol)
         nb_atoms = len(_alpha)
 
-        # todo remove this "100"
+        # todo dfo remove this "100"
         sample_points_X = sample_ball(radius=self.radius_sample, npoints=self.nb_sample_point * 100,
                                       ndim=current_sol.size, center=current_sol)
         sample_points_X[:, -nb_atoms:] = _alpha
-        # todo remove alpha from the input if performance is a problem
+        # todo dfo  remove alpha from the input if performance is a problem
 
         fct_values_Y = np.array([obj_fun(elm) for elm in sample_points_X]).squeeze()
-        # todo could be accelerated by removing the for loop
+        # todo dfo  could be accelerated by removing the for loop
 
         return self._get_coeffs_lin_reg(sample_points_X, fct_values_Y)
 
@@ -525,7 +523,7 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
 
             # Initializations
             if n_iterations is None:
-                n_iterations = 2 * self.K  # By default: CLOMP-*R* (repeat twice)
+                n_iterations = 2 * self.nb_mixtures  # By default: CLOMP-*R* (repeat twice)
             self.initialize_empty_solution()
             self.residual = self.sketch_reweighted
 
@@ -539,12 +537,12 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
                 self.add_atom(new_theta)
 
                 ## Step 3: if necessary, hard-threshold to enforce sparsity
-                if self.n_atoms > self.K:
+                if self.n_atoms > self.nb_mixtures:
                     beta = self.find_optimal_weights(normalize_atoms=True)
                     index_to_remove = np.argmin(beta)
                     self.remove_atom(index_to_remove)
                     # Shortcut: if the last added atom is removed, we can skip to next iter
-                    if index_to_remove == self.K:
+                    if index_to_remove == self.nb_mixtures:
                         continue
 
                 ## Step 4: project to find weights

@@ -1,6 +1,6 @@
 import numpy as np
 
-from pycle.compressive_learning import CLOMP_dGMM
+from pycle.compressive_learning.numpy import CLOMP_dGMM
 
 
 ## 2.2 (diagonal) GMM with Hierarchical Splitting

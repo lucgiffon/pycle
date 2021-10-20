@@ -11,7 +11,7 @@ from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 
 
-def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=None, use_torch=False):
+def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=None):
     """
     Computes the sketch of a dataset given a generic feature map.
 
@@ -44,6 +44,8 @@ def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=None, use
             m = featureMap(dataset[0]).shape[0]
         except Exception:
             raise ValueError("Unexpected error while calling the sketch feature map:", sys.exc_info()[0])
+
+    use_torch = featureMap.use_torch
 
     # Split the batches
     if batch_size is None:
@@ -235,6 +237,30 @@ def fourierSketchOfGaussian(mu, Sigma, Omega, xi=None, scst=None):
     if scst is not None:  # Sketch constant, eg 1/sqrt(m)
         res = scst * res
     return res
+
+
+def fourier_sketch_of_gaussianS(muS, SigmaS, Omega, xi=None, scst=None, use_torch=False):
+
+    if use_torch:
+        backend = torch
+        dim_name = "dim"
+    else:
+        backend = np
+        dim_name = "axis"
+
+    assert muS.ndim == SigmaS.ndim == 2
+
+    right_hand = SigmaS[..., np.newaxis] * Omega
+    right_hand = Omega * right_hand
+    right_hand = - 0.5 * backend.sum(right_hand, **{dim_name:-2})
+    # this line does the multiplication between the frequencies and the means (left hand part of Eq 15)
+    left_hand = -1j * muS @ Omega
+    result = np.exp(left_hand + right_hand)  # adding the contents of an exp is like multiplying the exps
+    if xi is not None:
+        result = result * backend.exp(1j * xi)
+    if scst is not None:  # Sketch constant, eg 1/sqrt(m)
+        result = scst * result
+    return result
 
 
 def fourierSketchOfGMM(GMM, featureMap):

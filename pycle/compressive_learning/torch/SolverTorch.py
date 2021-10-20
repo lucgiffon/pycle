@@ -3,10 +3,10 @@ from abc import ABCMeta
 import torch
 import numpy as np
 
-from pycle.compressive_learning import Solver
+from pycle.compressive_learning.Solver import Solver
 
 
-class SolverTorch(Solver, metaclass=ABCMeta):
+class SolverTorch(Solver):
     """
     Adapt Solver base methods to torch.
     """

@@ -2,7 +2,7 @@ from abc import ABCMeta
 
 import numpy as np
 
-from pycle.compressive_learning import Solver
+from pycle.compressive_learning.Solver import Solver
 
 
 class SolverNumpy(Solver, metaclass=ABCMeta):

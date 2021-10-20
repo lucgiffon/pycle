@@ -13,18 +13,18 @@ class Solver(metaclass=ABCMeta):
     Implements several trials of an generic method and keeps the best one.
     """
 
-    def __init__(self, Phi, sketch=None, sketch_weight=1., verbose=0):
+    def __init__(self, phi, sketch=None, sketch_weight=1., verbose=0):
         """
         - Phi: a FeatureMap object
         - sketch_weight: float, a re-scaling factor for the data sketch
         """
 
         # Encode feature map
-        assert isinstance(Phi, FeatureMap)
-        self.Phi = Phi
+        assert isinstance(phi, FeatureMap)
+        self.phi = phi
 
         # Encode sketch and sketch weight
-        self.sketch = None
+        self.sketch = sketch
         self.update_sketch_and_weight(sketch, sketch_weight)
 
         # Encode current theta and cost value
@@ -75,7 +75,6 @@ class Solver(metaclass=ABCMeta):
         self.sketch_reweighted = self.sketch_weight * self.sketch
 
     def fit_several_times(self, n_repetitions=1, forget_current_sol=False):
-        # todo never used
         """Solves the problem n times. If a sketch is given, updates it."""
 
         # Initialization

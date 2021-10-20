@@ -10,7 +10,8 @@ class FeatureMap(ABC):
     """Abstract feature map class
     Template for a generic Feature Map. Useful to check if an object is an instance of FeatureMap."""
 
-    def __init__(self, *args, f="complexexponential", xi=None, c_norm=1., encoding_decoding=False, quantification=False, encoding_decoding_precision=8, use_torch=False, **kwargs):
+    def __init__(self, *args, f="complexexponential", xi=None, c_norm=1., encoding_decoding=False,
+                 quantification=False, encoding_decoding_precision=8, use_torch=False, device=None, dtype=None, **kwargs):
         """
         - f can be one of the following:
             -- a string for one of the predefined feature maps:
@@ -22,6 +23,9 @@ class FeatureMap(ABC):
 
         """
         self.use_torch = use_torch
+        self.device = device
+        self.dtype = dtype
+
         if use_torch:
             self.module_math_functions = torch
             self.dico_nonlinearities = _dico_nonlinearities_torch

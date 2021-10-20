@@ -11,7 +11,7 @@ class MatrixFeatureMap(FeatureMap):
     def __init__(self, f, Omega, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         self.Omega = Omega
-        super().__init__(f, **kwargs)
+        super().__init__(f, dtype=Omega.dtype, **kwargs)
 
     def init_shape(self):
         try:

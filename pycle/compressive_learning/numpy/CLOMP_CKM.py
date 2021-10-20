@@ -1,6 +1,6 @@
 import numpy as np
 
-from pycle.compressive_learning import CLOMP
+from pycle.compressive_learning.numpy.CLOMP import CLOMP
 
 
 ##########################
@@ -13,7 +13,7 @@ class CLOMP_CKM(CLOMP):
     """
 
     def __init__(self, Phi, *args, **kwargs):
-        super(CLOMP_CKM, self).__init__(Phi=Phi, d_atom=Phi.d, *args, **kwargs)
+        super(CLOMP_CKM, self).__init__(phi=Phi, d_atom=Phi.d, *args, **kwargs)
 
     def sketch_of_atom(self, theta_k, return_jacobian=False):
         """
@@ -25,10 +25,10 @@ class CLOMP_CKM(CLOMP):
 
         # assert theta_k.size == self.d_atom
 
-        sketch_of_atom = self.Phi(theta_k).T
+        sketch_of_atom = self.phi(theta_k).T
 
         if return_jacobian:
-            jacobian = self.Phi.grad(theta_k)
+            jacobian = self.phi.grad(theta_k)
             return sketch_of_atom, jacobian
         else:
             return sketch_of_atom
@@ -38,7 +38,7 @@ class CLOMP_CKM(CLOMP):
         Should set self.bounds_atom to a list of length d_atom of lower and upper bounds, i.e.,
             self.bounds_atom = [[lowerbound_1,upperbound_1], ..., [lowerbound_d_atom,upperbound_d_atom]]
         """
-        assert bounds.shape == (2, self.Phi.d)
+        assert bounds.shape == (2, self.phi.d)
         self.bounds = bounds  # data bounds
         self.bounds_atom = bounds.T.tolist()
 
