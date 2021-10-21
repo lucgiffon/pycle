@@ -38,22 +38,9 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         self.Jacobians = None
 
         # Call parent class
-        super(CLOMP, self).__init__(phi, sketch, sketch_weight, verbose)
-
-        # Set other values
-        self.nb_mixtures = nb_mixtures
-        self.n_atoms = 0
-        self.d_atom = d_atom
-
-        # Initialize empty solution
-        self.initialize_empty_solution()
-
-        # Set bounds
-        self.bounds = None
-        self.set_bounds_atom(bounds)  # bounds for an atom
+        super(CLOMP, self).__init__(phi, nb_mixtures, d_atom, bounds, sketch, sketch_weight, verbose)
 
         # Other minor params
-        self.minimum_atom_norm = 1e-15 * np.sqrt(self.d_atom)
         self.weight_lower_bound = 1e-9
         self.weight_upper_bound = 2
         self.step5_ftol = 1e-6
@@ -82,16 +69,6 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         (m, n_atoms).
         """
         assert theta_k.size == self.d_atom
-
-    @abstractmethod
-    def set_bounds_atom(self, bounds):
-        """
-        Should set self.bounds_atom to a list of length d_atom of lower and upper bounds, i.e.,
-            self.bounds_atom = [[lowerbound_1,upperbound_1], ..., [lowerbound_d_atom,upperbound_d_atom]]
-        """
-        self.bounds = bounds  # data bounds
-        # self.bounds_atom = None
-        # return None
 
     @abstractmethod
     def randomly_initialize_new_atom(self):

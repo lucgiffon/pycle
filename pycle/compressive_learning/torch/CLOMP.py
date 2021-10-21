@@ -30,31 +30,9 @@ class CLOMP(SolverTorch):
         - sketch_weight: float, a re-scaling factor for the data sketch
         - verbose: bool
         """
-        super().__init__(phi=phi, sketch=sketch, sketch_weight=sketch_weight, verbose=verbose)
-
-        # Assert sketch and phi are on the same device
-        assert phi.device.type == sketch.device.type
-        self.device = phi.device
-
-        # Variable type
-        self.real_dtype = self.phi.dtype
-        if self.real_dtype == torch.float32:
-            self.comp_dtype = torch.complex64
-        elif self.real_dtype == torch.float64:
-            self.comp_dtype = torch.complex128
-
-        # Set other values
-        self.nb_mixtures = nb_mixtures
-        self.d_atom = d_atom
-
-        self.initialize_empty_solution()
-
-        # Set bounds
-        self.bounds = None
-        self.set_bounds_atom(bounds)  # bounds for an atom
+        super().__init__(phi=phi, nb_mixtures=nb_mixtures, d_atom=d_atom, bounds=bounds, sketch=sketch, sketch_weight=sketch_weight, verbose=verbose)
 
         # Other minor params
-        self.minimum_atom_norm = 1e-15 * np.sqrt(self.d_atom)
         self.lr_inner_optimizations = lr_inner_optimizations
         self.maxiter_inner_optimizations = maxiter_inner_optimizations
         self.tol_inner_optimizations = tol_inner_optimizations
@@ -96,14 +74,6 @@ class CLOMP(SolverTorch):
     def projection_step(self, theta):
         raise NotImplementedError
 
-    @abstractmethod
-    def set_bounds_atom(self, bounds):
-        """
-        Should set self.bounds_atom to a list of length d_atom of lower and upper bounds, i.e.,
-            self.bounds_atom = [[lowerbound_1,upperbound_1], ..., [lowerbound_d_atom,upperbound_d_atom]]
-        """
-        self.bounds = bounds  # data bounds
-
     # Generic methods
     # ===============
     # Methods that are general for all instances of this class
@@ -118,7 +88,7 @@ class CLOMP(SolverTorch):
 
         self.current_sol = (self.alphas, self.all_thetas)  # Overwrite
 
-    def sketch_of_solution(self, solution):
+    def sketch_of_solution(self, solution=None):
         """
         Returns the sketch of the solution, A_Phi(P_theta) = sum_k alpha_k A_Phi(P_theta_k).
         In: solution = (all_thetas, alphas)
@@ -126,7 +96,10 @@ class CLOMP(SolverTorch):
             one_by_one = compute one atom by one atom in case atom computation does not fit in GPU
         Out: sketch_of_solution: (m,)-tensor containing the sketch
         """
-        all_thetas, alphas = solution
+        if solution is None:
+            all_thetas, alphas = self.all_thetas, self.alphas
+        else:
+            all_thetas, alphas = solution
         all_atoms = torch.transpose(self.sketch_of_atoms(all_thetas), 0, 1)
         return torch.matmul(all_atoms, alphas.to(self.comp_dtype))
 
@@ -160,7 +133,7 @@ class CLOMP(SolverTorch):
         :return:
         """
         self.all_thetas[index_to_replace] = new_theta
-        self.all_atoms[:, index_to_replace] = self.sketch_of_atoms(new_theta, self.phi)
+        self.all_atoms[:, index_to_replace] = self.sketch_of_atoms(new_theta)
 
     def loss_atom_correlation(self, theta):
         sketch_of_atom = self.sketch_of_atoms(theta)

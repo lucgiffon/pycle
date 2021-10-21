@@ -13,7 +13,7 @@ class Solver(metaclass=ABCMeta):
     Implements several trials of an generic method and keeps the best one.
     """
 
-    def __init__(self, phi, sketch=None, sketch_weight=1., verbose=0):
+    def __init__(self, phi, nb_mixtures, d_atom, bounds, sketch=None, sketch_weight=1., verbose=0):
         """
         - Phi: a FeatureMap object
         - sketch_weight: float, a re-scaling factor for the data sketch
@@ -23,12 +23,22 @@ class Solver(metaclass=ABCMeta):
         assert isinstance(phi, FeatureMap)
         self.phi = phi
 
+        # Set other values
+        self.nb_mixtures = nb_mixtures
+        self.d_atom = d_atom
+        self.n_atoms = 0
+
         # Encode sketch and sketch weight
         self.sketch = sketch
         self.update_sketch_and_weight(sketch, sketch_weight)
 
-        # Encode current theta and cost value
+        self.initialize_empty_solution()
 
+        # Set bounds
+        self.bounds = None
+        self.set_bounds_atom(bounds)  # bounds for an atom
+
+        # Encode current theta and cost value
         self.current_sol = None
         self.current_sol_cost = None
         self.residual = None
@@ -39,9 +49,20 @@ class Solver(metaclass=ABCMeta):
 
         self.counter_call_sketching_operator = 0
 
+        self.minimum_atom_norm = 1e-15 * np.sqrt(self.d_atom)
+
+
     # Abtract methods
     # ===============
     # Methods that have to be instantiated by child classes
+    @abstractmethod
+    def initialize_empty_solution(self):
+        pass
+
+    @abstractmethod
+    def set_bounds_atom(self, bounds):
+        pass
+
     @abstractmethod
     def sketch_of_solution(self, sol=None):
         """
