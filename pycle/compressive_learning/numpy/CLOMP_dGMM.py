@@ -33,7 +33,7 @@ class CLOMP_dGMM(CLOMP):
 
         self.init_variance_mode = init_variance_mode
 
-    def sketch_of_atom(self, theta_k, return_jacobian=False):
+    def sketch_of_atoms(self, theta_k, return_jacobian=False):
         """
         Computes and returns A_Phi(P_theta_k) for an atom P_theta_k.
         possibly with the jacobian, of size (d_atom,m)

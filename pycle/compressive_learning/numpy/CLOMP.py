@@ -57,7 +57,7 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
     # Methods that have to be instantiated by child classes
 
     @abstractmethod
-    def sketch_of_atom(self, theta_k, return_jacobian=False):
+    def sketch_of_atoms(self, theta_k, return_jacobian=False):
         """
         Computes and returns A_Phi(P_theta_k) of size (m, n_atoms) for n_atoms atoms P_theta_k in dimension d_atom.
         possibly with the jacobian, of size (n_atoms, d_atom, m).
@@ -103,10 +103,10 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
             # for k, theta_k in enumerate(_Theta):
             #     _A[:, k], _jac[k, :, :] = self.sketch_of_atom(theta_k, return_jacobian=True)
 
-            _A, _jac = self.sketch_of_atom(_Theta, return_jacobian=True)
+            _A, _jac = self.sketch_of_atoms(_Theta, return_jacobian=True)
             return _A, _jac
         else:
-            _A = self.sketch_of_atom(_Theta, return_jacobian=False)
+            _A = self.sketch_of_atoms(_Theta, return_jacobian=False)
             # for k, theta_k in enumerate(_Theta):
             #     _A[:, k] = self.sketch_of_atom(theta_k, return_jacobian=False)
             return _A
@@ -128,7 +128,7 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
     def add_atom(self, new_theta):
         self.n_atoms += 1
         self.Theta = np.append(self.Theta, [new_theta], axis=0)  # np.r_[self.Theta,new_theta]
-        self.Atoms = np.c_[self.Atoms, self.sketch_of_atom(new_theta)]
+        self.Atoms = np.c_[self.Atoms, self.sketch_of_atoms(new_theta)]
 
     def remove_atom(self, index_to_remove):
         self.n_atoms -= 1
@@ -137,7 +137,7 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
 
     def replace_atom(self, index_to_replace, new_theta):
         self.Theta[index_to_replace] = new_theta
-        self.Atoms[:, index_to_replace] = self.sketch_of_atom(new_theta)
+        self.Atoms[:, index_to_replace] = self.sketch_of_atoms(new_theta)
 
     # Stack/de-stack the found atoms
     def _stack_sol(self, alpha=None, Theta=None):
@@ -215,7 +215,7 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         """Computes the fun. value and grad. of step 1 objective: max_theta <A(P_theta),r> / <A(P_theta),A(P_theta)>"""
         # Firstly, compute A(P_theta)...
         # sketch_of_atom is abstract. Implemented by the subclass
-        sketch_theta, jacobian_theta = self.sketch_of_atom(theta, return_jacobian=True)
+        sketch_theta, jacobian_theta = self.sketch_of_atoms(theta, return_jacobian=True)
 
         # ... and its l2 norm
         norm_sketch_theta = self.get_norm_sketch_theta(sketch_theta.reshape(1, -1))
@@ -236,9 +236,9 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
 
         # Firstly, compute A(P_theta)...
         if self.dct_opt_method["compute_oracle"]:
-            sketch_theta, jacobian_theta = self.sketch_of_atom(theta, return_jacobian=True)
+            sketch_theta, jacobian_theta = self.sketch_of_atoms(theta, return_jacobian=True)
         else:
-            sketch_theta = self.sketch_of_atom(theta, return_jacobian=False)
+            sketch_theta = self.sketch_of_atoms(theta, return_jacobian=False)
 
         # ... and its l2 norm
         norm_sketch_theta = self.get_norm_sketch_theta(sketch_theta.reshape(1, -1))
@@ -265,7 +265,7 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
     def _get_residual_correlation_value(self, theta):
         """Computes the fun. value and grad. of step 1 objective: max_theta <A(P_theta),r> / <A(P_theta),A(P_theta)>"""
         # Firstly, compute A(P_theta)...
-        sketch_theta = self.sketch_of_atom(theta, return_jacobian=False).reshape(1, -1)
+        sketch_theta = self.sketch_of_atoms(theta, return_jacobian=False).reshape(1, -1)
 
         fun_value = (-np.real(np.dot(sketch_theta.conj(), self.residual)) /
                      self.get_norm_sketch_theta(sketch_theta.reshape(-1, sketch_theta.shape[-1])))[0]

@@ -69,11 +69,11 @@ _dico_nonlinearities = {
     "sawtooth": (_sawtoothWave, None),
     "sawtooth_complex": (_sawtoothWave_complex, None),
     "cosine": (lambda x: np.cos(x), lambda x: -np.sin(x)),
-    "None": (None, None)
+    "none": (None, None)
 }
 
 # dict of nonlinearities for torch (no gradient provided because autodiff)
 _dico_nonlinearities_torch = {
     "complexexponential": (_complexExponentialTorch, None),
-    "None": (None, None)
+    "none": (None, None)
 }

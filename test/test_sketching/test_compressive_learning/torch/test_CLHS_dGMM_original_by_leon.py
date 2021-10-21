@@ -1,11 +1,13 @@
 import pytest
 import torch
 import numpy as np
-from loguru import logger
 import matplotlib.pyplot as plt
 from lightonml import OPU
 from lightonml.internal.simulated_device import SimulatedOpuDevice
+from pycle_gpu.cl_algo.simplified_algo import SimplifiedHierarchicalGmm
+from sgd_comp_learning import sampling_frequencies, compute_sketch
 
+from pycle.compressive_learning.torch.CLHS_dGMM import CLHS_dGMM
 from pycle.sketching.feature_maps.GMMFeatureMap import GMMFeatureMap
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 from pycle.sketching.feature_maps.OPUFeatureMap import OPUFeatureMap
@@ -19,7 +21,19 @@ from pycle.compressive_learning.numpy.CLOMP_CKM import CLOMP_CKM as CLOMP_CKM_NP
 from pycle.sketching.frequency_sampling import drawFrequencies
 
 import pycle.sketching
-from pycle.utils.projectors import ProjectorNoProjection, ProjectorExactUnit2Norm
+from pycle.utils.projectors import ProjectorNoProjection, ProjectorExactUnit2Norm, ProjectorClip, ProjectorLessUnit2Norm
+import os
+
+import numpy as np
+import torch
+from torch.nn import functional as f
+from torch.optim.lr_scheduler import StepLR
+from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.tensorboard import SummaryWriter
+# from src.pycle_gpu.sketching.frequency_matrix import DenseFrequencyMatrix
+# from src.pycle_gpu.cl_algo.optimization import ProjectorClip, ProjectorLessUnit2Norm
+
+
 
 
 def test_fit_once():
@@ -32,34 +46,30 @@ def test_fit_once():
     X = generatedataset_GMM(dim, nb_clust, nb_sample, normalize='l_inf-unit-ball', balanced=False)
     X = torch.from_numpy(X).double()
 
+
     # Bounds on the dataset, necessary for compressive k-means
     bounds = torch.tensor([-np.ones(dim), np.ones(dim)])  # We assumed the data is normalized between -1 and 1
+
 
     # Pick the dimension m: 5*K*d is usually (just) enough in clustering (here m = 50)
     # sketch_dim = nb_clust * dim
     sketch_dim = 10 * nb_clust * dim
 
-    # For this simple example, assume we have a priori a rough idea of the size of the clusters
-    Sigma = 0.1 * np.eye(dim)
+    freq_mat, sigma2_bar = sampling_frequencies(X, sketch_dim, False)
 
-    # According to the Folded Gaussian rule, we want m frequencies in dimension d, parametrized by Sigma
-    Omega = pycle.sketching.frequency_sampling.drawFrequencies("FoldedGaussian", dim, sketch_dim, Sigma, use_torch=True)
+    sketch = compute_sketch(X, freq_mat)
 
-    # The feature map is a standard one, the complex exponential of projections on Omega^T
-    Phi_emp = MatrixFeatureMap("ComplexExponential", Omega, use_torch=True, device=torch.device("cpu"))
-    # Phi_gmm = GMMFeatureMap("None", Omega)
+    random_idx = torch.randint(nb_sample, (1,)).to(torch.long)
+    random_atom = X[random_idx]
+    solver = SimplifiedHierarchicalGmm(freq_mat, nb_clust, sketch, sigma2_bar, 10,
+                                       2, 0.01, 0, 0.9,
+                                       0.98, 1, random_atom, 1e-10, 0)
+    solver.fit_once(".")
 
-    # And sketch X with Phi: we map a 20000x2 dataset -> a 50-dimensional complex vector
-    z = pycle.sketching.computeSketch(X, Phi_emp)
-    # Initialize the solver object
 
-    ckm_solver = CLOMP_CKM(Phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False)
-
-    # Launch the CLOMP optimization procedure
-    ckm_solver.fit_once()
-
+    weights, theta, sigmas_mat = solver.get_gmm()
     # Get the solution
-    (theta, weights) = ckm_solver.current_sol
+    # (theta, weights) = ckm_solver.current_sol
     centroids, sigma = theta[..., :dim], theta[..., -dim:]
 
     plt.figure(figsize=(5, 5))
@@ -71,5 +81,5 @@ def test_fit_once():
 
     from pycle.utils.metrics import SSE
 
-    logger.info("SSE: {}".format(SSE(X, centroids)))
+    print("SSE: {}".format(SSE(X, centroids)))
 

@@ -254,8 +254,8 @@ def fourier_sketch_of_gaussianS(muS, SigmaS, Omega, xi=None, scst=None, use_torc
     right_hand = Omega * right_hand
     right_hand = - 0.5 * backend.sum(right_hand, **{dim_name:-2})
     # this line does the multiplication between the frequencies and the means (left hand part of Eq 15)
-    left_hand = -1j * muS @ Omega
-    result = np.exp(left_hand + right_hand)  # adding the contents of an exp is like multiplying the exps
+    left_hand = -1j * (muS @ Omega)
+    result = backend.exp(left_hand + right_hand)  # adding the contents of an exp is like multiplying the exps
     if xi is not None:
         result = result * backend.exp(1j * xi)
     if scst is not None:  # Sketch constant, eg 1/sqrt(m)

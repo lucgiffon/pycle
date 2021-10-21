@@ -13,7 +13,7 @@ class Solver(metaclass=ABCMeta):
     Implements several trials of an generic method and keeps the best one.
     """
 
-    def __init__(self, phi, nb_mixtures, d_atom, bounds, sketch=None, sketch_weight=1., verbose=0):
+    def __init__(self, phi, nb_mixtures, d_theta, bounds, sketch=None, sketch_weight=1., verbose=0):
         """
         - Phi: a FeatureMap object
         - sketch_weight: float, a re-scaling factor for the data sketch
@@ -25,7 +25,7 @@ class Solver(metaclass=ABCMeta):
 
         # Set other values
         self.nb_mixtures = nb_mixtures
-        self.d_theta = d_atom
+        self.d_theta = d_theta
         self.n_atoms = 0
 
         # Encode sketch and sketch weight
@@ -63,7 +63,7 @@ class Solver(metaclass=ABCMeta):
     @abstractmethod
     def set_bounds_atom(self, bounds):
         pass
-
+    
     @abstractmethod
     def sketch_of_solution(self, sol=None):
         """
@@ -82,6 +82,16 @@ class Solver(metaclass=ABCMeta):
     @abstractmethod
     def update_current_sol_and_cost(self, sol=None):
         """Updates the residual and cost to the current solution. If sol given, also updates it."""
+        raise NotImplementedError
+
+
+    @abstractmethod
+    def sketch_of_atoms(self, thetas):
+        """
+        Always compute sketch of several atoms.
+        :param thetas: tensor size (n_atoms, d_theta)
+        :return: tensor size (n_atoms, nb_freq)
+        """
         raise NotImplementedError
 
     # Generic methods

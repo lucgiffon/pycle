@@ -9,7 +9,7 @@ class CLOMP_CKM(CLOMP):
                  sketch, centroid_projector=ProjectorNoProjection(), **kwargs):
         """ Lower and upper bounds are for random initialization, not for projection step ! """
 
-        super().__init__(Phi, nb_mixtures, d_atom=Phi.d, sketch=sketch, bounds=bounds, **kwargs)
+        super().__init__(Phi, nb_mixtures, d_theta=Phi.d, sketch=sketch, bounds=bounds, **kwargs)
 
         assert isinstance(centroid_projector, Projector)
         self.centroid_projector = centroid_projector
@@ -44,16 +44,6 @@ class CLOMP_CKM(CLOMP):
         """
         all_new_theta = (self.upper_bounds -
                          self.lower_bounds) * torch.rand(nb_atoms, self.d_theta).to(self.device) + self.lower_bounds
-        return all_new_theta
-
-    def randomly_initialize_new_atom(self):
-        """
-        Uniform initialization of several centroids between the lower and upper bounds.
-        :param nb_atoms: int. Number of atoms to initialize randomly.
-        :return: tensor
-        """
-        all_new_theta = (self.upper_bounds -
-                         self.lower_bounds) * torch.rand(self.d_theta).to(self.device) + self.lower_bounds
         return all_new_theta
 
     def projection_step(self, theta):

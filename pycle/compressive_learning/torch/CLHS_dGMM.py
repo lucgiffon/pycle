@@ -1,91 +1,109 @@
 import numpy as np
+import torch
+from torch.nn import functional as f
 
 from pycle.compressive_learning.numpy import CLOMP_dGMM
 
 
 ## 2.2 (diagonal) GMM with Hierarchical Splitting
-class CLHS_dGMM(CLOMP_dGMM):
-    """
-    CL Hierarchical Splitting solver for diagonal Gaussian Mixture Modeling (dGMM), where we fit a mixture of K Gaussians
-    with diagonal covariances to the sketch.
-    Due to strong overlap, this algorithm is strongly based on CLOMP for GMM algorithm (its the parent class),
-    but the core fitting method is overridden.
-    Requires the feature map to be Fourier features.
-    """
+from pycle.compressive_learning.torch.CLHS import CLHS
+from pycle.utils.projectors import ProjectorClip, ProjectorLessUnit2Norm
 
-    def __init__(self, Phi, K, bounds, sketch=None, sketch_weight=1., init_variance_mode="sketch", verbose=0):
-        super(CLHS_dGMM, self).__init__(Phi, K, bounds, sketch, sketch_weight, init_variance_mode, verbose)
 
-    # New split methods
-    def split_one_atom(self, k):
-        """Splits the atom at index k in two.
-        The first result of the split is replaced at the k-th index,
-        the second result is added at the end of the atom list."""
+class CLHS_dGMM(CLHS):
 
-        # Pick the dimension with most variance
-        theta_k = self.Theta[k]
-        (mu, sig) = (theta_k[:self.Phi.d], theta_k[-self.Phi.d:])
-        i_max_var = np.argmax(sig)
+    def __init__(self, sigma2_bar, random_atom, std_lower_bound=1e-10, *args, **kwargs):
 
-        # Direction and stepsize
-        direction_max_var = np.zeros(self.Phi.d)
-        direction_max_var[i_max_var] = 1.  # i_max_var-th canonical basis vector in R^d
-        SD_max = np.sqrt(sig[i_max_var])  # max standard deviation
+        super().__init__(*args, **kwargs)
 
-        # Split!
-        self.add_atom(np.append(mu + SD_max * direction_max_var, sig))  # "Right" split
-        self.replace_atom(k, np.append(mu - SD_max * direction_max_var, sig))  # "Left" split
+        # Manage bounds
+        variance_relative_lower_bound = std_lower_bound ** 2
+        variance_relative_upper_bound = 0.5 ** 2
 
-    def split_all_atoms(self):
-        """Self-explanatory"""
-        for k in range(self.n_atoms):
-            self.split_one_atom(k)
+        self.upper_data = torch.ones(self.phi.d, device=self.device, dtype=self.real_dtype)
+        self.lower_data = -1. * torch.ones(self.phi.d, device=self.device, dtype=self.real_dtype)
+        max_variance = torch.square(self.upper_data - self.lower_data)
+        lower_var = variance_relative_lower_bound * max_variance
+        upper_var = variance_relative_upper_bound * max_variance
 
-    # Override the main fit_once method
-    def fit_once(self, random_restart=True):
+        # Projector
+        self.variance_projector = ProjectorClip(lower_var, upper_var)
+        self.mean_projector = ProjectorLessUnit2Norm()
+
+        # For initialization of Gaussian atoms
+        self.random_atom = random_atom.to(self.device)
+        self.sigma2_bar = torch.tensor(sigma2_bar, device=self.device)
+
+    def randomly_initialize_several_atoms(self, nb_atoms): # todo remplacer cette fonction par "initialize one"
         """
-        If random_restart is True, constructs a new solution from scratch with CLHS, else fine-tune.
+        Define how to initialize a number nb_atoms of new atoms.
+        :param nb_atoms: int
+        :return: torch tensor for new atoms
         """
+        # all_new_mu = (self.upper_data - self.lower_data) * torch.rand(nb_atoms, self.freq_matrix.d).to(self.device) + self.lower_data
+        all_new_mu = self.random_atom.repeat(nb_atoms, 1)
+        all_new_sigma = (1.5 - 0.5) * torch.rand(nb_atoms, self.phi.d, device=self.device) + 0.5
+        all_new_sigma *= self.sigma2_bar
+        new_theta = torch.cat((all_new_mu, all_new_sigma), dim=1)
+        return new_theta
 
-        if random_restart:
-            ## Main mode of operation
+    def sketch_of_atoms(self, thetas):
+        """
+        Always compute sketch of several atoms.
+        Implements Equation 15 of Keriven et al: Sketching for large scale learning of Mixture Models.
+        :param thetas: tensor size (n_atoms, d_theta)
+        :param freq_matrix: DenseFrequencyMatrix
+        :return: tensor size (n_atoms, nb_freq)
+        """
+        # todo this is the code of a feature map
+        # assert isinstance(freq_matrix, DenseFrequencyMatrix)
+        # # the 4 following lines do -0.5 * w^T . Sigma . w (right hand part of Eq 15)
+        # sigmas_diag = thetas[..., -self.phi.d:]
+        # right_hand = sigmas_diag.unsqueeze(-1) * freq_matrix.omega
+        # right_hand = freq_matrix.omega * right_hand
+        # right_hand = - 0.5 * torch.sum(right_hand, dim=-2)
+        # # this line does the multiplication between the frequencies and the means (left hand part of Eq 15)
+        # left_hand = -1j * freq_matrix.transpose_apply(thetas[..., :self.phi.d])
+        # inside_exp = left_hand + right_hand  # adding the contents of an exp is like multiplying the exps
+        # return torch.exp(inside_exp)
+        return self.phi(thetas)
 
-            # Initializations
-            n_iterations = int(np.ceil(np.log2(self.K)))  # log_2(K) iterations
-            self.initialize_empty_solution()
-            self.residual = self.sketch_reweighted
+    def split_all_current_thetas_alphas(self):
+        all_mus, all_sigmas = self.all_thetas[:, :self.phi.d], self.all_thetas[:, -self.phi.d:]
+        print(torch.max(all_sigmas, dim=1)[0])
+        all_i_max_var = torch.argmax(all_sigmas, dim=1).to(torch.long)
+        print(f"Splitting directions: {all_i_max_var}")
+        all_direction_max_var = f.one_hot(all_i_max_var, num_classes=self.phi.d)
+        all_max_var = all_sigmas.gather(1, all_i_max_var.view(-1, 1)).squeeze()
+        all_max_deviation = torch.sqrt(all_max_var)
+        all_sigma_step = all_max_deviation.unsqueeze(-1) * all_direction_max_var
 
-            # Add the starting atom
-            new_theta = self.randomly_initialize_new_atom()
-            new_theta = self.maximize_atom_correlation(new_theta)
-            self.add_atom(new_theta)
+        right_splitted_thetas = torch.cat((all_mus + all_sigma_step, all_sigmas), dim=1)
+        left_splitted_thetas = torch.cat((all_mus - all_sigma_step, all_sigmas), dim=1)
+        self.remove_all_atoms()
+        self.add_several_atoms(torch.cat((left_splitted_thetas, right_splitted_thetas), dim=0))
 
-            # Main loop
-            for i_iteration in range(n_iterations):
-                ## Step 1-2: split the currently selected atoms
-                self.split_all_atoms()
+        # Split alphas
+        self.alphas = self.alphas.repeat(2) / 2.
 
-                ## Step 3: if necessary, hard-threshold to enforce sparsity
-                while self.n_atoms > self.K:
-                    beta = self.find_optimal_weights(normalize_atoms=True)
-                    index_to_remove = np.argmin(beta)
-                    self.remove_atom(index_to_remove)
+    def projection_step(self, theta):
+        # Uniform normalization of the variances
+        sigma = theta[..., -self.phi.d:]
+        self.variance_projector.project(sigma)
+        # Normalization of the means
+        mu = theta[..., :self.phi.d]
+        self.mean_projector.project(mu)
 
-                ## Step 4: project to find weights
-                self.alpha = self.find_optimal_weights()
-
-                ## Step 5: fine-tune
-                self.minimize_cost_from_current_sol()
-
-                # Cleanup
-                self.update_atoms()  # The atoms have changed: we must re-compute their sketches matrix
-                self.residual = self.sketch_reweighted - self.sketch_of_solution()
-
-        # Final fine-tuning with increased optimization accuracy
-        self.minimize_cost_from_current_sol(ftol=0.02 * self.step5_ftol)
-
-        # Normalize weights to unit sum
-        self.alpha /= np.sum(self.alpha)
-
-        # Package into the solution attribute
-        self.current_sol = (self.alpha, self.Theta)
+    def get_gmm(self, return_numpy=True):
+        """
+        Return weights, mus and sigmas as diagonal matrices.
+        :param return_numpy: bool
+        :return:
+        """
+        weights = self.alphas
+        mus = self.all_thetas[:, :self.phi.d]
+        sigmas = self.all_thetas[:, -self.phi.d:]
+        sigmas_mat = torch.diag_embed(sigmas)
+        if return_numpy:
+            return weights.cpu().detach().numpy(), mus.cpu().detach().numpy(), sigmas_mat.cpu().detach().numpy()
+        return weights, mus, sigmas_mat

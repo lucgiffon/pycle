@@ -4,7 +4,8 @@ import torch
 from loguru import logger
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as f
-
+import socket
+from datetime import datetime
 from pycle.compressive_learning.torch.SolverTorch import SolverTorch
 from pycle.utils.optim import ObjectiveValuesStorage
 
@@ -20,54 +21,23 @@ class CLOMP(SolverTorch):
         - all_atoms: (m,n_atoms)-tensor, the sketch of the found parameters (m is sketch size)
     """
 
-    def __init__(self, phi, nb_mixtures, d_atom, bounds, sketch, sketch_weight=1., verbose=False,
-                 lr_inner_optimizations=0.01, maxiter_inner_optimizations=1000, tol_inner_optimizations=1e-5,
-                 show_curves=False, tensorboard=False, path_template_tensorboard_writer="CLOMP/{}/loss/"):
+    def __init__(self, phi, nb_mixtures, d_theta, bounds, sketch, sketch_weight=1., verbose=False,
+                 path_template_tensorboard_writer="CLOMP/{}/loss/", **kwargs):
         """
         - phi: a FeatureMap object
         - sketch: tensor
         - sketch_weight: float, a re-scaling factor for the data sketch
         - verbose: bool
         """
-        super().__init__(phi=phi, nb_mixtures=nb_mixtures, d_atom=d_atom, bounds=bounds, sketch=sketch, sketch_weight=sketch_weight, verbose=verbose)
+        super().__init__(phi=phi, nb_mixtures=nb_mixtures, d_theta=d_theta, bounds=bounds, sketch=sketch, sketch_weight=sketch_weight, verbose=verbose, **kwargs)
 
         # Other minor params
-        self.lr_inner_optimizations = lr_inner_optimizations
-        self.maxiter_inner_optimizations = maxiter_inner_optimizations
-        self.tol_inner_optimizations = tol_inner_optimizations
         self.path_template_tensorboard_writer = path_template_tensorboard_writer
-        self.show_curves = show_curves
-        self.tensorboard = tensorboard
-        if tensorboard:
-            self.writer = SummaryWriter()
+
 
     # Abstract methods
     # ===============
     # Methods that have to be instantiated by child classes
-
-    @abstractmethod
-    def sketch_of_atoms(self, all_theta):
-        """
-        Computes and returns A_Phi(P_theta_k) for all theta_k. Do the computation with torch.
-        Return size (m) or (K, m)
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def randomly_initialize_several_atoms(self, nb_atoms):
-        """
-        Define how to initialize a number nb_atoms of new atoms.
-        :return: torch tensor for new atoms
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def randomly_initialize_new_atom(self):
-        """
-        Define how to initialize a number nb_atoms of new atoms.
-        :return: torch tensor for new atoms
-        """
-        raise NotImplementedError
 
     @abstractmethod
     def projection_step(self, theta):
@@ -77,15 +47,6 @@ class CLOMP(SolverTorch):
     # ===============
     # Methods that are general for all instances of this class
     # Instantiation of methods of parent class
-
-    def initialize_empty_solution(self):
-        self.n_atoms = 0
-        self.alphas = torch.empty(0, dtype=self.real_dtype).to(self.device)
-        self.all_thetas = torch.empty(0, self.d_theta, dtype=self.real_dtype).to(self.device)
-        self.all_atoms = torch.empty(self.phi.m, 0, dtype=self.comp_dtype).to(self.device)
-        self.residual = torch.clone(self.sketch_reweighted).to(self.device)
-
-        self.current_sol = (self.alphas, self.all_thetas)  # Overwrite
 
     def sketch_of_solution(self, solution=None):
         """
@@ -113,7 +74,7 @@ class CLOMP(SolverTorch):
         sketch_atom = self.sketch_of_atoms(new_theta)
         self.all_atoms = torch.cat((self.all_atoms, torch.unsqueeze(sketch_atom, 1)), dim=1)
 
-    def remove_atom(self, index_to_remove):
+    def remove_one_atom(self, index_to_remove):
         """
         Remove an atom.
         :param index_to_remove: int
@@ -124,16 +85,6 @@ class CLOMP(SolverTorch):
         self.all_atoms = torch.cat((self.all_atoms[:, :index_to_remove], self.all_atoms[:, index_to_remove + 1:]),
                                    dim=1)
 
-    def replace_atom(self, index_to_replace, new_theta):
-        """
-        Replace an atom
-        :param index_to_replace: int
-        :param new_theta: tensor
-        :return:
-        """
-        self.all_thetas[index_to_replace] = new_theta
-        self.all_atoms[:, index_to_replace] = self.sketch_of_atoms(new_theta)
-
     def loss_atom_correlation(self, theta):
         sketch_of_atom = self.sketch_of_atoms(theta)
         norm_atom = torch.norm(sketch_of_atom)
@@ -141,52 +92,6 @@ class CLOMP(SolverTorch):
         if norm_atom.item() < self.minimum_atom_norm:
             norm_atom = torch.tensor(self.minimum_atom_norm)
         return -1. / norm_atom * torch.real(torch.vdot(sketch_of_atom, self.residual))
-
-    def maximize_atom_correlation(self, new_theta):
-        """
-        Step 1 in CLOMP-R algorithm. Find most correlated atom. Torch optimization, using Adam.
-
-        :param new_theta: torch tensor for atom
-        :param tol: stopping criteria is to stop when the relative difference of loss between
-        two consecutive iterations is less than tol.
-        :param max_iter: max iterations number for optimization.
-        :return: updated new_theta
-        """
-        params = [torch.nn.Parameter(new_theta, requires_grad=True)]
-        optimizer = torch.optim.Adam(params, lr=self.lr_inner_optimizations)
-
-
-        for i in range(self.maxiter_inner_optimizations):
-            optimizer.zero_grad()
-
-            loss = self.loss_atom_correlation(params[0])
-
-            loss.backward()
-            optimizer.step()
-
-            # Projection step
-            with torch.no_grad():
-                self.projection_step(new_theta)
-
-            if i != 0:
-                relative_loss_diff = torch.abs(previous_loss - loss) / torch.abs(previous_loss)
-                if self.show_curves:
-                    ObjectiveValuesStorage().add(float(previous_loss), "maximize_atom_correlation")
-                if self.tensorboard:
-                    self.writer.add_scalar(self.path_template_tensorboard_writer.format("step1"), loss.item(), i)
-                if relative_loss_diff.item() <= self.tol_inner_optimizations:
-                    break
-            previous_loss = torch.clone(loss)
-
-        if self.tensorboard:
-            self.writer.flush()
-            self.writer.close()
-
-        if self.show_curves:
-            ObjectiveValuesStorage().show()
-            ObjectiveValuesStorage().clear()
-
-        return new_theta.data.detach()
 
     def find_optimal_weights(self, normalize_atoms=False):
         """
@@ -305,7 +210,7 @@ class CLOMP(SolverTorch):
         self.minimize_cost_from_current_sol()
         logger.debug(f'Time for step 5: {time.time() - since}')
         # The atoms have changed: we must re-compute their sketches matrix
-        self.residual = self.sketch_reweighted - self.sketch_of_solution((self.all_thetas, self.alphas))
+        self.update_current_sol_and_cost(sol=(self.all_thetas, self.alphas))
 
     def final_fine_tuning(self):
         logger.info(f'Final fine-tuning...')
@@ -313,7 +218,54 @@ class CLOMP(SolverTorch):
         # self.projection_step(self.all_thetas) # this is useless given the projection was made in the last method
         logger.debug(torch.norm(self.all_thetas[:, :self.phi.d], dim=1))
         self.alphas /= torch.sum(self.alphas)
-        self.current_sol = (self.alphas, self.all_thetas)
+        self.update_current_sol_and_cost(sol=(self.all_thetas, self.alphas))
+        # self.current_sol =
+
+    def maximize_atom_correlation(self, prefix=""):
+        """
+        Step 1 in CLOMP-R algorithm. Find most correlated atom. Torch optimization, using Adam.
+
+        :param new_theta: torch tensor for atom
+        :param tol: stopping criteria is to stop when the relative difference of loss between
+        two consecutive iterations is less than tol.
+        :param max_iter: max iterations number for optimization.
+        :return: updated new_theta
+        """
+        new_theta = self.randomly_initialize_several_atoms(1).squeeze()
+        params = [torch.nn.Parameter(new_theta, requires_grad=True)]
+        optimizer = torch.optim.Adam(params, lr=self.lr_inner_optimizations)
+
+        for i in range(self.maxiter_inner_optimizations):
+            optimizer.zero_grad()
+
+            loss = self.loss_atom_correlation(params[0])
+
+            loss.backward()
+            optimizer.step()
+
+            # Projection step
+            with torch.no_grad():
+                self.projection_step(new_theta)
+
+            if i != 0:
+                relative_loss_diff = torch.abs(previous_loss - loss) / torch.abs(previous_loss)
+                if self.show_curves:
+                    ObjectiveValuesStorage().add(float(previous_loss), "maximize_atom_correlation/{}".format(prefix))
+                if self.tensorboard:
+                    self.writer.add_scalar(self.path_template_tensorboard_writer.format("step1/{}".format(prefix)), loss.item(), i)
+                if relative_loss_diff.item() <= self.tol_inner_optimizations:
+                    break
+            previous_loss = torch.clone(loss)
+
+        if self.tensorboard:
+            self.writer.flush()
+            self.writer.close()
+
+        if self.show_curves:
+            ObjectiveValuesStorage().show()
+            ObjectiveValuesStorage().clear()
+
+        return new_theta.data.detach()
 
     def fit_once(self):
         """
@@ -325,10 +277,8 @@ class CLOMP(SolverTorch):
         for i_iter in range(n_iterations):
             logger.debug(f'Iteration {i_iter + 1} / {n_iterations}')
             # Step 1: find new atom theta most correlated with residual
-            new_theta = self.randomly_initialize_new_atom()
-
             since = time.time()
-            new_theta = self.maximize_atom_correlation(new_theta)
+            new_theta = self.maximize_atom_correlation(prefix=str(i_iter))
             logger.debug(f'Time for step 1: {time.time() - since}')
 
             # Step 2: add it to the support
@@ -339,7 +289,7 @@ class CLOMP(SolverTorch):
                 since = time.time()
                 beta = self.find_optimal_weights(normalize_atoms=True)
                 index_to_remove = torch.argmin(beta).to(torch.long)
-                self.remove_atom(index_to_remove)
+                self.remove_one_atom(index_to_remove)
                 logger.debug(f'Time for step 3: {time.time() - since}')
                 if index_to_remove == self.nb_mixtures:
                     continue

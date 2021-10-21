@@ -15,7 +15,7 @@ class CLOMP_CKM(CLOMP):
     def __init__(self, Phi, *args, **kwargs):
         super(CLOMP_CKM, self).__init__(phi=Phi, d_atom=Phi.d, *args, **kwargs)
 
-    def sketch_of_atom(self, theta_k, return_jacobian=False):
+    def sketch_of_atoms(self, theta_k, return_jacobian=False):
         """
         Computes and returns A_Phi(P_theta_k) for an atom P_theta_k.
         possibly with the jacobian, of size (d_atom,m)

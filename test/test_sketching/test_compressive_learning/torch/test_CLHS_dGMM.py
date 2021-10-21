@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from lightonml import OPU
 from lightonml.internal.simulated_device import SimulatedOpuDevice
 
+from pycle.compressive_learning.torch.CLHS_dGMM import CLHS_dGMM
 from pycle.sketching.feature_maps.GMMFeatureMap import GMMFeatureMap
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 from pycle.sketching.feature_maps.OPUFeatureMap import OPUFeatureMap
@@ -46,19 +47,21 @@ def test_fit_once():
 
     # The feature map is a standard one, the complex exponential of projections on Omega^T
     Phi_emp = MatrixFeatureMap("ComplexExponential", Omega, use_torch=True, device=torch.device("cpu"))
-    # Phi_gmm = GMMFeatureMap("None", Omega)
+    Phi_gmm = GMMFeatureMap("None", Omega, use_torch=True, device=torch.device("cpu"))
 
     # And sketch X with Phi: we map a 20000x2 dataset -> a 50-dimensional complex vector
     z = pycle.sketching.computeSketch(X, Phi_emp)
     # Initialize the solver object
 
-    ckm_solver = CLOMP_CKM(Phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=True)
+    ckm_solver = CLHS_dGMM(phi=Phi_gmm, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=True, sigma2_bar=0.1, random_atom=X[10], freq_batch_size=2,
+                           maxiter_inner_optimizations=10)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
 
+    weights, theta, sigmas_mat = ckm_solver.get_gmm()
     # Get the solution
-    (weights, theta) = ckm_solver.current_sol
+    # (theta, weights) = ckm_solver.current_sol
     centroids, sigma = theta[..., :dim], theta[..., -dim:]
 
     plt.figure(figsize=(5, 5))

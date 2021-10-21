@@ -14,9 +14,11 @@ class GMMFeatureMap(FeatureMap):
     def __init__(self, f, Omega, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         self.Omega = Omega
+
+        super().__init__(f=f, dtype=Omega.dtype, **kwargs)
+
         assert self.use_torch == True, "GMMFeature map only available with torch (gradient not implemented and maybe other bugs)"
         assert f == "None", "Only non-linearity f='None' is allowed in GMMFeatureMap"
-        super().__init__(f, **kwargs)
 
     def init_shape(self):
         try:
