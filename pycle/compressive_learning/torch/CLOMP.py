@@ -1,6 +1,5 @@
 import time
 from abc import abstractmethod
-import numpy as np
 import torch
 from loguru import logger
 from torch.utils.tensorboard import SummaryWriter
@@ -82,7 +81,7 @@ class CLOMP(SolverTorch):
     def initialize_empty_solution(self):
         self.n_atoms = 0
         self.alphas = torch.empty(0, dtype=self.real_dtype).to(self.device)
-        self.all_thetas = torch.empty(0, self.d_atom, dtype=self.real_dtype).to(self.device)
+        self.all_thetas = torch.empty(0, self.d_theta, dtype=self.real_dtype).to(self.device)
         self.all_atoms = torch.empty(self.phi.m, 0, dtype=self.comp_dtype).to(self.device)
         self.residual = torch.clone(self.sketch_reweighted).to(self.device)
 

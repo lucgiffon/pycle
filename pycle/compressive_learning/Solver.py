@@ -25,7 +25,7 @@ class Solver(metaclass=ABCMeta):
 
         # Set other values
         self.nb_mixtures = nb_mixtures
-        self.d_atom = d_atom
+        self.d_theta = d_atom
         self.n_atoms = 0
 
         # Encode sketch and sketch weight
@@ -36,6 +36,7 @@ class Solver(metaclass=ABCMeta):
 
         # Set bounds
         self.bounds = None
+        self.bounds_atom = None
         self.set_bounds_atom(bounds)  # bounds for an atom
 
         # Encode current theta and cost value
@@ -49,7 +50,7 @@ class Solver(metaclass=ABCMeta):
 
         self.counter_call_sketching_operator = 0
 
-        self.minimum_atom_norm = 1e-15 * np.sqrt(self.d_atom)
+        self.minimum_atom_norm = 1e-15 * np.sqrt(self.d_theta)
 
 
     # Abtract methods

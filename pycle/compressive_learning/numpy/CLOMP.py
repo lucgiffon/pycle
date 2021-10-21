@@ -68,7 +68,7 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         Note that the sketched atoms matrix will contains the sketched atoms as columns in a np.ndarray of shape
         (m, n_atoms).
         """
-        assert theta_k.size == self.d_atom
+        assert theta_k.size == self.d_theta
 
     @abstractmethod
     def randomly_initialize_new_atom(self):
@@ -81,11 +81,11 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
     def initialize_empty_solution(self):
         self.n_atoms = 0
         self.alpha = np.empty(0)  # (n_atoms,)-array, weigths of the mixture elements
-        self.Theta = np.empty((0, self.d_atom))  # (n_atoms,d_atom)-array, all the found parameters in matrix form
+        self.Theta = np.empty((0, self.d_theta))  # (n_atoms,d_atom)-array, all the found parameters in matrix form
         self.Atoms = np.empty(
             (self.phi.m, 0))  # (m,n_atoms)-array, the sketch of the found parameters (m is sketch size)
         self.Jacobians = np.empty(
-            (0, self.d_atom, self.phi.m))  # (n_atoms,d_atom,m)-array, the jacobians of the residual wrt each atom
+            (0, self.d_theta, self.phi.m))  # (n_atoms,d_atom,m)-array, the jacobians of the residual wrt each atom
         self.current_sol = (self.alpha, self.Theta)  # Overwrite
 
     def compute_atoms_matrix(self, Theta=None, return_jacobian=False):
@@ -150,15 +150,15 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         return np.r_[_Theta.reshape(-1), _alpha]
 
     def _destack_sol(self, p):
-        assert p.shape[-1] == self.n_atoms * (self.d_atom + 1)
+        assert p.shape[-1] == self.n_atoms * (self.d_theta + 1)
         if p.ndim == 1 or p.shape[0] == 1:
             p = p.squeeze()
-            Theta = p[:self.d_atom * self.n_atoms].reshape(self.n_atoms, self.d_atom)
+            Theta = p[:self.d_theta * self.n_atoms].reshape(self.n_atoms, self.d_theta)
             alpha = p[-self.n_atoms:].reshape(self.n_atoms)
         else:
             # todo à corriger
             raise NotImplementedError
-            Theta = p[:, :self.d_atom * self.n_atoms].reshape(-1, self.n_atoms, self.d_atom)
+            Theta = p[:, :self.d_theta * self.n_atoms].reshape(-1, self.n_atoms, self.d_theta)
             alpha = p[:, -self.n_atoms:].reshape(-1, self.n_atoms)
         return alpha, Theta
 
@@ -321,8 +321,7 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         if ftol is None:
             ftol = self.step5_ftol
 
-        bounds_Theta_alpha = self.bounds_atom * self.n_atoms + [
-            [self.weight_lower_bound, self.weight_upper_bound]] * self.n_atoms
+        bounds_Theta_alpha = self.bounds_atom * self.n_atoms + [[self.weight_lower_bound, self.weight_upper_bound]] * self.n_atoms
 
         init_x0 = self._stack_sol()
         if self.opt_method == "vanilla":
@@ -372,9 +371,9 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         fun = np.linalg.norm(self.residual) ** 2
 
         # Evaluate the gradients
-        grad = np.empty((self.d_atom + 1) * self.n_atoms)
+        grad = np.empty((self.d_theta + 1) * self.n_atoms)
         for k in range(self.n_atoms):  # Gradients of the atoms
-            grad[k * self.d_atom:(k + 1) * self.d_atom] = -2 * self.alpha[k] * np.real(
+            grad[k * self.d_theta:(k + 1) * self.d_theta] = -2 * self.alpha[k] * np.real(
                 self.Jacobians[k] @ self.residual.conj())
         grad[-self.n_atoms:] = -2 * np.real(self.residual @ self.Atoms.conj())  # Gradient of the weights
 
@@ -418,9 +417,9 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
 
         # Evaluate the gradients
         if self.dct_opt_method["compute_oracle"]:
-            grad_oracle = np.empty((self.d_atom + 1) * self.n_atoms)
+            grad_oracle = np.empty((self.d_theta + 1) * self.n_atoms)
             for k in range(self.n_atoms):  # Gradients of the atoms
-                grad_oracle[k * self.d_atom:(k + 1) * self.d_atom] = -2 * self.alpha[k] * np.real(
+                grad_oracle[k * self.d_theta:(k + 1) * self.d_theta] = -2 * self.alpha[k] * np.real(
                     self.Jacobians[k] @ self.residual.conj())
             grad_oracle[-self.n_atoms:] = -2 * np.real(self.residual @ self.Atoms.conj())  # Gradient of the weights
 

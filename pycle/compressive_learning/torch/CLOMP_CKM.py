@@ -24,7 +24,7 @@ class CLOMP_CKM(CLOMP):
         :param theta: tensor of size (d) or (K, d)
         :return: tensor of size (m) or (K, m)
         """
-        assert theta.size()[-1] == self.d_atom
+        assert theta.size()[-1] == self.d_theta
         return self.phi(theta)
 
     def set_bounds_atom(self, bounds):
@@ -43,7 +43,7 @@ class CLOMP_CKM(CLOMP):
         :return: tensor
         """
         all_new_theta = (self.upper_bounds -
-                         self.lower_bounds) * torch.rand(nb_atoms, self.d_atom).to(self.device) + self.lower_bounds
+                         self.lower_bounds) * torch.rand(nb_atoms, self.d_theta).to(self.device) + self.lower_bounds
         return all_new_theta
 
     def randomly_initialize_new_atom(self):
@@ -53,7 +53,7 @@ class CLOMP_CKM(CLOMP):
         :return: tensor
         """
         all_new_theta = (self.upper_bounds -
-                         self.lower_bounds) * torch.rand(self.d_atom).to(self.device) + self.lower_bounds
+                         self.lower_bounds) * torch.rand(self.d_theta).to(self.device) + self.lower_bounds
         return all_new_theta
 
     def projection_step(self, theta):
