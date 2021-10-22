@@ -5,11 +5,11 @@ import torch
 
 class CLOMP_CKM(CLOMP):
 
-    def __init__(self, Phi, nb_mixtures, bounds,
+    def __init__(self, phi, nb_mixtures, bounds,
                  sketch, centroid_projector=ProjectorNoProjection(), **kwargs):
         """ Lower and upper bounds are for random initialization, not for projection step ! """
 
-        super().__init__(Phi, nb_mixtures, d_theta=Phi.d, sketch=sketch, bounds=bounds, **kwargs)
+        super().__init__(phi, nb_mixtures, d_theta=phi.d, sketch=sketch, bounds=bounds, **kwargs)
 
         assert isinstance(centroid_projector, Projector)
         self.centroid_projector = centroid_projector

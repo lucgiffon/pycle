@@ -69,7 +69,7 @@ def test_fit_once(X, dim, nb_clust, bounds, Phi_emp):
     z = pycle.sketching.computeSketch(X, Phi_emp)
     # Initialize the solver object
 
-    ckm_solver = CLOMP_CKM(Phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
@@ -89,6 +89,7 @@ def test_fit_once(X, dim, nb_clust, bounds, Phi_emp):
 
     logger.info("SSE: {}".format(SSE(X, centroids)))
 
+
 def test_fit_once_2(X, dim, nb_clust, bounds, Phi_emp):
 
     # Phi_gmm = GMMFeatureMap("None", Omega)
@@ -97,7 +98,7 @@ def test_fit_once_2(X, dim, nb_clust, bounds, Phi_emp):
     z = pycle.sketching.computeSketch(X, Phi_emp)
     # Initialize the solver object
 
-    ckm_solver = CLOMP_CKM(Phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, opt_method="lbfgs", maxiter_inner_optimizations=15000, tol_inner_optimizations=1e-9)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, opt_method="lbfgs", maxiter_inner_optimizations=15000, tol_inner_optimizations=1e-9)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
