@@ -36,6 +36,7 @@ class CLOMP_CKM(CLOMP):
         self.lower_bounds = bounds[0].to(self.real_dtype).to(self.device)
         self.upper_bounds = bounds[1].to(self.real_dtype).to(self.device)
         self.bounds = bounds  # data bounds
+        self.bounds_atom = bounds.T.tolist()
 
     def randomly_initialize_several_atoms(self, nb_atoms):
         """

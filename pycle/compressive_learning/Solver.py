@@ -65,7 +65,7 @@ class Solver(metaclass=ABCMeta):
         pass
     
     @abstractmethod
-    def sketch_of_solution(self, sol=None):
+    def sketch_of_solution(self, alphas, all_thetas=None, all_atoms=None):
         """
         Should return the sketch of the given solution, A_Phi(P_theta).
 

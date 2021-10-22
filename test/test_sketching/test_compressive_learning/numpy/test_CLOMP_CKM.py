@@ -52,7 +52,7 @@ def test_fit_once():
     z = pycle.sketching.computeSketch(X, Phi_emp)
     # Initialize the solver object
 
-    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, opt_method="pdfo")
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, opt_method="vanilla")
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()

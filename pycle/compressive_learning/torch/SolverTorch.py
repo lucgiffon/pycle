@@ -47,7 +47,7 @@ class SolverTorch(Solver):
 
         # Update residual and cost
         if self.current_sol is not None:
-            self.residual = self.sketch_reweighted - self.sketch_of_solution(self.current_sol)
+            self.residual = self.sketch_reweighted - self.sketch_of_solution(all_thetas=self.all_thetas, alphas=self.alphas)
             self.current_sol_cost = torch.norm(self.residual)
         else:
             self.current_sol, self.residual = None, self.sketch_reweighted
