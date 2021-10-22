@@ -1,6 +1,8 @@
 import time
 from abc import abstractmethod
 import torch
+from dask.array.tests.test_stats import scipy
+from pdfo import pdfo
 from loguru import logger
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as f
@@ -20,6 +22,8 @@ class CLOMP(SolverTorch):
         - all_thetas:  (n_atoms,d_atom)-tensor, all the found parameters in matrix form
         - all_atoms: (m,n_atoms)-tensor, the sketch of the found parameters (m is sketch size)
     """
+
+    LST_OPT_METHODS_TORCH = ["adam", "lbfgs"]
 
     def __init__(self, phi, nb_mixtures, d_theta, bounds, sketch, sketch_weight=1., verbose=False,
                  path_template_tensorboard_writer="CLOMP/{}/loss/",  opt_method="adam", dct_opt_method=None,
@@ -246,7 +250,7 @@ class CLOMP(SolverTorch):
         # self.current_sol =
 
     def _initialize_optimizer(self, params):
-        if self.opt_method == "adam":
+        if self.opt_method == "adam" or self.opt_method == "pdfo":
             optimizer = torch.optim.Adam(params, lr=self.lr_inner_optimizations)
         elif self.opt_method == "lbfgs":
             optimizer = torch.optim.LBFGS(params, max_iter=1, line_search_fn="strong_wolfe")
@@ -254,17 +258,20 @@ class CLOMP(SolverTorch):
             raise ValueError(f"unkown opt method: {self.opt_method}")
         return optimizer
 
-    def maximize_atom_correlation(self, prefix=""):
-        """
-        Step 1 in CLOMP-R algorithm. Find most correlated atom. Torch optimization, using Adam.
+    def _maximize_atom_correlation_pdfo(self, new_theta, prefix):
+        assert self.phi.device == torch.device("cpu")
+        new_theta = new_theta.numpy()
+        fct_min_neg_atom_corr = lambda x: float(self.loss_atom_correlation(torch.from_numpy(x)))
+        # fct_fun_grad = self._get_residual_correlation_value
+        nb_iter_max = self.dct_opt_method.get("nb_iter_max_step_1", 100)
+        sol = pdfo(fct_min_neg_atom_corr,
+                   x0=new_theta,  # Start at current solution
+                   bounds=self.bounds_atom,
+                   options={'maxfev': nb_iter_max * new_theta.size}
+                   )
+        return torch.Tensor(sol.x).to(self.phi.dtype)
 
-        :param new_theta: torch tensor for atom
-        :param tol: stopping criteria is to stop when the relative difference of loss between
-        two consecutive iterations is less than tol.
-        :param max_iter: max iterations number for optimization.
-        :return: updated new_theta
-        """
-        new_theta = self.randomly_initialize_several_atoms(1).squeeze()
+    def _maximize_atom_correlation_torch(self, new_theta, prefix):
         params = [torch.nn.Parameter(new_theta, requires_grad=True)]
 
         optimizer = self._initialize_optimizer(params)
@@ -276,7 +283,8 @@ class CLOMP(SolverTorch):
             if self.show_curves:
                 ObjectiveValuesStorage().add(float(loss), "maximize_atom_correlation/{}".format(prefix))
             if self.tensorboard:
-                self.writer.add_scalar(self.path_template_tensorboard_writer.format("step1/{}".format(prefix)), loss.item(), i)
+                self.writer.add_scalar(self.path_template_tensorboard_writer.format("step1/{}".format(prefix)),
+                                       loss.item(), i)
 
             loss.backward()
             return loss
@@ -307,6 +315,25 @@ class CLOMP(SolverTorch):
             ObjectiveValuesStorage().clear()
 
         return new_theta.data.detach()
+
+    def maximize_atom_correlation(self, prefix=""):
+        """
+        Step 1 in CLOMP-R algorithm. Find most correlated atom. Torch optimization, using Adam.
+
+        :param new_theta: torch tensor for atom
+        :param tol: stopping criteria is to stop when the relative difference of loss between
+        two consecutive iterations is less than tol.
+        :param max_iter: max iterations number for optimization.
+        :return: updated new_theta
+        """
+        new_theta = self.randomly_initialize_several_atoms(1).squeeze()
+
+        if self.opt_method == "pdfo":
+            return self._maximize_atom_correlation_pdfo(new_theta, prefix)
+        elif self.opt_method in self.LST_OPT_METHODS_TORCH:
+            return self._maximize_atom_correlation_torch(new_theta, prefix)
+        else:
+            raise ValueError(f"Unkown optimization method: {self.opt_method}")
 
     def fit_once(self):
         """

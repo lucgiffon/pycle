@@ -61,7 +61,7 @@ def Phi_emp(nb_clust, dim):
     Phi_emp = MatrixFeatureMap("ComplexExponential", Omega, use_torch=True, device=torch.device("cpu"))
     return Phi_emp
 
-def test_fit_once(X, dim, nb_clust, bounds, Phi_emp):
+def test_fit_once_adam(X, dim, nb_clust, bounds, Phi_emp):
 
     # Phi_gmm = GMMFeatureMap("None", Omega)
 
@@ -90,7 +90,7 @@ def test_fit_once(X, dim, nb_clust, bounds, Phi_emp):
     logger.info("SSE: {}".format(SSE(X, centroids)))
 
 
-def test_fit_once_2(X, dim, nb_clust, bounds, Phi_emp):
+def test_fit_once_bfgs(X, dim, nb_clust, bounds, Phi_emp):
 
     # Phi_gmm = GMMFeatureMap("None", Omega)
 
@@ -99,6 +99,35 @@ def test_fit_once_2(X, dim, nb_clust, bounds, Phi_emp):
     # Initialize the solver object
 
     ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, opt_method="lbfgs", maxiter_inner_optimizations=15000, tol_inner_optimizations=1e-9)
+
+    # Launch the CLOMP optimization procedure
+    ckm_solver.fit_once()
+
+    # Get the solution
+    (theta, weights) = ckm_solver.current_sol
+    centroids, sigma = theta[..., :dim], theta[..., -dim:]
+
+    plt.figure(figsize=(5, 5))
+    plt.title("Compressively learned centroids")
+    plt.scatter(X[:, 0], X[:, 1], s=1, alpha=0.15)
+    plt.scatter(centroids[:, 0], centroids[:, 1], s=1000 * weights)
+    plt.legend(["Data", "Centroids"])
+    plt.show()
+
+    from pycle.utils.metrics import SSE
+
+    logger.info("SSE: {}".format(SSE(X, centroids)))
+
+
+def test_fit_once_pdfo(X, dim, nb_clust, bounds, Phi_emp):
+
+    # Phi_gmm = GMMFeatureMap("None", Omega)
+
+    # And sketch X with Phi: we map a 20000x2 dataset -> a 50-dimensional complex vector
+    z = pycle.sketching.computeSketch(X, Phi_emp)
+    # Initialize the solver object
+
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, opt_method="pdfo", maxiter_inner_optimizations=15000, tol_inner_optimizations=1e-9)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
