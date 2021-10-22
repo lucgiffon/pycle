@@ -98,7 +98,7 @@ class CLOMP(SolverTorch):
         # note the "minus 1" that transforms the problem into a minimization problem
         return -1. / norm_atom * torch.real(torch.vdot(sketch_of_atom, self.residual))
 
-    def find_optimal_weights(self, normalize_atoms=False):
+    def find_optimal_weights(self, normalize_atoms=False, prefix=""):
         """
         Using the current atoms matrix, find the optimal weights for the sketch of the mixture to
         approximate well the true sketch. (Step 4)
@@ -106,28 +106,38 @@ class CLOMP(SolverTorch):
         2nd optimization sub-problem in CLOMP
         """
         log_alphas = torch.nn.Parameter(torch.zeros(self.n_atoms, device=self.device), requires_grad=True)
-        optimizer = torch.optim.Adam([log_alphas], lr=self.lr_inner_optimizations)
+
+        optimizer = self._initialize_optimizer([log_alphas])
 
         if normalize_atoms:
             all_atoms = f.normalize(self.all_atoms, dim=1, eps=self.minimum_atom_norm)
         else:
             all_atoms = self.all_atoms
 
-        for i in range(self.maxiter_inner_optimizations):
+        def closure():
             optimizer.zero_grad()
 
+            # todo inconsistance entre les différentes fonctions pour calculer la loss
             sketch_solution = torch.matmul(all_atoms, torch.exp(log_alphas).to(self.comp_dtype))
             loss = torch.linalg.norm(self.sketch_reweighted - sketch_solution)
 
+            if self.show_curves:
+                ObjectiveValuesStorage().add(float(loss), "find_optimal_weights/{}".format(prefix))
+            if self.tensorboard:
+                self.writer.add_scalar(self.path_template_tensorboard_writer.format('step3-4'), loss.item(), i)
+
             loss.backward()
-            optimizer.step()
+            return loss
+
+        for i in range(self.maxiter_inner_optimizations):
+            if self.opt_method == "lbfgs":
+                loss = optimizer.step(closure)  # bfgs takes the loss computation function as argument at each step.
+            else:
+                loss = closure()
+                optimizer.step()
 
             if i != 0:
                 relative_loss_diff = torch.abs(previous_loss - loss) / torch.abs(previous_loss)
-                if self.tensorboard:
-                    self.writer.add_scalar(self.path_template_tensorboard_writer.format('step3-4'), loss.item(), i)
-                if self.show_curves:
-                    ObjectiveValuesStorage().add(float(previous_loss), "find_optimal_weights")
 
                 if relative_loss_diff.item() <= self.tol_inner_optimizations:
                     break
@@ -146,7 +156,7 @@ class CLOMP(SolverTorch):
 
         return normalized_alphas.detach()
 
-    def minimize_cost_from_current_sol(self):
+    def minimize_cost_from_current_sol(self, prefix=""):
         """
         Step 5 in CLOMP-R algorithm. At the end of the method, update the parameters self.alphas and self.all_thetas.
 
@@ -161,18 +171,31 @@ class CLOMP(SolverTorch):
         log_alphas = torch.log(self.alphas).requires_grad_()
         all_thetas = self.all_thetas.requires_grad_()
         params = [log_alphas, all_thetas]
-        optimizer = torch.optim.Adam(params, lr=self.lr_inner_optimizations)
 
-        for iteration in range(self.maxiter_inner_optimizations):
+        optimizer = self._initialize_optimizer(params)
+
+        def closure():
             optimizer.zero_grad()
-            # Designing loss
-            alphas = torch.exp(log_alphas)
 
-            sketch_solution = self.sketch_of_solution((all_thetas, alphas))
+            # todo inconsistance entre les différentes fonctions pour calculer la loss
+            sketch_solution = self.sketch_of_solution((all_thetas, torch.exp(log_alphas)))
             loss = torch.linalg.norm(self.sketch_reweighted - sketch_solution)
 
+            if self.tensorboard:
+                self.writer.add_scalar(self.path_template_tensorboard_writer.format('step5'), loss.item(), iteration)
+            if self.show_curves:
+                ObjectiveValuesStorage().add(float(loss), f"minimize_cost_from_current_sol/{prefix}")
+
             loss.backward()
-            optimizer.step()
+            return loss
+
+        for iteration in range(self.maxiter_inner_optimizations):
+            if self.opt_method == "lbfgs":
+                loss = optimizer.step(closure)  # bfgs takes the loss computation function as argument at each step.
+            else:
+                loss = closure()
+                optimizer.step()
+
             # Projection step
             with torch.no_grad():
                 self.projection_step(all_thetas)
@@ -180,10 +203,6 @@ class CLOMP(SolverTorch):
             # Tracking loss
             if iteration != 0:
                 relative_loss_diff = torch.abs(previous_loss - loss) / previous_loss
-                if self.tensorboard:
-                    self.writer.add_scalar(self.path_template_tensorboard_writer.format('step5'), loss.item(), iteration)
-                if self.show_curves:
-                    ObjectiveValuesStorage().add(float(previous_loss), "minimize_cost_from_current_sol")
 
                 if relative_loss_diff.item() < self.tol_inner_optimizations:
                     break
@@ -226,6 +245,15 @@ class CLOMP(SolverTorch):
         self.update_current_sol_and_cost(sol=(self.all_thetas, self.alphas))
         # self.current_sol =
 
+    def _initialize_optimizer(self, params):
+        if self.opt_method == "adam":
+            optimizer = torch.optim.Adam(params, lr=self.lr_inner_optimizations)
+        elif self.opt_method == "lbfgs":
+            optimizer = torch.optim.LBFGS(params, max_iter=1, line_search_fn="strong_wolfe")
+        else:
+            raise ValueError(f"unkown opt method: {self.opt_method}")
+        return optimizer
+
     def maximize_atom_correlation(self, prefix=""):
         """
         Step 1 in CLOMP-R algorithm. Find most correlated atom. Torch optimization, using Adam.
@@ -239,12 +267,7 @@ class CLOMP(SolverTorch):
         new_theta = self.randomly_initialize_several_atoms(1).squeeze()
         params = [torch.nn.Parameter(new_theta, requires_grad=True)]
 
-        if self.opt_method == "adam":
-            optimizer = torch.optim.Adam(params, lr=self.lr_inner_optimizations)
-        elif self.opt_method == "lbfgs":
-            optimizer = torch.optim.LBFGS(params, max_iter=1, line_search_fn="strong_wolfe")
-        else:
-            raise ValueError(f"unkown opt method: {self.opt_method}")
+        optimizer = self._initialize_optimizer(params)
 
         def closure():
             optimizer.zero_grad()
@@ -252,6 +275,8 @@ class CLOMP(SolverTorch):
 
             if self.show_curves:
                 ObjectiveValuesStorage().add(float(loss), "maximize_atom_correlation/{}".format(prefix))
+            if self.tensorboard:
+                self.writer.add_scalar(self.path_template_tensorboard_writer.format("step1/{}".format(prefix)), loss.item(), i)
 
             loss.backward()
             return loss
@@ -269,8 +294,6 @@ class CLOMP(SolverTorch):
 
             if i != 0:
                 relative_loss_diff = torch.abs(previous_loss - loss) / torch.abs(previous_loss)
-                if self.tensorboard:
-                    self.writer.add_scalar(self.path_template_tensorboard_writer.format("step1/{}".format(prefix)), loss.item(), i)
                 if relative_loss_diff.item() <= self.tol_inner_optimizations:
                     break
             previous_loss = torch.clone(loss)
