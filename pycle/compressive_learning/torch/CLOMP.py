@@ -22,7 +22,8 @@ class CLOMP(SolverTorch):
     """
 
     def __init__(self, phi, nb_mixtures, d_theta, bounds, sketch, sketch_weight=1., verbose=False,
-                 path_template_tensorboard_writer="CLOMP/{}/loss/", **kwargs):
+                 path_template_tensorboard_writer="CLOMP/{}/loss/",  opt_method="adam", dct_opt_method=None,
+                 **kwargs):
         """
         - phi: a FeatureMap object
         - sketch: tensor
@@ -34,6 +35,9 @@ class CLOMP(SolverTorch):
         # Other minor params
         self.path_template_tensorboard_writer = path_template_tensorboard_writer
 
+        # Attributes related to the optimization method used
+        self.opt_method = opt_method
+        self.dct_opt_method = dct_opt_method or dict()  # todo utiliser le dicitonnaire d'optim
 
     # Abstract methods
     # ===============
@@ -91,6 +95,7 @@ class CLOMP(SolverTorch):
         # Trick to avoid division by zero (doesn't change anything because everything will be zero)
         if norm_atom.item() < self.minimum_atom_norm:
             norm_atom = torch.tensor(self.minimum_atom_norm)
+        # note the "minus 1" that transforms the problem into a minimization problem
         return -1. / norm_atom * torch.real(torch.vdot(sketch_of_atom, self.residual))
 
     def find_optimal_weights(self, normalize_atoms=False):
@@ -233,15 +238,30 @@ class CLOMP(SolverTorch):
         """
         new_theta = self.randomly_initialize_several_atoms(1).squeeze()
         params = [torch.nn.Parameter(new_theta, requires_grad=True)]
-        optimizer = torch.optim.Adam(params, lr=self.lr_inner_optimizations)
 
-        for i in range(self.maxiter_inner_optimizations):
+        if self.opt_method == "adam":
+            optimizer = torch.optim.Adam(params, lr=self.lr_inner_optimizations)
+        elif self.opt_method == "lbfgs":
+            optimizer = torch.optim.LBFGS(params, max_iter=1, line_search_fn="strong_wolfe")
+        else:
+            raise ValueError(f"unkown opt method: {self.opt_method}")
+
+        def closure():
             optimizer.zero_grad()
-
             loss = self.loss_atom_correlation(params[0])
 
+            if self.show_curves:
+                ObjectiveValuesStorage().add(float(loss), "maximize_atom_correlation/{}".format(prefix))
+
             loss.backward()
-            optimizer.step()
+            return loss
+
+        for i in range(self.maxiter_inner_optimizations):
+            if self.opt_method == "lbfgs":
+                loss = optimizer.step(closure)  # bfgs takes the loss computation function as argument at each step.
+            else:
+                loss = closure()
+                optimizer.step()
 
             # Projection step
             with torch.no_grad():
@@ -249,8 +269,6 @@ class CLOMP(SolverTorch):
 
             if i != 0:
                 relative_loss_diff = torch.abs(previous_loss - loss) / torch.abs(previous_loss)
-                if self.show_curves:
-                    ObjectiveValuesStorage().add(float(previous_loss), "maximize_atom_correlation/{}".format(prefix))
                 if self.tensorboard:
                     self.writer.add_scalar(self.path_template_tensorboard_writer.format("step1/{}".format(prefix)), loss.item(), i)
                 if relative_loss_diff.item() <= self.tol_inner_optimizations:

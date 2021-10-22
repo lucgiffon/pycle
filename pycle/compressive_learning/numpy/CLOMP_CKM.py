@@ -12,8 +12,8 @@ class CLOMP_CKM(CLOMP):
     The main algorithm is handled by the parent class.
     """
 
-    def __init__(self, Phi, *args, **kwargs):
-        super(CLOMP_CKM, self).__init__(phi=Phi, d_atom=Phi.d, *args, **kwargs)
+    def __init__(self, phi, *args, **kwargs):
+        super(CLOMP_CKM, self).__init__(phi=phi, d_atom=phi.d, *args, **kwargs)
 
     def sketch_of_atoms(self, theta_k, return_jacobian=False):
         """
