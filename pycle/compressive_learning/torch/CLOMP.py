@@ -366,12 +366,12 @@ class CLOMP(SolverTorch):
         # self.current_sol =
 
     def _initialize_optimizer(self, params):
-        if self.opt_method == "adam" or self.opt_method == "pdfo":
+        if self.opt_method == "adam":
             optimizer = torch.optim.Adam(params, lr=self.lr_inner_optimizations)
         elif self.opt_method == "lbfgs":
             optimizer = torch.optim.LBFGS(params, max_iter=1, line_search_fn="strong_wolfe")
         else:
-            raise ValueError(f"unkown opt method: {self.opt_method}")
+            raise ValueError(f"Optimizer {self.opt_method} cannot be used for gradient descent.")
         return optimizer
 
     def _maximize_atom_correlation_pdfo(self, new_theta, prefix):
