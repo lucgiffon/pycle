@@ -5,6 +5,7 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
 from pycle.compressive_learning.Solver import Solver
+from pycle.sketching import FeatureMap
 from pycle.utils.optim import ObjectiveValuesStorage
 
 
@@ -13,14 +14,31 @@ class SolverTorch(Solver):
     Adapt Solver base methods to torch.
     """
 
-    def __init__(self, phi, sketch, maxiter_inner_optimizations=1000, tol_inner_optimizations=1e-5,  beta_1=0., beta_2=0.99,
-                 lr_inner_optimizations=0.01, show_curves=False, tensorboard=False, *args, **kwargs):
+    def initialize_parameters_optimization(self) -> None:
+        """
+        Transform optimization parameters in dct_opt_method to actual attributes of the object.
+        Further tests could be done here, as the adequation between the optimization method used and the parameters provided.
+        :return:
+        """
+        self.maxiter_inner_optimizations = self.dct_opt_method.get("maxiter_inner_optimizations", None)
+        self.tol_inner_optimizations = self.dct_opt_method.get("tol_inner_optimizations", None)
+        self.lr_inner_optimizations = self.dct_opt_method.get("lr_inner_optimizations", None)
+        self.beta_1 = self.dct_opt_method.get("beta_1", None)
+        self.beta_2 = self.dct_opt_method.get("beta_2", None)
+        self.nb_iter_max_step_5 = self.dct_opt_method.get("nb_iter_max_step_5", 200)
+        self.nb_iter_max_step_1 = self.dct_opt_method.get("nb_iter_max_step_1", 200)
 
-        self.maxiter_inner_optimizations = maxiter_inner_optimizations
-        self.tol_inner_optimizations = tol_inner_optimizations
-        self.lr_inner_optimizations = lr_inner_optimizations
-        self.beta_1 = beta_1
-        self.beta_2 = beta_2
+
+    def __init__(self, phi: FeatureMap, sketch,
+                 show_curves: bool = False, tensorboard: bool = False,
+                 path_template_tensorboard_writer="CLOMP/{}/loss/",
+                 opt_method: str = "adam", dct_opt_method: [None, dict] = None,
+                 *args, **kwargs):
+
+        # Attributes related to the optimization method used
+        self.opt_method = opt_method
+        self.dct_opt_method = dct_opt_method or dict()  # todo utiliser le dicitonnaire d'optim
+        self.initialize_parameters_optimization()
 
         # Assert sketch and phi are on the same device
         assert phi.device.type == sketch.device.type
@@ -31,15 +49,18 @@ class SolverTorch(Solver):
         elif self.real_dtype == torch.float64:
             self.comp_dtype = torch.complex128
 
+        # parameters regarding the tracking of the algorithm
         self.show_curves = show_curves
         self.tensorboard = tensorboard
+        self.path_template_tensorboard_writer = path_template_tensorboard_writer
         if tensorboard:
             self.writer = SummaryWriter()
 
         super().__init__(phi=phi, sketch=sketch, *args, **kwargs)
 
     def update_current_sol_and_cost(self, sol=None):
-        """Updates the residual and cost to the current solution. If sol given, also updates it."""
+        """Updates the residual and cost to the current solution.
+        If `sol` given, also updates the `current_sol` attribute."""
 
         # Update current sol if argument given
         if sol is not None:
@@ -48,12 +69,18 @@ class SolverTorch(Solver):
         # Update residual and cost
         if self.current_sol is not None:
             self.residual = self.sketch_reweighted - self.sketch_of_solution(all_thetas=self.all_thetas, alphas=self.alphas)
-            self.current_sol_cost = torch.norm(self.residual)
+            self.current_sol_cost = torch.norm(self.residual) ** 2
         else:
             self.current_sol, self.residual = None, self.sketch_reweighted
             self.current_sol_cost = np.inf
 
-    def initialize_empty_solution(self):
+    def initialize_empty_solution(self) -> None:
+        """
+        Attributes pertaining to the solution are :
+
+         - `n_atoms`, `alphas`, `all_thetas`, `all_atoms`, `residual` and `current_sol`.
+
+        """
         self.n_atoms = 0
         self.alphas = torch.empty(0, dtype=self.real_dtype).to(self.device)
         self.all_thetas = torch.empty(0, self.d_theta, dtype=self.real_dtype).to(self.device)

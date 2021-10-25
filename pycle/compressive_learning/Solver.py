@@ -57,7 +57,11 @@ class Solver(metaclass=ABCMeta):
     # ===============
     # Methods that have to be instantiated by child classes
     @abstractmethod
-    def initialize_empty_solution(self):
+    def initialize_empty_solution(self) -> None:
+        """
+        This method prepares the attributes that will contain the solution of the compressive learning problem.
+        :return:
+        """
         pass
 
     @abstractmethod

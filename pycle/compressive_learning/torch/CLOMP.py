@@ -26,23 +26,10 @@ class CLOMP(SolverTorch):
 
     LST_OPT_METHODS_TORCH = ["adam", "lbfgs"]
 
-    def __init__(self, phi, nb_mixtures, d_theta, bounds, sketch, sketch_weight=1., verbose=False,
-                 path_template_tensorboard_writer="CLOMP/{}/loss/",  opt_method="adam", dct_opt_method=None,
+    def __init__(self, *args,
                  **kwargs):
-        """
-        - phi: a FeatureMap object
-        - sketch: tensor
-        - sketch_weight: float, a re-scaling factor for the data sketch
-        - verbose: bool
-        """
-        super().__init__(phi=phi, nb_mixtures=nb_mixtures, d_theta=d_theta, bounds=bounds, sketch=sketch, sketch_weight=sketch_weight, verbose=verbose, **kwargs)
 
-        # Other minor params
-        self.path_template_tensorboard_writer = path_template_tensorboard_writer
-
-        # Attributes related to the optimization method used
-        self.opt_method = opt_method
-        self.dct_opt_method = dct_opt_method or dict()  # todo utiliser le dicitonnaire d'optim
+        super().__init__(*args, **kwargs)
 
         self.weight_lower_bound = 1e-9
         self.weight_upper_bound = 2
@@ -68,10 +55,8 @@ class CLOMP(SolverTorch):
             one_by_one = compute one atom by one atom in case atom computation does not fit in GPU
         Out: sketch_of_solution: (m,)-tensor containing the sketch
         """
-        try:
-            assert all_thetas is not None or all_atoms is not None
-        except:
-            pass
+        assert all_thetas is not None or all_atoms is not None
+
         if all_atoms is None:
             all_atoms = torch.transpose(self.sketch_of_atoms(all_thetas), 0, 1)
         return torch.matmul(all_atoms, alphas.to(self.comp_dtype))
@@ -105,8 +90,41 @@ class CLOMP(SolverTorch):
         # Trick to avoid division by zero (doesn't change anything because everything will be zero)
         if norm_atom.item() < self.minimum_atom_norm:
             norm_atom = torch.tensor(self.minimum_atom_norm)
+
         # note the "minus 1" that transforms the problem into a minimization problem
-        return -1. / norm_atom * torch.real(torch.vdot(sketch_of_atom, self.residual))
+        result = -1. / norm_atom * torch.real(torch.vdot(sketch_of_atom, self.residual))
+        if self.show_curves:
+            ObjectiveValuesStorage().add(result, "loss_atom_correlation")
+        return result
+
+    ## Second subproblem: best non negative weights
+    def _find_optimal_weights_nnls(self, all_atoms, normalize_atoms=False):
+        """
+        2 Optimisation problem of clomp.
+
+        Using the current atoms matrix, find the optimal weights with scipy's nnls
+        """
+        all_atoms = all_atoms.numpy()
+
+        # Stack real and imaginary parts if necessary
+        if np.any(np.iscomplex(all_atoms)):  # True if complex sketch output
+            _A = np.r_[all_atoms.real, all_atoms.imag]
+            _z = np.r_[self.sketch_reweighted.real, self.sketch_reweighted.imag]
+        else:
+            _A = all_atoms
+            _z = self.sketch_reweighted
+
+        if normalize_atoms:
+            norms = np.linalg.norm(all_atoms, axis=0)
+            norm_too_small = np.where(norms < self.minimum_atom_norm)[0]
+            if norm_too_small.size > 0:  # Avoid division by zero
+                logger.debug(f'norm of some atoms is too small (min. {norms.min()}), changed to {self.minimum_atom_norm}.')
+                norms[norm_too_small] = self.minimum_atom_norm
+            _A = _A / norms
+
+        # Use non-negative least squares to find optimal weights
+        (_alpha, _) = scipy.optimize.nnls(_A, _z)
+        return torch.from_numpy(_alpha)
 
     def find_optimal_weights(self, normalize_atoms=False, prefix=""):
         """
@@ -118,33 +136,37 @@ class CLOMP(SolverTorch):
         # todo make option to use nnls
 
         init_alphas = torch.zeros(self.n_atoms, device=self.device)
-        if normalize_atoms:
-            all_atoms = f.normalize(self.all_atoms, dim=1, eps=self.minimum_atom_norm)
-        else:
-            all_atoms = self.all_atoms
+
+        all_atoms = self.all_atoms
 
         if self.opt_method == "pdfo":
-            # todo make a default for pdfo options for the opt method at each step of clomp
-            return self._find_optimal_weights_torch(init_alphas, all_atoms, prefix)
+            return self._find_optimal_weights_nnls(all_atoms, normalize_atoms=normalize_atoms)
+            # # todo make a default for pdfo options for the opt method at each step of clomp
+            # return self._find_optimal_weights_torch(init_alphas, all_atoms, prefix)
         elif self.opt_method in self.LST_OPT_METHODS_TORCH:
-            return self._find_optimal_weights_torch(init_alphas, all_atoms, prefix)
+            # return self._find_optimal_weights_nnls(all_atoms, normalize_atoms=normalize_atoms)
+            return self._find_optimal_weights_torch(init_alphas, all_atoms, prefix, normalize_atoms=normalize_atoms)
         else:
             raise ValueError(f"Unkown optimization method: {self.opt_method}")
 
-    def _find_optimal_weights_torch(self, init_alphas, all_atoms, prefix):
+    def _find_optimal_weights_torch(self, init_alphas, all_atoms, prefix, normalize_atoms=False):
         """
         Using the current atoms matrix, find the optimal weights for the sketch of the mixture to
         approximate well the true sketch. (Step 4)
 
         2nd optimization sub-problem in CLOMP
         """
+        if normalize_atoms:
+            all_atoms = f.normalize(self.all_atoms, dim=1, eps=self.minimum_atom_norm)
+        else:
+            all_atoms = self.all_atoms
+
         log_alphas = torch.nn.Parameter(init_alphas, requires_grad=True)
         optimizer = self._initialize_optimizer([log_alphas])
 
         def closure():
             optimizer.zero_grad()
 
-            # todo inconsistance entre les différentes fonctions pour calculer la loss
             loss = self.loss_global(all_atoms=all_atoms, alphas=torch.exp(log_alphas).to(self.real_dtype))
 
             if self.show_curves:
@@ -173,6 +195,7 @@ class CLOMP(SolverTorch):
         if self.tensorboard:
             self.writer.flush()
             self.writer.close()
+
         if self.show_curves:
             ObjectiveValuesStorage().show()
             ObjectiveValuesStorage().clear()
@@ -185,8 +208,8 @@ class CLOMP(SolverTorch):
 
     def loss_global(self, alphas, all_thetas=None, all_atoms=None):
         assert all_thetas is not None or all_atoms is not None
-        sketch_solution = self.sketch_of_solution(alphas, all_thetas, all_atoms)
-        loss = torch.linalg.norm(self.sketch_reweighted - sketch_solution)
+        sketch_solution = self.sketch_of_solution(alphas, all_thetas=all_thetas, all_atoms=all_atoms)
+        loss = torch.linalg.norm(self.sketch_reweighted - sketch_solution) ** 2
         return loss
 
     def _stack_sol(self, alpha=None, Theta=None):
@@ -223,35 +246,47 @@ class CLOMP(SolverTorch):
         :return:
         """
         # Parameters, optimizer
-        log_alphas = torch.log(self.alphas)
         all_thetas = self.all_thetas
 
         if self.opt_method == "pdfo":
-            return self._minimize_cost_from_current_sol_pdfo(log_alphas, all_thetas, prefix)
+
+            # log_alphas = torch.log(self.alphas)
+            # return self._minimize_cost_from_current_sol_torch(log_alphas, all_thetas, prefix)
+            return self._minimize_cost_from_current_sol_pdfo(self.alphas, all_thetas, prefix)
         elif self.opt_method in self.LST_OPT_METHODS_TORCH:
+            log_alphas = torch.log(self.alphas)
             return self._minimize_cost_from_current_sol_torch(log_alphas, all_thetas, prefix)
         else:
             raise ValueError(f"Unkown optimization method: {self.opt_method}")
 
-    def _minimize_cost_from_current_sol_pdfo(self, log_alphas, all_thetas, prefix):
+    def _minimize_cost_from_current_sol_pdfo(self, all_alphas, all_thetas, prefix):
         def wrapped_loss_global(stacked_x):
-            (_log_alpha, _Theta) = self._destack_sol(stacked_x)
-            return float(self.loss_global(all_thetas=torch.from_numpy(_Theta), alphas=torch.from_numpy(_log_alpha)))
+            (_alpha, _Theta) = self._destack_sol(stacked_x)
+            result = float(self.loss_global(all_thetas=torch.from_numpy(_Theta), alphas=torch.from_numpy(_alpha)))
+            if self.show_curves:
+                ObjectiveValuesStorage().add(result, f"minimize_cost_from_current_sol_pdfo/{prefix}")
+            return result
 
-        stacked_x_init = self._stack_sol(alpha=log_alphas.numpy(), Theta=all_thetas.numpy())
-        bounds_Theta_alpha = self.bounds_atom * self.n_atoms + [
-            [self.weight_lower_bound, self.weight_upper_bound]] * self.n_atoms
+        stacked_x_init = self._stack_sol(alpha=all_alphas.numpy(), Theta=all_thetas.numpy())
+        bounds_Theta_alpha = self.bounds_atom * self.n_atoms + [[self.weight_lower_bound, self.weight_upper_bound]] * self.n_atoms
         # fct_fun_grad = self.get_global_cost
         fct_fun_grad = wrapped_loss_global
-        nb_iter_max = self.dct_opt_method.get("nb_iter_max_step_5", 5)
         sol = pdfo(fct_fun_grad,
                    x0=stacked_x_init,  # Start at current solution
                    bounds=bounds_Theta_alpha,
-                   options={'maxfev': nb_iter_max * stacked_x_init.size,
+                   options={'maxfev': self.nb_iter_max_step_5 * stacked_x_init.size,
                             # 'rhoend': ftol
                             }
                    )
-        return torch.Tensor(sol.x).to(self.real_dtype)
+
+        if self.show_curves:
+            ObjectiveValuesStorage().show()
+            ObjectiveValuesStorage().clear()
+
+        (_alphas, _all_thetas) = self._destack_sol(sol.x)
+
+        self.all_thetas = torch.Tensor(_all_thetas).to(self.real_dtype)
+        self.alphas = torch.Tensor(_alphas).to(self.real_dtype)
 
     def _minimize_cost_from_current_sol_torch(self, log_alphas, all_thetas, prefix):
         # Parameters, optimizer
@@ -316,17 +351,17 @@ class CLOMP(SolverTorch):
         logger.debug(f'Time for step 4: {time.time() - since}')
         # Step 5: fine-tune
         since = time.time()
-        self.minimize_cost_from_current_sol()
+        self.minimize_cost_from_current_sol(prefix="step 5")
         logger.debug(f'Time for step 5: {time.time() - since}')
         # The atoms have changed: we must re-compute their sketches matrix
         self.update_current_sol_and_cost(sol=(self.all_thetas, self.alphas))
 
     def final_fine_tuning(self):
         logger.info(f'Final fine-tuning...')
-        self.minimize_cost_from_current_sol()
+        self.minimize_cost_from_current_sol(prefix="final")
         # self.projection_step(self.all_thetas) # this is useless given the projection was made in the last method
         logger.debug(torch.norm(self.all_thetas[:, :self.phi.d], dim=1))
-        self.alphas /= torch.sum(self.alphas)
+        # self.alphas /= torch.sum(self.alphas)
         self.update_current_sol_and_cost(sol=(self.all_thetas, self.alphas))
         # self.current_sol =
 
@@ -343,12 +378,17 @@ class CLOMP(SolverTorch):
         assert self.phi.device == torch.device("cpu")
         new_theta = new_theta.numpy()
         fct_min_neg_atom_corr = lambda x: float(self.loss_atom_correlation(torch.from_numpy(x)))
-        nb_iter_max = self.dct_opt_method.get("nb_iter_max_step_1", 100)
+        # fct_min_neg_atom_corr = self._get_residual_correlation_value
         sol = pdfo(fct_min_neg_atom_corr,
                    x0=new_theta,  # Start at current solution
                    bounds=self.bounds_atom,
-                   options={'maxfev': nb_iter_max * new_theta.size}
+                   options={'maxfev': self.nb_iter_max_step_1 * new_theta.size}
                    )
+
+        if self.show_curves:
+            ObjectiveValuesStorage().show()
+            ObjectiveValuesStorage().clear()
+
         return torch.Tensor(sol.x).to(self.real_dtype)
 
     def _maximize_atom_correlation_torch(self, new_theta, prefix):
@@ -410,10 +450,12 @@ class CLOMP(SolverTorch):
 
         if self.opt_method == "pdfo":
             return self._maximize_atom_correlation_pdfo(new_theta, prefix)
+            # return self._maximize_atom_correlation_torch(new_theta, prefix)
         elif self.opt_method in self.LST_OPT_METHODS_TORCH:
             return self._maximize_atom_correlation_torch(new_theta, prefix)
         else:
             raise ValueError(f"Unkown optimization method: {self.opt_method}")
+
 
     def fit_once(self):
         """
@@ -447,3 +489,6 @@ class CLOMP(SolverTorch):
 
         # Final fine-tuning with increased optimization accuracy
         self.final_fine_tuning()
+        self.alphas /= torch.sum(self.alphas)
+        self.update_current_sol_and_cost(sol=(self.all_thetas, self.alphas))
+

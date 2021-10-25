@@ -1,15 +1,18 @@
 from pycle.compressive_learning.torch.CLOMP import CLOMP
+from pycle.sketching import FeatureMap
 from pycle.utils.projectors import Projector, ProjectorClip, ProjectorNoProjection
 import torch
+import numpy
 
 
 class CLOMP_CKM(CLOMP):
+    def __init__(self, phi: FeatureMap, centroid_projector: Projector = ProjectorNoProjection(), *args, **kwargs):
 
-    def __init__(self, phi, nb_mixtures, bounds,
-                 sketch, centroid_projector=ProjectorNoProjection(), **kwargs):
-        """ Lower and upper bounds are for random initialization, not for projection step ! """
+        # Lower and upper bounds are for random initialization, not for projection step !
+        self.lower_bounds = None
+        self.upper_bounds = None
 
-        super().__init__(phi, nb_mixtures, d_theta=phi.d, sketch=sketch, bounds=bounds, **kwargs)
+        super().__init__(phi, d_theta=phi.d, *args, **kwargs)
 
         assert isinstance(centroid_projector, Projector)
         self.centroid_projector = centroid_projector
@@ -47,13 +50,22 @@ class CLOMP_CKM(CLOMP):
                          self.lower_bounds) * torch.rand(nb_atoms, self.d_theta).to(self.device) + self.lower_bounds
         return all_new_theta
 
-    def projection_step(self, theta):
+    def projection_step(self, theta) -> None:
+        """
+        Project a theta (or a set of thetas) on the constraint specifed by self.centroid_project of class `Projector`.
+
+        The modification is made in place.
+
+        :param theta:
+        :return: None
+        """
         if self.centroid_projector is not None:
             self.centroid_projector.project(theta)
 
-    def get_centroids(self, return_numpy=True):
+    def get_centroids(self, return_numpy=True) -> [torch.Tensor, numpy.ndarray]:
         """
-        Get centroids, in numpy array if required.
+        Get centroids, in numpy array by default, otherwise in torch.Tensor.
+
         :param return_numpy: bool
         :return: tensor or numpy array
         """
