@@ -28,15 +28,17 @@ class SolverTorch(Solver):
         self.nb_iter_max_step_5 = self.dct_opt_method.get("nb_iter_max_step_5", 200)
         self.nb_iter_max_step_1 = self.dct_opt_method.get("nb_iter_max_step_1", 200)
 
+        self.opt_method_step_1 = self.dct_opt_method.get("opt_method_step_1", "lbfgs")
+        self.opt_method_step_34 = self.dct_opt_method.get("opt_method_step_34", "nnls")
+        self.opt_method_step_5 = self.dct_opt_method.get("opt_method_step_5", "lbfgs")
+
 
     def __init__(self, phi: FeatureMap, sketch,
                  show_curves: bool = False, tensorboard: bool = False,
-                 path_template_tensorboard_writer="CLOMP/{}/loss/",
-                 opt_method: str = "adam", dct_opt_method: [None, dict] = None,
+                 path_template_tensorboard_writer="CLOMP/{}/loss/", dct_opt_method: [None, dict] = None,
                  *args, **kwargs):
 
         # Attributes related to the optimization method used
-        self.opt_method = opt_method
         self.dct_opt_method = dct_opt_method or dict()  # todo utiliser le dicitonnaire d'optim
         self.initialize_parameters_optimization()
 
@@ -86,7 +88,7 @@ class SolverTorch(Solver):
         self.all_thetas = torch.empty(0, self.d_theta, dtype=self.real_dtype).to(self.device)
         self.all_atoms = torch.empty(self.phi.m, 0, dtype=self.comp_dtype).to(self.device)
         self.residual = torch.clone(self.sketch_reweighted).to(self.device)
-        self.current_sol = (self.alphas, self.all_thetas)  # Overwrite
+        self.current_sol = (self.all_thetas, self.alphas)  # Overwrite
 
     @abstractmethod
     def randomly_initialize_several_atoms(self, nb_atoms):

@@ -1,7 +1,7 @@
 import time
 from abc import abstractmethod
 import torch
-from dask.array.tests.test_stats import scipy
+import scipy
 from pdfo import pdfo
 from loguru import logger
 from torch.utils.tensorboard import SummaryWriter
@@ -139,15 +139,15 @@ class CLOMP(SolverTorch):
 
         all_atoms = self.all_atoms
 
-        if self.opt_method == "pdfo":
+        if self.opt_method_step_34 == "nnls":
             return self._find_optimal_weights_nnls(all_atoms, normalize_atoms=normalize_atoms)
             # # todo make a default for pdfo options for the opt method at each step of clomp
             # return self._find_optimal_weights_torch(init_alphas, all_atoms, prefix)
-        elif self.opt_method in self.LST_OPT_METHODS_TORCH:
+        elif self.opt_method_step_34 in self.LST_OPT_METHODS_TORCH:
             # return self._find_optimal_weights_nnls(all_atoms, normalize_atoms=normalize_atoms)
             return self._find_optimal_weights_torch(init_alphas, all_atoms, prefix, normalize_atoms=normalize_atoms)
         else:
-            raise ValueError(f"Unkown optimization method: {self.opt_method}")
+            raise ValueError(f"Unkown optimization method: {self.opt_method_step_34}")
 
     def _find_optimal_weights_torch(self, init_alphas, all_atoms, prefix, normalize_atoms=False):
         """
@@ -162,7 +162,7 @@ class CLOMP(SolverTorch):
             all_atoms = self.all_atoms
 
         log_alphas = torch.nn.Parameter(init_alphas, requires_grad=True)
-        optimizer = self._initialize_optimizer([log_alphas])
+        optimizer = self._initialize_optimizer(self.opt_method_step_34, [log_alphas])
 
         def closure():
             optimizer.zero_grad()
@@ -178,7 +178,7 @@ class CLOMP(SolverTorch):
             return loss
 
         for i in range(self.maxiter_inner_optimizations):
-            if self.opt_method == "lbfgs":
+            if self.opt_method_step_34 == "lbfgs":
                 loss = optimizer.step(closure)  # bfgs takes the loss computation function as argument at each step.
             else:
                 loss = closure()
@@ -248,16 +248,16 @@ class CLOMP(SolverTorch):
         # Parameters, optimizer
         all_thetas = self.all_thetas
 
-        if self.opt_method == "pdfo":
+        if self.opt_method_step_5 == "pdfo":
 
             # log_alphas = torch.log(self.alphas)
             # return self._minimize_cost_from_current_sol_torch(log_alphas, all_thetas, prefix)
             return self._minimize_cost_from_current_sol_pdfo(self.alphas, all_thetas, prefix)
-        elif self.opt_method in self.LST_OPT_METHODS_TORCH:
+        elif self.opt_method_step_5 in self.LST_OPT_METHODS_TORCH:
             log_alphas = torch.log(self.alphas)
             return self._minimize_cost_from_current_sol_torch(log_alphas, all_thetas, prefix)
         else:
-            raise ValueError(f"Unkown optimization method: {self.opt_method}")
+            raise ValueError(f"Unkown optimization method: {self.opt_method_step_5}")
 
     def _minimize_cost_from_current_sol_pdfo(self, all_alphas, all_thetas, prefix):
         def wrapped_loss_global(stacked_x):
@@ -294,7 +294,7 @@ class CLOMP(SolverTorch):
         all_thetas = all_thetas.requires_grad_()
         params = [log_alphas, all_thetas]
 
-        optimizer = self._initialize_optimizer(params)
+        optimizer = self._initialize_optimizer(self.opt_method_step_5, params)
 
         def closure():
             optimizer.zero_grad()
@@ -310,7 +310,7 @@ class CLOMP(SolverTorch):
             return loss
 
         for iteration in range(self.maxiter_inner_optimizations):
-            if self.opt_method == "lbfgs":
+            if self.opt_method_step_5 == "lbfgs":
                 loss = optimizer.step(closure)  # bfgs takes the loss computation function as argument at each step.
             else:
                 loss = closure()
@@ -365,13 +365,14 @@ class CLOMP(SolverTorch):
         self.update_current_sol_and_cost(sol=(self.all_thetas, self.alphas))
         # self.current_sol =
 
-    def _initialize_optimizer(self, params):
-        if self.opt_method == "adam":
+    def _initialize_optimizer(self, opt_method, params):
+        if opt_method == "adam":
             optimizer = torch.optim.Adam(params, lr=self.lr_inner_optimizations)
-        elif self.opt_method == "lbfgs":
+        elif opt_method == "lbfgs":
+            # learning rate is kept to 1 in that case because the rate is decided by strong_wolfe condition
             optimizer = torch.optim.LBFGS(params, max_iter=1, line_search_fn="strong_wolfe")
         else:
-            raise ValueError(f"Optimizer {self.opt_method} cannot be used for gradient descent.")
+            raise ValueError(f"Optimizer {opt_method} cannot be used for gradient descent.")
         return optimizer
 
     def _maximize_atom_correlation_pdfo(self, new_theta, prefix):
@@ -394,7 +395,7 @@ class CLOMP(SolverTorch):
     def _maximize_atom_correlation_torch(self, new_theta, prefix):
         params = [torch.nn.Parameter(new_theta, requires_grad=True)]
 
-        optimizer = self._initialize_optimizer(params)
+        optimizer = self._initialize_optimizer(self.opt_method_step_1, params)
 
         def closure():
             optimizer.zero_grad()
@@ -410,7 +411,7 @@ class CLOMP(SolverTorch):
             return loss
 
         for i in range(self.maxiter_inner_optimizations):
-            if self.opt_method == "lbfgs":
+            if self.opt_method_step_1 == "lbfgs":
                 loss = optimizer.step(closure)  # bfgs takes the loss computation function as argument at each step.
             else:
                 loss = closure()
@@ -448,13 +449,13 @@ class CLOMP(SolverTorch):
         """
         new_theta = self.randomly_initialize_several_atoms(1).squeeze()
 
-        if self.opt_method == "pdfo":
+        if self.opt_method_step_1 == "pdfo":
             return self._maximize_atom_correlation_pdfo(new_theta, prefix)
             # return self._maximize_atom_correlation_torch(new_theta, prefix)
-        elif self.opt_method in self.LST_OPT_METHODS_TORCH:
+        elif self.opt_method_step_1 in self.LST_OPT_METHODS_TORCH:
             return self._maximize_atom_correlation_torch(new_theta, prefix)
         else:
-            raise ValueError(f"Unkown optimization method: {self.opt_method}")
+            raise ValueError(f"Unkown optimization method: {self.opt_method_step_1}")
 
 
     def fit_once(self):
