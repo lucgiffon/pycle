@@ -75,7 +75,10 @@ def test_fit_once_adam(X, dim, nb_clust, bounds, Phi_emp):
         "tol_inner_optimizations": 1e-9,
         "lr_inner_optimizations": 0.01,
         "beta_1": 0.9,
-        "beta_2": 0.99
+        "beta_2": 0.99,
+        "opt_method_step_1": "adam",
+        "opt_method_step_34": "nnls",
+        "opt_method_step_5": "adam",
     }
 
     ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, dct_opt_method=dct_adam)
@@ -109,9 +112,12 @@ def test_fit_once_bfgs(X, dim, nb_clust, bounds, Phi_emp):
     dct_bfgs = {
         "maxiter_inner_optimizations": 15000,
         "tol_inner_optimizations": 1e-9,
-        "lr_inner_optimizations": 0.01
+        "lr_inner_optimizations": 0.01,
+        "opt_method_step_1": "lbfgs",
+        "opt_method_step_34": "nnls",
+        "opt_method_step_5": "lbfgs",
     }
-    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, opt_method="lbfgs", dct_opt_method=dct_bfgs)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, dct_opt_method=dct_bfgs)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
@@ -144,9 +150,12 @@ def test_fit_once_pdfo(X, dim, nb_clust, bounds, Phi_emp):
         "nb_iter_max_step_1": 500,
         "maxiter_inner_optimizations": 15000,
         "tol_inner_optimizations": 1e-9,
-        "lr_inner_optimizations": 0.01
+        "lr_inner_optimizations": 0.01,
+        "opt_method_step_1": "pdfo",
+        "opt_method_step_34": "nnls",
+        "opt_method_step_5": "pdfo",
     }
-    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, opt_method="pdfo", dct_opt_method=dct_pdfo)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, dct_opt_method=dct_pdfo)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
