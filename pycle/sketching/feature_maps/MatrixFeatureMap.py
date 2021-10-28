@@ -1,5 +1,5 @@
 import numpy as np
-from pycle.utils import enc_dec_fct
+from pycle.utils import enc_dec_fct, LinearFunctionEncDec
 
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 
@@ -20,7 +20,14 @@ class MatrixFeatureMap(FeatureMap):
             raise ValueError("The provided projection matrix Omega should be a (d,m) linear operator.")
 
     def _apply_mat(self, x):
-        return self.wrap_transform(lambda inp: inp @ self.Omega, x, precision_encoding=self.encoding_decoding_precision)()
+        if self.use_torch:
+            if x.ndim == 1:
+                return LinearFunctionEncDec.apply(x.unsqueeze(0), self.Omega, self.quantification, self.encoding_decoding).squeeze(0)
+            else:
+                return LinearFunctionEncDec.apply(x, self.Omega, self.quantification,
+                                                  self.encoding_decoding)
+        else:
+            return self.wrap_transform(lambda inp: inp @ self.Omega, x, precision_encoding=self.encoding_decoding_precision)()
 
     # call the FeatureMap object as a function
     def call(self, x):

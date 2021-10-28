@@ -1,5 +1,8 @@
 import numpy as np
 import scipy.stats
+import torch
+
+from torch.autograd.function import Function
 from lightonml.encoding.base import SeparatedBitPlanEncoder, SeparatedBitPlanDecoder
 
 from pycle.utils.metrics import loglikelihood_GMM
@@ -135,3 +138,45 @@ def only_quantification_fct(fct, x, precision_encoding=8):
     x_dec = decoder.transform(x_enc)
     y_dec = fct(x_dec)
     return y_dec
+
+
+class LinearFunctionEncDec(Function):
+
+    @staticmethod
+    # def forward(ctx, input, weight):
+    def forward(ctx, input, weight, quantif=False, enc_dec=False):
+        assert not (quantif and enc_dec)
+
+        ctx.save_for_backward(input, weight)
+        if quantif or enc_dec:
+            encoder = SeparatedBitPlanEncoder(precision=8)
+            x_enc = encoder.fit_transform(input.data)
+            decoder = SeparatedBitPlanDecoder(**encoder.get_params())
+        else:
+            x_enc = input
+
+        if quantif and not enc_dec:
+            # in case only quantification of input is requiered (testing purposes):
+            # make quantification/dequantification directly
+            x_enc = decoder.transform(x_enc)
+
+        # if ever using the opu here: careful with the type of x_enc and y_dec
+
+        y_dec = x_enc.to(weight.dtype).mm(weight)
+
+        if not quantif and enc_dec:
+            # standard scenario: dequantification happens after the transformation
+            y_dec = decoder.transform(y_dec)
+
+        return y_dec.to(weight.dtype)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, weight = ctx.saved_tensors
+
+        grad_input = grad_output.mm(weight.t())
+        # grad_weight = grad_output.t().mm(input)
+
+        # first None is for the weights which have fixed values
+        # two last None correspond to `quantif` and `enc_dec` arguments in forward pass
+        return grad_input, None, None, None
