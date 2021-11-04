@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 import torch
 import numpy as np
-from pycle.sketching.feature_maps import _dico_nonlinearities, _dico_nonlinearities_torch
+from pycle.sketching.feature_maps import _dico_nonlinearities, _dico_nonlinearities_torch, _dico_normalization_rpf
 from pycle.utils import enc_dec_fct, only_quantification_fct
 
 
@@ -36,18 +36,7 @@ class FeatureMap(ABC):
         self.d, self._m = self.init_shape()
 
         self.name = None
-        if isinstance(f, str):
-            try:
-                (self.f, self.f_grad) = self.dico_nonlinearities[f.lower()]
-                self.name = f  # Keep the feature function name in memory so that we know we have a specific fct
-            except KeyError:
-                raise NotImplementedError(f"The provided feature map name {f} is not implemented with `use_torch`={use_torch}.")
-        elif callable(f):
-            (self.f, self.f_grad) = (f, None)
-        elif (isinstance(f, tuple)) and (len(f) == 2) and (callable(f[0]) and callable(f[1])):
-            (self.f, self.f_grad) = f
-        else:
-            raise ValueError("The provided feature map f does not match any of the supported types.")
+        self.update_activation(f)
 
         # 3) extract the dithering
         if xi is None:
@@ -58,7 +47,7 @@ class FeatureMap(ABC):
         # 4) extract the normalization constant
         if isinstance(c_norm, str):
             if c_norm.lower() in ['unit', 'normalized']:
-                self.c_norm = 1. / self.module_math_functions.sqrt(self._m)
+                self.c_norm = 1. / np.sqrt(self._m)
             else:
                 raise NotImplementedError("The provided c_norm name is not implemented.")
         else:
@@ -95,7 +84,7 @@ class FeatureMap(ABC):
 
     def __call__(self, x):
         self.account_call(x)
-        return self.call(x)
+        return self.call(x) * (1. / _dico_normalization_rpf[self.name])
 
     @abstractmethod
     def grad(self, x):
@@ -108,3 +97,18 @@ class FeatureMap(ABC):
     @abstractmethod
     def init_shape(self):
         pass
+
+    def update_activation(self, f):
+        if isinstance(f, str):
+            try:
+                (self.f, self.f_grad) = self.dico_nonlinearities[f.lower()]
+                self.name = f.lower()  # Keep the feature function name in memory so that we know we have a specific fct
+            except KeyError:
+                raise NotImplementedError(
+                    f"The provided feature map name {f} is not implemented with `use_torch`={self.use_torch}.")
+        elif callable(f):
+            (self.f, self.f_grad) = (f, None)
+        elif (isinstance(f, tuple)) and (len(f) == 2) and (callable(f[0]) and callable(f[1])):
+            (self.f, self.f_grad) = f
+        else:
+            raise ValueError("The provided feature map f does not match any of the supported types.")

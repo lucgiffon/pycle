@@ -69,7 +69,7 @@ def test_fit_once(X, dim, nb_clust, bounds, Phi_emp):
     ckm_solver.fit_once()
 
     # Get the solution
-    (weights, theta) = ckm_solver.current_sol
+    (theta, weights) = ckm_solver.current_sol
     centroids, sigma = theta[..., :dim], theta[..., -dim:]
 
     plt.figure(figsize=(5, 5))
@@ -98,7 +98,7 @@ def test_fit_once_pdfo(X, dim, nb_clust, bounds, Phi_emp):
     ckm_solver.fit_once()
 
     # Get the solution
-    (weights, theta) = ckm_solver.current_sol
+    (theta, weights) = ckm_solver.current_sol
     centroids, sigma = theta[..., :dim], theta[..., -dim:]
 
     plt.figure(figsize=(5, 5))

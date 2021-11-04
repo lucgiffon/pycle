@@ -47,4 +47,4 @@ class CLOMP_CKM(CLOMP):
         return new_theta
 
     def get_centroids(self):
-        return self.current_sol[1]
+        return self.current_sol[0]

@@ -86,7 +86,7 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
             (self.phi.m, 0))  # (m,n_atoms)-array, the sketch of the found parameters (m is sketch size)
         self.Jacobians = np.empty(
             (0, self.d_theta, self.phi.m))  # (n_atoms,d_atom,m)-array, the jacobians of the residual wrt each atom
-        self.current_sol = (self.alpha, self.Theta)  # Overwrite
+        self.current_sol = (self.Theta, self.alpha)  # Overwrite
 
     def compute_atoms_matrix(self, Theta=None, return_jacobian=False):
         """
@@ -538,4 +538,4 @@ class CLOMP(SolverNumpy, metaclass=ABCMeta):
         self.alpha /= np.sum(self.alpha)
 
         # Package into the solution attribute
-        self.current_sol = (self.alpha, self.Theta)
+        self.current_sol = (self.Theta, self.alpha)

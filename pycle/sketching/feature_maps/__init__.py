@@ -3,6 +3,7 @@ Common sketch nonlinearities and derivatives
 """
 import numpy as np
 import torch
+from loguru import logger
 
 
 def _complexExponential(t, T=2 * np.pi, use_torch=False):
@@ -22,16 +23,26 @@ def _complexExponential_grad(t, T=2 * np.pi):
     return ((1j * 2 * np.pi) / T) * np.exp(1j * (2 * np.pi) * t / T)
 
 
-def _universalQuantization(t, Delta=np.pi, centering=True):
-    if centering:
-        return ((t // Delta) % 2) * 2 - 1  # // stands for "int division
+def _universalQuantization(t, Delta=np.pi, centering=True, use_torch=False):
+    if use_torch:
+        backend = torch
     else:
-        return ((t // Delta) % 2)  # centering=false => quantization is between 0 and +1
+        backend = np
+    _div = t / Delta
+    if (_div % 1 == 0).any():
+        logger.warning(f"Input exactly multiple of {Delta} can lead to unexpected result in _universalQuantization")
+    # t -= Delta/2
+    if centering:
+        # return ((t // Delta) % 2) * 2 - 1  # // stands for "int division
+        # return ((torch.round(t / Delta) + 1) % 2) * 2 - 1  # // stands for "int division
+        return (backend.floor(_div - 0.5) % 2) * 2 - 1  # // stands for "int division
+    else:
+        return (backend.floor(_div - 0.5) % 2)  # centering=false => quantization is between 0 and +1
 
 
-def _universalQuantization_complex(t, Delta=np.pi, centering=True):
-    return _universalQuantization(t - Delta / 2, Delta=Delta, centering=centering) + 1j * _universalQuantization(
-        t - Delta, Delta=Delta, centering=centering)
+def _universalQuantization_complex(t, Delta=np.pi, centering=True, use_torch=False):
+    return _universalQuantization(t, Delta=Delta, centering=centering, use_torch=use_torch) + 1.j * _universalQuantization(
+        t - Delta/2, Delta=Delta, centering=centering, use_torch=use_torch)
 
 
 def _sawtoothWave(t, T=2 * np.pi, centering=True):
@@ -75,5 +86,17 @@ _dico_nonlinearities = {
 # dict of nonlinearities for torch (no gradient provided because autodiff)
 _dico_nonlinearities_torch = {
     "complexexponential": (_complexExponentialTorch, None),
-    "none": (None, None)
+    "none": (None, None),
+    "universalquantization": (_universalQuantization, None),
+    # "universalquantization": (lambda x: torch.sign(torch.cos(x)), None),
+    "universalquantization_complex": (_universalQuantization_complex, None),
+    # "universalquantization_complex": (lambda x: torch.sign(torch.cos(x)) + 1.j * torch.sign(torch.sin(x)), None),
+    "cosine": (lambda x: torch.cos(x), None),
+}
+_dico_normalization_rpf = {
+    "complexexponential": 1,
+    "none": (None, None),
+    "universalquantization": 2 / np.pi,
+    "universalquantization_complex": 4 / np.pi,
+    "cosine": 1,
 }
