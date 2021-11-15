@@ -61,7 +61,6 @@ class CLOMP(SolverTorch):
             all_atoms = torch.transpose(self.sketch_of_atoms(all_thetas), 0, 1)
         return torch.matmul(all_atoms, alphas.to(self.comp_dtype))
 
-
     def add_atom(self, new_theta):
         """
         Adding a new atom.
@@ -204,7 +203,6 @@ class CLOMP(SolverTorch):
         normalized_alphas = alphas / torch.sum(alphas)
 
         return normalized_alphas.detach()
-
 
     def loss_global(self, alphas, all_thetas=None, all_atoms=None):
         assert all_thetas is not None or all_atoms is not None
@@ -463,6 +461,7 @@ class CLOMP(SolverTorch):
         CLOMP-R algorithm implementation.
         If random_restart is True, constructs a new solution from scratch with CLOMP-R, else fine-tune.
         """
+        # todo utiliser plutot une interface de type fit/transform
         n_iterations = 2 * self.nb_mixtures
 
         for i_iter in range(n_iterations):

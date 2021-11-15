@@ -6,7 +6,7 @@ import scipy.stats
 # DATASET GENERATION TOOLS #
 ############################
 
-def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, normalize=None, grid_aligned=True, **generation_params):
+def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, normalize=None, grid_aligned=True, seed=None, **generation_params):
     """
     Generate a synthetic dataset according to a Gaussian Mixture Model distribution.
 
@@ -48,6 +48,7 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
     all_covariance_scaling: a re-scaling factor that re-scales the covariance of all Gaussians sigma_intra
 
     """
+    random_state = np.random.RandomState(seed)
     ## STEP 0: Parse input generation parameters
     # Default generation parameters
     _gen_params = {
@@ -72,14 +73,14 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
     else:
         weight_perturbation_strength = 1./balanced
     # Generate random weigths, normalize
-    weights = np.ones(K) + weight_perturbation_strength*np.random.rand(K)
+    weights = np.ones(K) + weight_perturbation_strength*random_state.rand(K)
     weights /= np.sum(weights)
     # Avoid almost empty classes
     minweight = min(0.005,(K-1)/(n-1)) # Some minimum weight to avoid empty classes
     weights[np.where(weights < minweight)[0]] = minweight
 
     ## STEP 2: Draw the assignations of each of the vectors to assign
-    y = np.random.choice(K,n,p=weights)
+    y = random_state.choice(K,n,p=weights)
 
     ## STEP 3: Fill the dataset
     # Pre-allocate memory
@@ -94,7 +95,7 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
         successful_mu_generation = False
         while not successful_mu_generation:
 
-            mu_this_mode = _gen_params['separation_scale']*np.random.randn(d)
+            mu_this_mode = _gen_params['separation_scale']*random_state.randn(d)
             if k == 0 or _gen_params['separation_min'] == 0:
                 successful_mu_generation = True
             else:
@@ -102,15 +103,15 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
                 successful_mu_generation = distance_to_closest_mode > _gen_params['separation_min']
 
         # Generate covariance for this mode
-        scale_variance_this_mode = 10**(np.random.uniform(0,_gen_params['covariance_variability_inter']))
+        scale_variance_this_mode = 10**(random_state.uniform(0,_gen_params['covariance_variability_inter']))
         scale_variance_this_mode *= _gen_params['all_covariance_scaling'] # take into account global scaling
-        unscaled_variances_this_mode = 10**(np.random.uniform(0,_gen_params['covariance_variability_intra'],d))
+        unscaled_variances_this_mode = 10**(random_state.uniform(0,_gen_params['covariance_variability_intra'],d))
         Sigma_this_mode = scale_variance_this_mode*np.diag(unscaled_variances_this_mode)
 
         # Rotate if necessary
         # (https://math.stackexchange.com/questions/442418/random-generation-of-rotation-matrices)
         if not grid_aligned:
-            rotate_matrix,_ = np.linalg.qr(np.random.randn(d,d))
+            rotate_matrix,_ = np.linalg.qr(random_state.randn(d,d))
             Sigma_this_mode = rotate_matrix@Sigma_this_mode@rotate_matrix.T
 
         # Save the mean and covariance
@@ -123,7 +124,7 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
 
         # Fill the dataset with samples drawn from the current mode
 
-        X[indices_for_this_mode] = np.random.multivariate_normal(mu_this_mode, Sigma_this_mode, nb_samples_in_this_mode)
+        X[indices_for_this_mode] = random_state.multivariate_normal(mu_this_mode, Sigma_this_mode, nb_samples_in_this_mode)
 
 
     ## STEP 4: If needed, normalize the dataset

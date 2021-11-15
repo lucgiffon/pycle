@@ -20,17 +20,20 @@ class SolverTorch(Solver):
         Further tests could be done here, as the adequation between the optimization method used and the parameters provided.
         :return:
         """
-        self.maxiter_inner_optimizations = self.dct_opt_method.get("maxiter_inner_optimizations", None)
-        self.tol_inner_optimizations = self.dct_opt_method.get("tol_inner_optimizations", None)
-        self.lr_inner_optimizations = self.dct_opt_method.get("lr_inner_optimizations", None)
-        self.beta_1 = self.dct_opt_method.get("beta_1", None)
-        self.beta_2 = self.dct_opt_method.get("beta_2", None)
+        # todo this function should not be aware of what happens in child classes
+        self.maxiter_inner_optimizations = self.dct_opt_method.get("maxiter_inner_optimizations", 15000)
+        self.tol_inner_optimizations = self.dct_opt_method.get("tol_inner_optimizations", 1e-9)
+        self.lr_inner_optimizations = self.dct_opt_method.get("lr_inner_optimizations", 1)
+        self.beta_1 = self.dct_opt_method.get("beta_1", 0.9)
+        self.beta_2 = self.dct_opt_method.get("beta_2", 0.99)
         self.nb_iter_max_step_5 = self.dct_opt_method.get("nb_iter_max_step_5", 200)
         self.nb_iter_max_step_1 = self.dct_opt_method.get("nb_iter_max_step_1", 200)
 
         self.opt_method_step_1 = self.dct_opt_method.get("opt_method_step_1", "lbfgs")
         self.opt_method_step_34 = self.dct_opt_method.get("opt_method_step_34", "nnls")
         self.opt_method_step_5 = self.dct_opt_method.get("opt_method_step_5", "lbfgs")
+
+        self.lambda_l1 = self.dct_opt_method.get("lambda_l1", 0)
 
 
     def __init__(self, phi: FeatureMap, sketch,

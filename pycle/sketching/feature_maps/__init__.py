@@ -34,7 +34,7 @@ def _universalQuantization(t, Delta=np.pi, centering=True, use_torch=False):
     # t -= Delta/2
     if centering:
         # return ((t // Delta) % 2) * 2 - 1  # // stands for "int division
-        # return ((torch.round(t / Delta) + 1) % 2) * 2 - 1  # // stands for "int division
+        # return ((torch.round(_div) + 1) % 2) * 2 - 1  # // stands for "int division
         return (backend.floor(_div - 0.5) % 2) * 2 - 1  # // stands for "int division
     else:
         return (backend.floor(_div - 0.5) % 2)  # centering=false => quantization is between 0 and +1

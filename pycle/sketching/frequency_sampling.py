@@ -5,6 +5,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 import torch
 
+import pycle
+from pycle.sketching import MatrixFeatureMap
+
+
 def drawDithering(m, bounds=None):
     """Draws m samples a <= x < b, with bounds=(a,b) (default: (0,2*pi))."""
     if bounds is None:
@@ -93,6 +97,28 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
     Om = SigFact @ phi * R
 
     return Om
+
+
+def drawFrequencies_UniformRadius(d, m, min_val, max_val, randn_mat_0_1=None, use_torch=False):
+    """draws frequencies according to some sampling pattern
+    omega = R*Sigma^{-1/2}*phi, for R from adapted with variance 1, phi uniform"""
+    from scipy.stats import loguniform
+
+    R = loguniform.rvs(min_val, max_val, size=m)
+
+    if randn_mat_0_1 is None:
+        phi = np.random.randn(d, m)
+    else:
+        phi = randn_mat_0_1
+
+    phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
+
+    Om = phi * R
+
+    if use_torch:
+        return torch.from_numpy(Om)
+    else:
+        return Om
 
 
 def pdf_diffOfGaussians(r, GMM_upper=None, GMM_lower=None):
@@ -252,8 +278,23 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
 
 
 def multi_scale_frequency_sampling(dim, m, scale_min, scale_max, nb_scales, sampling_method, use_torch=False):
+    """
+
+    :param dim:
+    :param m:
+    :param scale_min: The power of ten from which to start the logrange
+    :param scale_max: The power of ten to which to stop the logrange
+    :param nb_scales: The number of scales in the logrange.
+    :param sampling_method: The law with which to sample the frequencies
+    :param use_torch:
+    :return:
+    """
+    if use_torch:
+        backend = torch
+    else:
+        backend = np
     scales = np.logspace(scale_min, scale_max, num=nb_scales)
-    Omega = np.zeros((dim, m))
+    Omega = backend.zeros((dim, m))
     size_each_scale = m // nb_scales
     remaining_frequencies = m % nb_scales
     index_frequency = 0
@@ -273,6 +314,56 @@ def multi_scale_frequency_sampling(dim, m, scale_min, scale_max, nb_scales, samp
         index_frequency = next_index_frequency
 
     return Omega
+
+
+def overproduce(dim, max_number_of_frequencies, overproduce_factor, strategy="MULTI_SCALE"):
+    # For this simple example, assume we have a priori a rough idea of the size of the clusters
+    Sigma = 0.1 * np.eye(dim)
+    # Pick the dimension m: 5*K*d is usually (just) enough in clustering (here m = 50)
+    sketch_dim = overproduce_factor * max_number_of_frequencies
+
+    if strategy == "MULTI_SCALE":
+        Omega = multi_scale_frequency_sampling(dim, sketch_dim, -2, 0,
+                                       10, "arkm",
+                                       use_torch=True)
+    elif strategy == "uniform":
+        Omega = drawFrequencies_UniformRadius(dim, sketch_dim, 1e-2, 1e0, use_torch=True)
+
+    else:
+        Omega = drawFrequencies("FoldedGaussian", dim, sketch_dim, Sigma, use_torch=True)
+
+    xi = torch.rand(sketch_dim) * np.pi * 2
+    return Omega, xi
+
+
+def choose(base_sketch, max_nb_freq, strategy="in-boundaries", threshold=0.01):
+    abs_base_sketch = base_sketch.abs()
+    if strategy == "closest-to-mid":
+        sorted_indices = torch.argsort((abs_base_sketch - 0.5).abs())
+        return torch.sort(sorted_indices[:max_nb_freq])[0]
+    else:
+        indices_greater_than_min = threshold < abs_base_sketch
+        indices_lower_than_max = abs_base_sketch < 1-threshold
+        accepted_bool_indices = torch.logical_and(indices_lower_than_max, indices_greater_than_min)
+        accepted_indices = torch.arange(len(base_sketch))[accepted_bool_indices]
+        selected_indices = (torch.ones(len(accepted_indices)) / len(accepted_indices)).multinomial(num_samples=max_nb_freq, replacement=False)
+        indices_ok = accepted_indices[selected_indices]
+        return indices_ok
+
+def overproduce_and_choose(dim, X, overproduce_factor, final_sketch_size):
+    max_number_frequencies = final_sketch_size
+
+    Omega, xi = overproduce(dim, max_number_frequencies, overproduce_factor)
+    Phi_emp = MatrixFeatureMap("ComplexExponential", Omega, c_norm=1., xi=xi, use_torch=True, device=torch.device("cpu"))
+    too_big_of_a_z = pycle.sketching.computeSketch(X, Phi_emp)
+    indices_to_keep = choose(too_big_of_a_z, max_number_frequencies, strategy="in-boundaries", threshold=0.01)
+    Phi_emp = MatrixFeatureMap("ComplexExponential", Omega[:, indices_to_keep], c_norm=1., xi=xi[indices_to_keep], use_torch=True,
+                               device=torch.device("cpu"))
+    z = pycle.sketching.computeSketch(X, Phi_emp)
+    z_kept = too_big_of_a_z[indices_to_keep]
+    assert torch.isclose(z, z_kept).all()
+
+    return Phi_emp
 
 
 if __name__ == "__main__":
