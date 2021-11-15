@@ -5,8 +5,8 @@ import torch
 import numpy
 
 
-class CLOMP_CKM(CLOMP):
-    def __init__(self, phi: FeatureMap, centroid_projector: Projector = ProjectorNoProjection(), *args, **kwargs):
+class CLOMP_DL(CLOMP):
+    def __init__(self, phi: FeatureMap, dictionary: [torch.Tensor], centroid_projector: Projector = ProjectorNoProjection(), *args, **kwargs):
 
         # Lower and upper bounds are for random initialization, not for projection step !
         self.lower_bounds = None
@@ -14,11 +14,23 @@ class CLOMP_CKM(CLOMP):
 
         super().__init__(phi, d_theta=phi.d, *args, **kwargs)
 
+        self.dictionary = dictionary
+
         assert isinstance(centroid_projector, Projector)
         self.centroid_projector = centroid_projector
         if isinstance(self.centroid_projector, ProjectorClip):
             self.centroid_projector.lower_bound = self.centroid_projector.lower_bound.to(self.real_dtype).to(self.device)
             self.centroid_projector.upper_bound = self.centroid_projector.upper_bound.to(self.real_dtype).to(self.device)
+
+    def regularize(self, thetas):
+        assert thetas.ndim == 2
+        return self.lambda_l1 * torch.linalg.norm(thetas, ord=1, dim=1)
+
+    def loss_atom_correlation(self, theta):
+        return super().loss_atom_correlation(theta) + self.regularize(theta)
+
+    def loss_global(self, alphas, all_thetas=None, all_atoms=None):
+        return super().loss_global(alphas, all_thetas, all_atoms) + self.regularize(all_thetas)
 
     def sketch_of_atoms(self, theta):
         """
@@ -28,7 +40,7 @@ class CLOMP_CKM(CLOMP):
         :return: tensor of size (m) or (K, m)
         """
         assert theta.size()[-1] == self.d_theta
-        return self.phi(theta)
+        return self.phi(theta @ self.dictionary)
 
     def set_bounds_atom(self, bounds):
         """
@@ -60,6 +72,8 @@ class CLOMP_CKM(CLOMP):
         :return: None
         """
         if self.centroid_projector is not None:
+            # todo peut etre faire une projection en plus pour ammener le résultat plus près du résultat voulu
+            #  en terme de nombre de coefficients
             self.centroid_projector.project(theta)
 
     def get_centroids(self, return_numpy=True) -> [torch.Tensor, numpy.ndarray]:
