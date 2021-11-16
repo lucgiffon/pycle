@@ -1,4 +1,6 @@
 import numpy as np
+import numbers
+
 from pycle.utils import enc_dec_fct, LinearFunctionEncDec
 
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
@@ -10,8 +12,34 @@ class MatrixFeatureMap(FeatureMap):
 
     def __init__(self, f, Omega, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
-        self.Omega = Omega
-        super().__init__(f, dtype=Omega.dtype, **kwargs)
+
+        if type(Omega) == tuple:
+            self.splitted_Omega = True
+            # (sigma, directions, amplitudes)
+            assert isinstance(Omega[0], numbers.Number) and Omega[1].ndim == 2 and Omega[2].ndim == 1 and Omega[1].shape[1] == Omega[2].size
+            self.SigFact = Omega[0]
+            self.directions = Omega[1]
+            self.R = Omega[2]
+        else:
+            self._Omega = Omega
+            self.splitted_Omega = False
+        super().__init__(f, dtype=self.Omega.dtype, **kwargs)
+
+    @property
+    def Omega(self):
+        if self.splitted_Omega:
+            return self.SigFact * self.directions * self.R
+        else:
+            return self._Omega
+
+    def unsplit(self):
+        assert self.splitted_Omega == True
+        self._Omega = self.Omega
+        self.splitted_Omega = False
+
+        del self.SigFact
+        del self.directions
+        del self.R
 
     def init_shape(self):
         try:

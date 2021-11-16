@@ -136,7 +136,7 @@ class OPUDistributionEstimator:
 class OPUFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
 
-    def __init__(self, f, opu, dimension=None, Sigma=None, calibration_param_estimation=False, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, sampling_method="FG", seed=None, **kwargs):
+    def __init__(self, f, opu, SigFact, R, dimension=None, calibration_param_estimation=False, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         # todoopu initialiser l'opu
         self.opu = opu
@@ -154,23 +154,10 @@ class OPUFeatureMap(FeatureMap):
         # self.mu_opu, self.std_opu, self.norm_scaling = self.get_distribution_opu(light_memory=False)
         self.re_center_result = re_center_result
         # todoopu deplacer ca
-        self.Sigma = Sigma
-        if self.Sigma is None:
-            self.Sigma = np.identity(self.opu.max_n_features)  # todoopu attention a ca car ce n'est disponible qu'en mode simulé
-        self.SigFact = np.linalg.inv(np.linalg.cholesky(self.Sigma))
+
+        self.SigFact = SigFact
         self._Omega = None
-        self.sampling_method = sampling_method
-        randomstate = np.random.RandomState(seed)
-        if sampling_method == "FG":
-            self.R = np.abs(randomstate.randn(self.m))  # folded standard normal distribution radii
-        elif sampling_method == "G":
-            self.R = np.sqrt(randomstate.chisquare(self.d, self.m))
-        elif sampling_method == "ARKM":
-            r = np.linspace(0, 5, 2001)
-            self.R = sampleFromPDF(pdfAdaptedRadius(r, KMeans=True), r, nsamples=self.m, seed=seed)
-        else:
-            raise ValueError(f"Unknown sampling_method: {sampling_method}")
-        # self.norm_scaling = np.sqrt(self.d) #* np.ones(self.m)
+        self.R = R
 
     def get_distribution_opu(self):
         if self.calibration_param_estimation:
@@ -222,7 +209,11 @@ class OPUFeatureMap(FeatureMap):
     def applyOPU(self, x):
         if x.ndim == 1:
             x = x.reshape(1, -1)
-        x = x @ self.SigFact
+
+        try:
+            x = x @ self.SigFact
+        except ValueError:
+            x = x * self.SigFact
 
         # x_enc = self.encoder.transform(x)
         # y_enc = self.opu.transform(x_enc)
@@ -251,10 +242,17 @@ class OPUFeatureMap(FeatureMap):
     def calibrated_matrix(self):
         return self.distribution_estimator.FHB
 
+    def directions_matrix(self):
+        return self.get_randn_mat() * 1. / self.norm_scaling
+        # return (self.calibrated_matrix * 1. / self.std_opu * 1. / self.norm_scaling)
+
     @property
     def Omega(self):
         if self._Omega is None:
-            self._Omega = self.SigFact @ (self.calibrated_matrix * 1./self.std_opu * 1./self.norm_scaling) * self.R
+            try:
+                self._Omega = self.SigFact @ self.directions_matrix() * self.R
+            except ValueError:
+                self._Omega = self.SigFact * self.directions_matrix() * self.R
         return self._Omega
 
     def grad(self, x):

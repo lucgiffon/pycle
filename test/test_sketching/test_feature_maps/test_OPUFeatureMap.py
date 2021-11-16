@@ -64,7 +64,8 @@ def test_enc_dec_opu_transform():
 def test_calibration_OPUFeatureMap(my_dim):
     sampling_method = "ARKM"
     sketch_dim = my_dim * 2
-    Sigma = np.eye(my_dim) * 0.876
+    Sigma = 0.876
+    # Sigma = np.eye(my_dim) * Sigma
     nb_input = 10
     seed = 0
     # seed = np.random.randint(0, 2**10)
@@ -72,8 +73,11 @@ def test_calibration_OPUFeatureMap(my_dim):
     opu = OPU(n_components=sketch_dim, opu_device=SimulatedOpuDevice(),
               max_n_features=my_dim)
     opu.fit1d(n_features=my_dim)
+    lst_omega = [sifact, _, R] = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
+                                                               seed=seed, keep_splitted=True)
+    lst_omega = list(lst_omega)
     OFM = OPUFeatureMap(f="ComplexExponential",
-                            dimension=my_dim,
+                            dimension=my_dim, SigFact=sifact, R=R,
                             opu=opu,
                             Sigma=Sigma,
                             calibration_param_estimation=True,
@@ -83,12 +87,14 @@ def test_calibration_OPUFeatureMap(my_dim):
                             re_center_result=False,
                             sampling_method=sampling_method,
                         seed=seed)
+    directions = OFM.directions_matrix()
+    lst_omega[1] = directions
+    # randn_opu_matrix_0_1 = OFM.get_randn_mat()
+    # Omega = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
+    #                                                            randn_mat_0_1=randn_opu_matrix_0_1, seed=seed)
 
-    randn_opu_matrix_0_1 = OFM.get_randn_mat()
-    Omega = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
-                                                               randn_mat_0_1=randn_opu_matrix_0_1, seed=seed)
-    MFM = MatrixFeatureMap("ComplexExponential", Omega)
 
+    MFM = MatrixFeatureMap("ComplexExponential", tuple(lst_omega))
     input_mat = np.random.randn(nb_input, my_dim)
 
     ofm_output = OFM(input_mat)

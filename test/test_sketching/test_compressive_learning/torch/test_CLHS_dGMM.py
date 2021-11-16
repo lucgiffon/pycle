@@ -23,6 +23,7 @@ from pycle.utils.projectors import ProjectorNoProjection, ProjectorExactUnit2Nor
 
 
 def test_fit_once():
+    raise NotImplementedError("Test never worked.")
     np.random.seed(20)  # easy
     # np.random.seed(722233)
     dim = 2  # Dimension

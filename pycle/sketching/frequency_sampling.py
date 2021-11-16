@@ -1,6 +1,8 @@
 """
 Frequency sampling functions
 """
+import numbers
+
 import numpy as np
 from matplotlib import pyplot as plt
 import torch
@@ -18,37 +20,56 @@ def drawDithering(m, bounds=None):
     return np.random.uniform(low=lowb, high=highb, size=m)
 
 
-def drawFrequencies_Gaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None):
+def drawFrequencies_Gaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None, keep_splitted=False):
     """draws frequencies according to some sampling pattern"""
-
 
     if Sigma is None:
         Sigma = np.identity(d)
 
-    if randn_mat_0_1 is None:
-        Om = np.random.RandomState(seed).multivariate_normal(np.zeros(d), np.linalg.inv(Sigma), m).T  # inverse of sigma
+    if keep_splitted:
+        directions = randn_mat_0_1 or np.random.RandomState(seed).randn(d, m)
+        return np.linalg.inv(Sigma), directions, np.linalg.norm(directions, axis=1)
     else:
-        assert randn_mat_0_1.shape == (d, m)
-        Om = np.linalg.inv(Sigma) @ randn_mat_0_1
-    return Om
+        if randn_mat_0_1 is None:
+            Om = np.random.RandomState(seed).multivariate_normal(np.zeros(d), np.linalg.inv(Sigma), m).T  # inverse of sigma
+        else:
+            assert randn_mat_0_1.shape == (d, m)
+            if isinstance(Sigma, numbers.Number):
+                Om = 1./Sigma * randn_mat_0_1
+            else:
+                Om = np.linalg.inv(Sigma) @ randn_mat_0_1
+
+        return Om
 
 
-def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None):
+def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None, keep_splitted=False):
     """draws frequencies according to some sampling pattern
     omega = R*Sigma^{-1/2}*phi, for R from folded Gaussian with variance 1, phi uniform"""
     if Sigma is None:
         Sigma = np.identity(d)
+
     R = np.abs(np.random.RandomState(seed).randn(m))  # folded standard normal distribution radii
+
     if randn_mat_0_1 is None:
         phi = np.random.RandomState(seed).randn(d, m)
     else:
         phi = randn_mat_0_1
+
     phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
-    SigFact = np.linalg.inv(np.linalg.cholesky(Sigma))
 
-    Om = SigFact @ phi * R
+    if isinstance(Sigma, numbers.Number):
+        SigFact = 1./np.sqrt(Sigma)
+    else:
+        SigFact = np.linalg.inv(np.linalg.cholesky(Sigma))
 
-    return Om
+    if keep_splitted:
+        return SigFact, phi, R
+    else:
+        if isinstance(Sigma, numbers.Number):
+            Om = SigFact * phi * R
+        else:
+            Om = SigFact @ phi * R
+        return Om
 
 
 def sampleFromPDF(pdf, x, nsamples=1, seed=None):
@@ -77,7 +98,7 @@ def pdfAdaptedRadius(r, KMeans=False):
         return np.sqrt(r ** 2 + (r ** 4) / 4) * np.exp(-(r ** 2) / 2)
 
 
-def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=None, seed=None):
+def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=None, seed=None, keep_splitted=False):
     """draws frequencies according to some sampling pattern
     omega = R*Sigma^{-1/2}*phi, for R from adapted with variance 1, phi uniform"""
     if Sigma is None:
@@ -92,11 +113,20 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
     else:
         phi = randn_mat_0_1
     phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
-    SigFact = np.linalg.inv(np.linalg.cholesky(Sigma))
 
-    Om = SigFact @ phi * R
+    if isinstance(Sigma, numbers.Number):
+        SigFact = 1./ np.sqrt(Sigma)
+    else:
+        SigFact = np.linalg.inv(np.linalg.cholesky(Sigma))
 
-    return Om
+    if keep_splitted:
+        return SigFact, phi, R
+    else:
+        if isinstance(Sigma, numbers.Number):
+            Om = SigFact * phi * R
+        else:
+            Om = SigFact @ phi * R
+        return Om
 
 
 def drawFrequencies_UniformRadius(d, m, min_val, max_val, randn_mat_0_1=None, use_torch=False):
@@ -190,7 +220,7 @@ def drawFrequencies_diffOfGaussians(d, m, GMM_upper, GMM_lower=None, verbose=0):
     return Om
 
 
-def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1=None, seed=None, use_torch=False):
+def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1=None, seed=None, use_torch=False, keep_splitted=False):
     """Draw the 'frequencies' or projection matrix Omega for sketching.
 
     Arguments:
@@ -207,38 +237,42 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
                 -- cov: (K,d,d)-numpy array, the K different covariances in the mixture
             -- None: same as Sigma = identity matrix (belongs to (d,d)-numpy array case)
                  If Sigma is None (default), we assume that data was normalized s.t. Sigma = identity.
+            -- A number greater than zero: it will be treated like the identity times this number.
         - nb_cat_per_dim: (d,)-array of ints, the number of categories per dimension for integer data,
                     if its i-th entry = 0 (resp. > 0), dimension i is assumed to be continuous (resp. int.).
                     By default all entries are assumed to be continuous. Frequencies for int data is drawn as follows:
                     1. Chose one dimension among the categorical ones, set Omega along all others to zero
                     2. For the chosen dimension with C categories, we draw its component omega ~ U({0,...,C-1}) * 2*pi/C
+        - randn_mat_0_1: np.ndarray, a random matrix with gaussian 0, 1 entries that is used as core for producing the frequencies.
 
     Returns:
         - Omega: (d,m)-numpy array containing the 'frequency' projection matrix
     """
     # Parse drawType input
     if drawType.lower() in ["drawfrequencies_gaussian", "gaussian", "g"]:
-        drawFunc = lambda *args, **kwargs: drawFrequencies_Gaussian(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed)
+        drawFunc = lambda *args, **kwargs: drawFrequencies_Gaussian(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed, keep_splitted=keep_splitted)
     elif drawType.lower() in ["drawfrequencies_foldedgaussian", "foldedgaussian", "folded_gaussian", "fg"]:
-        drawFunc = lambda *args, **kwargs: drawFrequencies_FoldedGaussian(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed)
+        drawFunc = lambda *args, **kwargs: drawFrequencies_FoldedGaussian(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed, keep_splitted=keep_splitted)
     elif drawType.lower() in ["drawfrequencies_adapted", "adaptedradius", "adapted_radius", "ar"]:
-        drawFunc = lambda *args, **kwargs: drawFrequencies_AdaptedRadius(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed)
+        drawFunc = lambda *args, **kwargs: drawFrequencies_AdaptedRadius(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed, keep_splitted=keep_splitted)
     elif drawType.lower() in ["drawfrequencies_adapted_kmeans", "adaptedradius_kmeans", "adapted_radius_kmeans", "arkm",
                               "ar-km"]:
-        drawFunc = lambda _a, _b, _c: drawFrequencies_AdaptedRadius(_a, _b, _c, KMeans=True, randn_mat_0_1=randn_mat_0_1, seed=seed)
+        drawFunc = lambda _a, _b, _c: drawFrequencies_AdaptedRadius(_a, _b, _c, KMeans=True, randn_mat_0_1=randn_mat_0_1, seed=seed, keep_splitted=keep_splitted)
     else:
         raise ValueError("drawType not recognized")
 
     # Handle no input
     if Sigma is None:
         Sigma = np.identity(d)
-
+    else:
+        Sigma = Sigma
     # Handle
-    if isinstance(Sigma, np.ndarray):
+    if isinstance(Sigma, np.ndarray) or isinstance(Sigma, numbers.Number):
         Omega = drawFunc(d, m, Sigma)
 
     # Handle mixture-type input
     elif isinstance(Sigma, tuple):
+        assert keep_splitted is False, "Splitted output not implemented for mixture of Gaussians sampling"
         (w, cov) = Sigma  # unpack
         K = w.size
         # Assign the frequencies to the mixture components
@@ -249,14 +283,12 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
             if any(active_index):
                 Omega[:, np.where(active_index)[0]] = drawFunc(d, active_index.sum(), cov[k])
 
-    elif (isinstance(Sigma, float) or isinstance(Sigma, int)) and Sigma > 0:
-        Omega = drawFunc(d, m, Sigma * np.eye(d))
-
     else:
         raise ValueError("Sigma not recognized")
 
     # If needed, overwrite the integer entries
     if nb_cat_per_dim is not None:
+        assert keep_splitted is False, "Splitted output not implemented for mixture of Gaussians sampling"
         intg_index = np.nonzero(nb_cat_per_dim)[0]
         d_intg = np.size(intg_index)
 
@@ -272,6 +304,7 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
         Omega[intg_index] = Omega_intg
 
     if use_torch:
+
         return torch.from_numpy(Omega)
     else:
         return Omega
