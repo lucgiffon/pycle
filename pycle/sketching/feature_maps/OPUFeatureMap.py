@@ -1,3 +1,5 @@
+import torch
+
 from pycle.sketching import FeatureMap
 from pycle.sketching.distribution_estimation import mu_estimation_ones, var_estimation_ones, var_estimation_randn, \
     var_estimation_any
@@ -155,7 +157,10 @@ class OPUFeatureMap(FeatureMap):
         self.re_center_result = re_center_result
         # todoopu deplacer ca
 
+        # todo these could be either single or multiple for "multiple scales" but single set of directions
         self.SigFact = SigFact
+        self.bool_sigfact_a_matrix = (isinstance(self.SigFact, torch.Tensor) or isinstance(self.SigFact, np.ndarray)) and self.SigFact.ndim > 1
+        self.bool_multiple_sigmas = isinstance(self.SigFact, np.ndarray) and self.SigFact.ndim == 1
         self._Omega = None
         self.R = R
 
@@ -206,14 +211,20 @@ class OPUFeatureMap(FeatureMap):
         else:
             return (self.calibrated_matrix * 1./self.std_opu) * sigma + mu
 
+    @property
+    def calibrated_matrix(self):
+        return self.distribution_estimator.FHB
+
+    def directions_matrix(self):
+        return self.get_randn_mat() * 1. / self.norm_scaling
+        # return (self.calibrated_matrix * 1. / self.std_opu * 1. / self.norm_scaling)
+
     def applyOPU(self, x):
         if x.ndim == 1:
             x = x.reshape(1, -1)
 
-        try:
+        if self.bool_sigfact_a_matrix:
             x = x @ self.SigFact
-        except ValueError:
-            x = x * self.SigFact
 
         # x_enc = self.encoder.transform(x)
         # y_enc = self.opu.transform(x_enc)
@@ -230,21 +241,23 @@ class OPUFeatureMap(FeatureMap):
             y_dec = y_dec - mu_x.reshape(-1, 1)
 
         y_dec = self.R * y_dec * 1./self.std_opu * 1./self.norm_scaling
+        if not self.bool_sigfact_a_matrix:
+            if self.bool_multiple_sigmas:
+                y_dec = self.module_math_functions.einsum("ij,jkl->kil", self.SigFact[:, self.module_math_functions.newaxis], y_dec[self.module_math_functions.newaxis])
+                y_dec = y_dec.reshape((x.shape[0], y_dec.shape[-1] * self.SigFact.size))
+            else:
+                y_dec = y_dec * self.SigFact
+
         out = y_dec
         return out
 
     # call the FeatureMap object as a function
     def call(self, x):
         # return self.c_norm*self.f(np.matmul(self.Omega.T,x.T).T + self.xi) # Evaluate the feature map at x
-        return self.c_norm * self.f(self.applyOPU(x) + self.xi)  # Evaluate the feature map at x
-
-    @property
-    def calibrated_matrix(self):
-        return self.distribution_estimator.FHB
-
-    def directions_matrix(self):
-        return self.get_randn_mat() * 1. / self.norm_scaling
-        # return (self.calibrated_matrix * 1. / self.std_opu * 1. / self.norm_scaling)
+        if self.bool_multiple_sigmas:
+            return self.c_norm * self.f(self.applyOPU(x) + self.xi.repeat(self.SigFact.size))  # Evaluate the feature map at x
+        else:
+            return self.c_norm * self.f(self.applyOPU(x) + self.xi)  # Evaluate the feature map at x
 
     @property
     def Omega(self):
