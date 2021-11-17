@@ -23,15 +23,18 @@ class FeatureMap(ABC):
 
         """
         self.use_torch = use_torch
-        self.device = device
-        self.dtype = dtype
-
         if use_torch:
             self.module_math_functions = torch
             self.dico_nonlinearities = _dico_nonlinearities_torch
         else:
             self.module_math_functions = np
             self.dico_nonlinearities = _dico_nonlinearities
+
+        self.device = device
+        if callable(dtype) and not type(dtype) == type and not isinstance(dtype, torch.dtype):
+            self.dtype = dtype()
+        else:
+            self.dtype = dtype
 
         self.d, self._m = self.init_shape()
 
