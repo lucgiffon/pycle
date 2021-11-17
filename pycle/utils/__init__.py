@@ -180,3 +180,48 @@ class LinearFunctionEncDec(Function):
         # first None is for the weights which have fixed values
         # two last None correspond to `quantif` and `enc_dec` arguments in forward pass
         return grad_input, None, None, None
+
+
+
+class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
+
+    @staticmethod
+    def forward(ctx, input, SigFacts, directions, R, quantif=False, enc_dec=False):
+        assert not (quantif and enc_dec)
+
+        ctx.save_for_backward(input, SigFacts, directions, R)
+        if quantif or enc_dec:
+            encoder = SeparatedBitPlanEncoder(precision=8)
+            x_enc = encoder.fit_transform(input.data)
+            decoder = SeparatedBitPlanDecoder(**encoder.get_params())
+        else:
+            x_enc = input
+
+        if quantif and not enc_dec:
+            # in case only quantification of input is requiered (testing purposes):
+            # make quantification/dequantification directly
+            x_enc = decoder.transform(x_enc)
+
+        # if ever using the opu here: careful with the type of x_enc and y_dec
+
+        # y_dec = x_enc.to(weight.dtype).mm(weight)
+        weight_dtype = torch.promote_types(torch.promote_types(SigFacts.dtype, directions.dtype), R.dtype)
+        y_dec = x_enc.to(weight_dtype).mm(directions) * R
+        y_dec = torch.einsum("ij,jkl->kil", SigFacts.unsqueeze(-1), y_dec.unsqueeze(0)).reshape((input.shape[0], directions.shape[1] * SigFacts.shape[0]))
+
+        if not quantif and enc_dec:
+            # standard scenario: dequantification happens after the transformation
+            y_dec = decoder.transform(y_dec)
+
+        return y_dec.to(weight_dtype)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, SigFacts, directions, R = ctx.saved_tensors
+        grad_output = (grad_output).reshape((grad_output.shape[0], SigFacts.shape[0], directions.shape[1]))
+        grad_input = (torch.einsum("i,kil->kl", SigFacts, grad_output) * R).mm(directions.t())
+        # grad_input = grad_output.mm(weight.t())
+
+        # the three first Nones are for the weights which have fixed values
+        # two last None correspond to `quantif` and `enc_dec` arguments in forward pass
+        return grad_input, None, None, None, None, None
