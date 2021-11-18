@@ -41,7 +41,8 @@ class MatrixFeatureMap(FeatureMap):
             if self.bool_sigfact_a_matrix:
                 return self.SigFact @ self.directions * self.R
             elif self.bool_multiple_sigmas:
-                raise ValueError("property Omega shouldn't be used when bool_multiple_sigmas is True"
+                raise ValueError(" This happens because use_torch == False:"
+                                 " Property Omega shouldn't be used when bool_multiple_sigmas is True"
                                  " because it involves to reconstruct the full matrix which makes"
                                  " the multiple sigmas option useless.")
                 dr = self.directions * self.R
@@ -79,15 +80,15 @@ class MatrixFeatureMap(FeatureMap):
         if self.use_torch:
             if x.ndim == 1:
                 if self.bool_multiple_sigmas:
-                    return MultiSigmaARFrequencyMatrixLinApEncDec.apply(x.unsqueeze(0), self.SigFact, self.directions, self.R, self.quantification, self.encoding_decoding).squeeze(0)
+                    return MultiSigmaARFrequencyMatrixLinApEncDec.apply(x.unsqueeze(0), self.SigFact, self.directions, self.R, self.quantification, self.encoding_decoding, self.encoding_decoding_precision).squeeze(0)
                 else:
-                    return LinearFunctionEncDec.apply(x.unsqueeze(0), self.Omega, self.quantification, self.encoding_decoding).squeeze(0)
+                    return LinearFunctionEncDec.apply(x.unsqueeze(0), self.Omega, self.quantification, self.encoding_decoding, self.encoding_decoding_precision).squeeze(0)
             else:
                 if self.bool_multiple_sigmas:
-                    return MultiSigmaARFrequencyMatrixLinApEncDec.apply(x, self.SigFact, self.directions, self.R, self.quantification, self.encoding_decoding)
+                    return MultiSigmaARFrequencyMatrixLinApEncDec.apply(x, self.SigFact, self.directions, self.R, self.quantification, self.encoding_decoding, self.encoding_decoding_precision)
                 else:
                     return LinearFunctionEncDec.apply(x, self.Omega, self.quantification,
-                                                  self.encoding_decoding)
+                                                  self.encoding_decoding, self.encoding_decoding_precision)
         else:
             return self.wrap_transform(lambda inp: inp @ self.Omega, x, precision_encoding=self.encoding_decoding_precision)()
 

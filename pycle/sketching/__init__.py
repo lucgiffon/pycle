@@ -7,6 +7,8 @@ import sys
 import numpy as np
 import torch
 
+from loguru import logger
+
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 
@@ -58,8 +60,11 @@ def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=None):
     else:
         sketch = np.zeros(m)
         sum_arg = {"axis": 0}
+    print("Hello")
     if datasetWeights is None:
         for b in range(nb_batches):
+            if b%100 == 0:
+                logger.info(f"Sketching batch: {b+1}/{nb_batches}")
             sketch = sketch + featureMap(dataset[b * batch_size:(b + 1) * batch_size]).sum(**sum_arg)
         sketch /= n
     else:

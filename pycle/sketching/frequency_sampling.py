@@ -305,7 +305,7 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
 
     if use_torch:
 
-        return torch.from_numpy(Omega)
+        return (Omega[0], torch.from_numpy(Omega[1]), torch.from_numpy(Omega[2]))
     else:
         return Omega
 

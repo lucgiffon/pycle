@@ -7,7 +7,7 @@ from lightonml import OPU
 from lightonml.internal.simulated_device import SimulatedOpuDevice
 import numpy as np
 from pycle.sketching.frequency_sampling import sampleFromPDF, pdfAdaptedRadius
-from pycle.utils import enc_dec_fct
+from pycle.utils import enc_dec_fct, LinearFunctionEncDec, OPUFunctionEncDec
 from scipy.linalg import hadamard
 from fht import fht
 
@@ -30,7 +30,7 @@ def calibrate_lin_op(fct_lin_op, dim):
 
 
 class OPUDistributionEstimator:
-    def __init__(self, opu, input_dim, compute_calibration=False, use_calibration_transform=False, encoding_decoding_precision=8):
+    def __init__(self, opu, input_dim, compute_calibration=False, use_calibration_transform=False, encoding_decoding_precision=8, use_torch=False):
         """
 
         :param opu:
@@ -40,6 +40,12 @@ class OPUDistributionEstimator:
         self.opu = opu
         self.d = input_dim
         self.m = self.opu.n_components
+
+        self.use_torch = use_torch
+        if use_torch:
+            self.module_math_functions = torch
+        else:
+            self.module_math_functions = np
 
         self.use_calibration_transform = use_calibration_transform
         self.compute_calibration = compute_calibration
@@ -52,7 +58,10 @@ class OPUDistributionEstimator:
         self.encoding_decoding_precision = encoding_decoding_precision
 
     def OPU(self, x):
-        return np.array(enc_dec_fct(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision))
+        if self.use_torch:
+            return torch.from_numpy(enc_dec_fct(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision))
+        else:
+            return np.array(enc_dec_fct(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision))
 
     def transform(self, x, direct=False):
         """
@@ -74,8 +83,10 @@ class OPUDistributionEstimator:
         return y
 
     def calibrate_opu(self):
-        return calibrate_lin_op(lambda x: self.opu.linear_transform(x), self.d)
-
+        if self.use_torch:
+            return torch.from_numpy(calibrate_lin_op(lambda x: self.opu.linear_transform(x), self.d))
+        else:
+            return calibrate_lin_op(lambda x: self.opu.linear_transform(x), self.d)
 
     def mu_estimation(self, method="ones"):
         """
@@ -87,7 +98,7 @@ class OPUDistributionEstimator:
             return self._mu_estimation_ones()
         elif method == "mean":
             try:
-                return np.mean(self.FHB)
+                return self.module_math_functions.mean(self.FHB)
             except TypeError as e:
                 raise ValueError(f"Method `mean` only works with `compute_calibration` flag.")
         else:
@@ -113,7 +124,7 @@ class OPUDistributionEstimator:
             return self._var_estimation_randn(n_iter)
         elif method == "var":
             try:
-                return np.var(self.FHB)
+                return self.module_math_functions.var(self.FHB)
             except TypeError:
                 raise ValueError(f"Method `var` only works with `compute_calibration` flag.")
         else:
@@ -144,10 +155,18 @@ class OPUFeatureMap(FeatureMap):
         self.opu = opu
         self.provided_dimension = dimension
 
+        self.SigFact = SigFact
+        self.bool_sigfact_a_matrix = (isinstance(self.SigFact, torch.Tensor) or isinstance(self.SigFact, np.ndarray)) and self.SigFact.ndim > 1
+        self.bool_multiple_sigmas = (isinstance(self.SigFact, torch.Tensor) or isinstance(self.SigFact, np.ndarray)) and self.SigFact.ndim == 1
+        self._Omega = None
+        self.R = R
+
         super().__init__(f, **kwargs)
-        assert self.use_torch is False, "OPU feature map has not torch support yet."
+
         self.light_memory = (not (calibration_param_estimation or calibration_forward or calibration_backward)) and (not calibrate_always)
-        self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory), use_calibration_transform=calibration_param_estimation, encoding_decoding_precision=self.encoding_decoding_precision)
+        self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory),
+                                                               use_calibration_transform=calibration_param_estimation,
+                                                               encoding_decoding_precision=self.encoding_decoding_precision, use_torch=self.use_torch)
         self.calibration_param_estimation = calibration_param_estimation
         self.switch_use_calibration_forward = calibration_forward  # if True, use the calibrated OPU (the implicit matrix of the OPU) for the forward multiplication
         self.switch_use_calibration_backward = calibration_backward  # same, but for the gradient (backward) computation
@@ -157,35 +176,37 @@ class OPUFeatureMap(FeatureMap):
         self.re_center_result = re_center_result
         # todoopu deplacer ca
 
-        # todo these could be either single or multiple for "multiple scales" but single set of directions
-        self.SigFact = SigFact
-        self.bool_sigfact_a_matrix = (isinstance(self.SigFact, torch.Tensor) or isinstance(self.SigFact, np.ndarray)) and self.SigFact.ndim > 1
-        self.bool_multiple_sigmas = isinstance(self.SigFact, np.ndarray) and self.SigFact.ndim == 1
-        self._Omega = None
-        self.R = R
-
     def get_distribution_opu(self):
         if self.calibration_param_estimation:
             mu = self.distribution_estimator.mu_estimation(method="mean")
             std = np.sqrt(self.distribution_estimator.var_estimation(method="var"))
             # multiplied by 1/std because we want the norm of the matrix
             # whose coefficients are sampled in N(0,1)
-            col_norm = np.linalg.norm(self.distribution_estimator.FHB * 1./std, axis=0)
-            col_norm[np.where(col_norm == 0)] = np.inf
+            col_norm = self.module_math_functions.linalg.norm(self.distribution_estimator.FHB * 1./std, axis=0)
+            col_norm[self.module_math_functions.where(col_norm == 0)] = np.inf
 
         else:
             # todo choisir le n_iter dynamiquement et utiliser une autre methode que "ones"
             mu = self.distribution_estimator.mu_estimation(method="ones")
-            std = np.sqrt(self.distribution_estimator.var_estimation(method="ones"))
-            col_norm = np.sqrt(self.d) * np.ones(self.m)
+            std = self.module_math_functions.sqrt(self.distribution_estimator.var_estimation(method="ones"))
+            col_norm = self.module_math_functions.sqrt(self.d) * self.module_math_functions.ones(self.m)
 
         return mu, std, col_norm
 
     def init_shape(self):
         if isinstance(self.opu.device, SimulatedOpuDevice):
-            return self.opu.max_n_features, self.opu.n_components
+            d = self.opu.max_n_features
         else:
-            return self.provided_dimension, self.opu.n_components
+            d = self.provided_dimension
+
+        m = self.opu.n_components
+        if self.bool_multiple_sigmas:
+            return (d,
+                    m * len(self.SigFact))
+
+        else:
+            return (d, m)
+
 
     def set_use_calibration_forward(self, boolean):
         if boolean is True and self.light_memory is True:
@@ -199,9 +220,22 @@ class OPUFeatureMap(FeatureMap):
 
     def _OPU(self, x):
         if self.switch_use_calibration_forward:
-            return self.wrap_transform(lambda inp: inp @ self.calibrated_matrix, x, precision_encoding=self.encoding_decoding_precision)()
+            if self.use_torch:
+                if x.ndim == 1:
+                    return LinearFunctionEncDec.apply(x.unsqueeze(0), self.calibrated_matrix).squeeze(0)
+                else:
+                    return LinearFunctionEncDec.apply(x, self.calibrated_matrix)
+            else:
+                return self.wrap_transform(lambda inp: inp @ self.calibrated_matrix, x, precision_encoding=self.encoding_decoding_precision)()
         else:
-            return self.wrap_transform(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision)()
+            # if self.light_memory:
+            if self.use_torch:
+                if x.ndim == 1:
+                    return OPUFunctionEncDec.apply(x.unsqueeze(0), self.calibrated_matrix, precision_encoding=self.encoding_decoding_precision).squeeze(0)
+                else:
+                    return OPUFunctionEncDec.apply(x, self.calibrated_matrix, precision_encoding=self.encoding_decoding_precision)
+            else:
+                return self.wrap_transform(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision)()
 
     def get_randn_mat(self, mu=0, sigma=1.):
         if self.light_memory is True:
@@ -237,14 +271,17 @@ class OPUFeatureMap(FeatureMap):
 
         # now center the coefficients of the matrix then scale the result
         if self.re_center_result:
-            mu_x = self.mu_opu * np.sum(x, axis=1)  # sum other all dims
+            mu_x = self.mu_opu * self.module_math_functions.sum(x, axis=1)  # sum other all dims
             y_dec = y_dec - mu_x.reshape(-1, 1)
 
         y_dec = self.R * y_dec * 1./self.std_opu * 1./self.norm_scaling
         if not self.bool_sigfact_a_matrix:
             if self.bool_multiple_sigmas:
-                y_dec = self.module_math_functions.einsum("ij,jkl->kil", self.SigFact[:, self.module_math_functions.newaxis], y_dec[self.module_math_functions.newaxis])
-                y_dec = y_dec.reshape((x.shape[0], y_dec.shape[-1] * self.SigFact.size))
+                if self.use_torch:
+                    y_dec = self.module_math_functions.einsum("ij,jkl->kil", self.SigFact.unsqueeze(-1), y_dec.unsqueeze(0))
+                else:
+                    y_dec = self.module_math_functions.einsum("ij,jkl->kil", self.SigFact[:, self.module_math_functions.newaxis], y_dec[self.module_math_functions.newaxis])
+                y_dec = y_dec.reshape((x.shape[0], y_dec.shape[-1] * len(self.SigFact)))
             else:
                 y_dec = y_dec * self.SigFact
 
@@ -255,7 +292,7 @@ class OPUFeatureMap(FeatureMap):
     def call(self, x):
         # return self.c_norm*self.f(np.matmul(self.Omega.T,x.T).T + self.xi) # Evaluate the feature map at x
         if self.bool_multiple_sigmas:
-            return self.c_norm * self.f(self.applyOPU(x) + self.xi.repeat(self.SigFact.size))  # Evaluate the feature map at x
+            return self.c_norm * self.f(self.applyOPU(x) + self.xi)  # Evaluate the feature map at x
         else:
             return self.c_norm * self.f(self.applyOPU(x) + self.xi)  # Evaluate the feature map at x
 

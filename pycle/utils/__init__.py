@@ -144,12 +144,12 @@ class LinearFunctionEncDec(Function):
 
     @staticmethod
     # def forward(ctx, input, weight):
-    def forward(ctx, input, weight, quantif=False, enc_dec=False):
+    def forward(ctx, input, weight, quantif=False, enc_dec=False, encoding_decoding_precision=8):
         assert not (quantif and enc_dec)
 
         ctx.save_for_backward(input, weight)
         if quantif or enc_dec:
-            encoder = SeparatedBitPlanEncoder(precision=8)
+            encoder = SeparatedBitPlanEncoder(precision=encoding_decoding_precision)
             x_enc = encoder.fit_transform(input.data)
             decoder = SeparatedBitPlanDecoder(**encoder.get_params())
         else:
@@ -179,19 +179,19 @@ class LinearFunctionEncDec(Function):
 
         # first None is for the weights which have fixed values
         # two last None correspond to `quantif` and `enc_dec` arguments in forward pass
-        return grad_input, None, None, None
+        return grad_input, None, None, None, None
 
 
 
 class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
 
     @staticmethod
-    def forward(ctx, input, SigFacts, directions, R, quantif=False, enc_dec=False):
+    def forward(ctx, input, SigFacts, directions, R, quantif=False, enc_dec=False, encoding_decoding_precision=8):
         assert not (quantif and enc_dec)
 
         ctx.save_for_backward(input, SigFacts, directions, R)
         if quantif or enc_dec:
-            encoder = SeparatedBitPlanEncoder(precision=8)
+            encoder = SeparatedBitPlanEncoder(precision=encoding_decoding_precision)
             x_enc = encoder.fit_transform(input.data)
             decoder = SeparatedBitPlanDecoder(**encoder.get_params())
         else:
@@ -224,4 +224,39 @@ class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
 
         # the three first Nones are for the weights which have fixed values
         # two last None correspond to `quantif` and `enc_dec` arguments in forward pass
-        return grad_input, None, None, None, None, None
+        return grad_input, None, None, None, None, None, None
+
+
+class OPUFunctionEncDec(Function):
+
+    @staticmethod
+    # def forward(ctx, input, weight):
+    def forward(ctx, input, opu_function, calibrated_opu, encoding_decoding_precision=8):
+
+        ctx.save_for_backward(input, calibrated_opu)
+        encoder = SeparatedBitPlanEncoder(precision=encoding_decoding_precision)
+        x_enc = encoder.fit_transform(input.data)
+        decoder = SeparatedBitPlanDecoder(**encoder.get_params())
+
+        # if ever using the opu here: careful with the type of x_enc and y_dec
+
+        y_dec = opu_function(x_enc)
+        # y_dec = x_enc.to(weight.dtype).mm(weight)
+
+        # standard scenario: dequantification happens after the transformation
+        y_dec = decoder.transform(y_dec)
+
+        return y_dec.to(calibrated_opu.dtype)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, calibrated_opu = ctx.saved_tensors
+        if calibrated_opu is None:
+            raise NotImplementedError("Impossible to compute the gradient for the OPU transformation operation. "
+                                      "Because no calibrated matrix was provided.")
+        grad_input = grad_output.mm(calibrated_opu.t())
+        # grad_weight = grad_output.t().mm(input)
+
+        # first None is for the weights which have fixed values
+        # two last None correspond to `quantif` and `enc_dec` arguments in forward pass
+        return grad_input, None, None, None
