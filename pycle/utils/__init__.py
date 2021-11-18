@@ -246,7 +246,7 @@ class OPUFunctionEncDec(Function):
         # standard scenario: dequantification happens after the transformation
         y_dec = decoder.transform(y_dec)
 
-        return y_dec.to(calibrated_opu.dtype)
+        return y_dec.to(input.dtype)
 
     @staticmethod
     def backward(ctx, grad_output):

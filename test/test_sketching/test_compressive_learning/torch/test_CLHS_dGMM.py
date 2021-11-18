@@ -44,7 +44,7 @@ def test_fit_once():
     Sigma = 0.1 * np.eye(dim)
 
     # According to the Folded Gaussian rule, we want m frequencies in dimension d, parametrized by Sigma
-    Omega = pycle.sketching.frequency_sampling.drawFrequencies("FoldedGaussian", dim, sketch_dim, Sigma, use_torch=True)
+    Omega = pycle.sketching.frequency_sampling.drawFrequencies("FoldedGaussian", dim, sketch_dim, Sigma, return_torch=True)
 
     # The feature map is a standard one, the complex exponential of projections on Omega^T
     Phi_emp = MatrixFeatureMap("ComplexExponential", Omega, use_torch=True, device=torch.device("cpu"))

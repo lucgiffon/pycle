@@ -188,8 +188,8 @@ class OPUFeatureMap(FeatureMap):
         else:
             # todo choisir le n_iter dynamiquement et utiliser une autre methode que "ones"
             mu = self.distribution_estimator.mu_estimation(method="ones")
-            std = self.module_math_functions.sqrt(self.distribution_estimator.var_estimation(method="ones"))
-            col_norm = self.module_math_functions.sqrt(self.d) * self.module_math_functions.ones(self.m)
+            std = np.sqrt(self.distribution_estimator.var_estimation(method="ones"))
+            col_norm = np.sqrt(self.d) * self.module_math_functions.ones(self.opu.n_components)
 
         return mu, std, col_norm
 
@@ -231,9 +231,9 @@ class OPUFeatureMap(FeatureMap):
             # if self.light_memory:
             if self.use_torch:
                 if x.ndim == 1:
-                    return OPUFunctionEncDec.apply(x.unsqueeze(0), self.calibrated_matrix, precision_encoding=self.encoding_decoding_precision).squeeze(0)
+                    return OPUFunctionEncDec.apply(x.unsqueeze(0), self.opu.linear_transform, self.calibrated_matrix,  self.encoding_decoding_precision).squeeze(0)
                 else:
-                    return OPUFunctionEncDec.apply(x, self.calibrated_matrix, precision_encoding=self.encoding_decoding_precision)
+                    return OPUFunctionEncDec.apply(x, self.opu.linear_transform, self.calibrated_matrix, self.encoding_decoding_precision)
             else:
                 return self.wrap_transform(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision)()
 

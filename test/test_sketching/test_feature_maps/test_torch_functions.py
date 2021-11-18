@@ -22,6 +22,7 @@ def function_optim(loss, p_dim):
 
     print(loss(x))
     ObjectiveValuesStorage().show()
+    ObjectiveValuesStorage().clear()
 
 
 def test_LinearFunctionEncDec(dim):

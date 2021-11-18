@@ -28,6 +28,8 @@ def drawFrequencies_Gaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None, ke
 
     if keep_splitted:
         directions = randn_mat_0_1 or np.random.RandomState(seed).randn(d, m)
+        if isinstance(Sigma, numbers.Number):
+            Sigma = np.array([Sigma])
         return np.linalg.inv(Sigma), directions, np.linalg.norm(directions, axis=1)
     else:
         if randn_mat_0_1 is None:
@@ -57,8 +59,10 @@ def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=No
 
     phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
 
-    if isinstance(Sigma, numbers.Number):
-        SigFact = 1./np.sqrt(Sigma)
+    if isinstance(Sigma, numbers.Number) :
+        SigFact = np.array([1./ np.sqrt(Sigma)])
+    elif (isinstance(Sigma, np.ndarray) and Sigma.ndim == 1):
+        SigFact = 1. / np.sqrt(Sigma)
     else:
         SigFact = np.linalg.inv(np.linalg.cholesky(Sigma))
 
@@ -114,8 +118,10 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
         phi = randn_mat_0_1
     phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
 
-    if isinstance(Sigma, numbers.Number):
-        SigFact = 1./ np.sqrt(Sigma)
+    if isinstance(Sigma, numbers.Number) :
+        SigFact = np.array([1./ np.sqrt(Sigma)])
+    elif (isinstance(Sigma, np.ndarray) and Sigma.ndim == 1):
+        SigFact = 1. / np.sqrt(Sigma)
     else:
         SigFact = np.linalg.inv(np.linalg.cholesky(Sigma))
 
@@ -220,7 +226,7 @@ def drawFrequencies_diffOfGaussians(d, m, GMM_upper, GMM_lower=None, verbose=0):
     return Om
 
 
-def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1=None, seed=None, use_torch=False, keep_splitted=False):
+def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1=None, seed=None, return_torch=False, keep_splitted=False):
     """Draw the 'frequencies' or projection matrix Omega for sketching.
 
     Arguments:
@@ -238,6 +244,7 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
             -- None: same as Sigma = identity matrix (belongs to (d,d)-numpy array case)
                  If Sigma is None (default), we assume that data was normalized s.t. Sigma = identity.
             -- A number greater than zero: it will be treated like the identity times this number.
+            -- A np.ndarray of numbers greater than zero: it will be treated like the concatenation of as many identities times these numbers.
         - nb_cat_per_dim: (d,)-array of ints, the number of categories per dimension for integer data,
                     if its i-th entry = 0 (resp. > 0), dimension i is assumed to be continuous (resp. int.).
                     By default all entries are assumed to be continuous. Frequencies for int data is drawn as follows:
@@ -303,9 +310,8 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
 
         Omega[intg_index] = Omega_intg
 
-    if use_torch:
-
-        return (Omega[0], torch.from_numpy(Omega[1]), torch.from_numpy(Omega[2]))
+    if return_torch:
+        return (torch.from_numpy(Omega[0]), torch.from_numpy(Omega[1]), torch.from_numpy(Omega[2]))
     else:
         return Omega
 
@@ -340,7 +346,7 @@ def multi_scale_frequency_sampling(dim, m, scale_min, scale_max, nb_scales, samp
         else:
             nb_frequencies_scale = size_each_scale
 
-        frequencies_sigma = drawFrequencies(sampling_method, dim, nb_frequencies_scale, sigma * np.eye(dim), use_torch=use_torch)
+        frequencies_sigma = drawFrequencies(sampling_method, dim, nb_frequencies_scale, sigma * np.eye(dim), return_torch=use_torch)
 
         next_index_frequency = index_frequency + nb_frequencies_scale
         Omega[:, index_frequency:next_index_frequency] = frequencies_sigma
@@ -363,7 +369,7 @@ def overproduce(dim, max_number_of_frequencies, overproduce_factor, strategy="MU
         Omega = drawFrequencies_UniformRadius(dim, sketch_dim, 1e-2, 1e0, use_torch=True)
 
     else:
-        Omega = drawFrequencies("FoldedGaussian", dim, sketch_dim, Sigma, use_torch=True)
+        Omega = drawFrequencies("FoldedGaussian", dim, sketch_dim, Sigma, return_torch=True)
 
     xi = torch.rand(sketch_dim) * np.pi * 2
     return Omega, xi

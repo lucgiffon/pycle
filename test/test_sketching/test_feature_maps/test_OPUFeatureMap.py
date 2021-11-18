@@ -118,7 +118,7 @@ def test_OPUFeatureMap_multi_sigma(my_dim):
             print(f"use_torch={use_torch}")
             sampling_method = "ARKM"
             sketch_dim = my_dim * 2
-            Sigma = 0.876
+            Sigma = np.array([0.876] * nb_repeats)
             nb_input = 3
             seed = 0
 
@@ -126,11 +126,11 @@ def test_OPUFeatureMap_multi_sigma(my_dim):
                       max_n_features=my_dim)
             opu.fit1d(n_features=my_dim)
             lst_omega = [sifact, _, R] = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
-                                                                       seed=seed, keep_splitted=True, use_torch=use_torch)
+                                                                                            seed=seed, keep_splitted=True, return_torch=use_torch)
             lst_omega = list(lst_omega)
-            lst_omega[0] = np.array([lst_omega[0]] * nb_repeats)
-            if use_torch:
-                lst_omega[0] = torch.from_numpy(lst_omega[0])
+            # lst_omega[0] = np.array([lst_omega[0]] * nb_repeats)
+            # if use_torch:
+            #     lst_omega[0] = torch.from_numpy(lst_omega[0])
             OFM = OPUFeatureMap(f="ComplexExponential",
                                     dimension=my_dim, SigFact=lst_omega[0], R=R,
                                     opu=opu,
@@ -154,3 +154,6 @@ def test_OPUFeatureMap_multi_sigma(my_dim):
                 ofm_output = ofm_output.numpy()
 
             assert (np.tile(ofm_output[..., :sketch_dim], nb_repeats) == ofm_output).all()
+
+            # z = pycle.sketching.computeSketch(X, MFM)
+            # print(z.shape)

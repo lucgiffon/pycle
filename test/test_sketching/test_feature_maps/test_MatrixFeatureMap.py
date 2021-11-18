@@ -40,40 +40,42 @@ def X(my_dim):
     nb_clust = 5
     np.random.seed(20)  # easy
     # np.random.seed(722233)
-    nb_sample = 200000  # Number of samples we want to generate
+    nb_sample = 2000  # Number of samples we want to generate
     # We use the generatedataset_GMM method from pycle (we ask that the entries are <= 1, and imbalanced clusters)
     X = generatedataset_GMM(my_dim, nb_clust, nb_sample, normalize='l_inf-unit-ball', balanced=False)
     X = torch.from_numpy(X).double()
 
     return X
 
+
 def test_MatrixFeatureMap_multi_sigma(my_dim, X):
-    sampling_method = "ARKM"
-    sketch_dim = my_dim * 20 * 10
-    Sigma = 0.876
-    nb_input = 3
-    seed = 0
+    for use_torch in [True]:
+        for nb_repeats in [1, 3]:
+            print(f"nb_repeats={nb_repeats}")
+            print(f"use_torch={use_torch}")
+            sampling_method = "ARKM"
+            sketch_dim = my_dim * 2
+            Sigma = np.array([0.876] * nb_repeats)
+            nb_input = 3
+            seed = 0
 
-    lst_omega = [sifact, directions, R] = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
-                                                               seed=seed, keep_splitted=True)
-    print(directions.shape)
-    lst_omega = list(lst_omega)
-    nb_repeats = 10
-    lst_omega[0] = np.array([lst_omega[0]] * nb_repeats)
-    # lst_omega = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
-    #                                                            seed=seed, keep_splitted=False)
-    for i, elm in enumerate(lst_omega):
-        lst_omega[i] = torch.tensor(lst_omega[i])
+            lst_omega = [sifact, directions, R] = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
+                                                                                                     seed=seed, keep_splitted=True, return_torch=use_torch)
+            # lst_omega = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
+            #                                                            seed=seed, keep_splitted=False)
 
-    lst_omega = tuple(lst_omega)
+            lst_omega = tuple(lst_omega)
 
-    MFM = MatrixFeatureMap(f="ComplexExponential", Omega=lst_omega, use_torch=True)
+            MFM = MatrixFeatureMap(f="ComplexExponential", Omega=lst_omega, use_torch=use_torch)
 
-    input_mat = np.random.randn(nb_input, my_dim)
-    input_mat = torch.Tensor(input_mat)
-    mfm_output = MFM(input_mat)
-    assert mfm_output.shape[-1] == nb_repeats*sketch_dim
-    assert (np.tile(mfm_output[..., :sketch_dim], nb_repeats) == mfm_output.numpy()).all()
+            input_mat = np.random.randn(nb_input, my_dim)
+            input_mat = torch.Tensor(input_mat)
+            mfm_output = MFM(input_mat)
+            assert mfm_output.shape[-1] == nb_repeats*sketch_dim
+            if use_torch:
+                assert (np.tile(mfm_output[..., :sketch_dim], nb_repeats) == mfm_output.numpy()).all()
+            else:
+                assert (np.tile(mfm_output[..., :sketch_dim], nb_repeats) == mfm_output).all()
 
-    z = pycle.sketching.computeSketch(X, MFM)
-    print(z.shape)
+            z = pycle.sketching.computeSketch(X, MFM)
+            print(z.shape)

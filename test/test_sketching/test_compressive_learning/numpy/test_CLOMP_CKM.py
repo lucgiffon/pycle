@@ -51,7 +51,7 @@ def Phi_emp(nb_clust, dim):
     sketch_dim = 10 * nb_clust * dim
 
     # According to the Folded Gaussian rule, we want m frequencies in dimension d, parametrized by Sigma
-    Omega = pycle.sketching.frequency_sampling.drawFrequencies("FoldedGaussian", dim, sketch_dim, Sigma, use_torch=False)
+    Omega = pycle.sketching.frequency_sampling.drawFrequencies("FoldedGaussian", dim, sketch_dim, Sigma, return_torch=False)
 
     # The feature map is a standard one, the complex exponential of projections on Omega^T
     Phi_emp = MatrixFeatureMap("ComplexExponential", Omega, use_torch=False, device=torch.device("cpu"))
