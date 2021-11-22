@@ -206,8 +206,16 @@ class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
 
         # y_dec = x_enc.to(weight.dtype).mm(weight)
         weight_dtype = torch.promote_types(torch.promote_types(SigFacts.dtype, directions.dtype), R.dtype)
-        y_dec = x_enc.to(weight_dtype).mm(directions) * R
-        y_dec = torch.einsum("ij,jkl->kil", SigFacts.unsqueeze(-1), y_dec.unsqueeze(0)).reshape((input.shape[0], directions.shape[1] * SigFacts.shape[0]))
+        y_dec = x_enc.to(weight_dtype).mm(directions)
+        # y_dec: (B, M)
+        # R: (M, NR)
+        # how to multiply the transformed vector by R:
+        # torch.einsum("ij,jk->ijk", xtd, R) == xtd.unsqueeze(-1) * R
+        y_dec = y_dec.unsqueeze(-1) * R
+        y_dec = torch.einsum("ijk,h->ikhj", y_dec, SigFacts)
+        # y_dec = torch.einsum("ij,jkl->kil", SigFacts.unsqueeze(-1), y_dec.unsqueeze(0))
+
+        y_dec = y_dec.reshape((input.shape[0], directions.shape[1] * SigFacts.shape[0] * R.shape[-1]))
 
         if not quantif and enc_dec:
             # standard scenario: dequantification happens after the transformation

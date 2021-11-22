@@ -44,13 +44,19 @@ def drawFrequencies_Gaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None, ke
         return Om
 
 
-def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None, keep_splitted=False):
+def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None, keep_splitted=False, R_seeds=None):
     """draws frequencies according to some sampling pattern
     omega = R*Sigma^{-1/2}*phi, for R from folded Gaussian with variance 1, phi uniform"""
     if Sigma is None:
         Sigma = np.identity(d)
 
-    R = np.abs(np.random.RandomState(seed).randn(m))  # folded standard normal distribution radii
+    if R_seeds is None:
+        R_seeds = [seed]
+
+    lst_R = []
+    for R_seed in R_seeds:
+        lst_R.append(np.abs(np.random.RandomState(R_seed).randn(m)))  # folded standard normal distribution radii
+    R = np.squeeze(np.array(lst_R))
 
     if randn_mat_0_1 is None:
         phi = np.random.RandomState(seed).randn(d, m)
@@ -67,7 +73,7 @@ def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=No
         SigFact = np.linalg.inv(np.linalg.cholesky(Sigma))
 
     if keep_splitted:
-        return SigFact, phi, R
+        return SigFact, phi, R.T
     else:
         if isinstance(Sigma, numbers.Number):
             Om = SigFact * phi * R
@@ -102,15 +108,21 @@ def pdfAdaptedRadius(r, KMeans=False):
         return np.sqrt(r ** 2 + (r ** 4) / 4) * np.exp(-(r ** 2) / 2)
 
 
-def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=None, seed=None, keep_splitted=False):
+def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=None, seed=None, keep_splitted=False, R_seeds=None):
     """draws frequencies according to some sampling pattern
     omega = R*Sigma^{-1/2}*phi, for R from adapted with variance 1, phi uniform"""
     if Sigma is None:
         Sigma = np.identity(d)
 
-    # Sample the radii
+    if R_seeds is None:
+        R_seeds = [seed]
+
     r = np.linspace(0, 5, 2001)
-    R = sampleFromPDF(pdfAdaptedRadius(r, KMeans), r, nsamples=m, seed=seed)
+    lst_R = []
+    for R_seed in R_seeds:
+        # Sample the radii
+        lst_R.append(sampleFromPDF(pdfAdaptedRadius(r, KMeans), r, nsamples=m, seed=R_seed))
+    R = np.squeeze(np.array(lst_R))
 
     if randn_mat_0_1 is None:
         phi = np.random.randn(d, m)
@@ -126,7 +138,7 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
         SigFact = np.linalg.inv(np.linalg.cholesky(Sigma))
 
     if keep_splitted:
-        return SigFact, phi, R
+        return SigFact, phi, R.T
     else:
         if isinstance(Sigma, numbers.Number):
             Om = SigFact * phi * R
@@ -226,7 +238,7 @@ def drawFrequencies_diffOfGaussians(d, m, GMM_upper, GMM_lower=None, verbose=0):
     return Om
 
 
-def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1=None, seed=None, return_torch=False, keep_splitted=False):
+def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1=None, seed=None, return_torch=False, keep_splitted=False, R_seeds=None):
     """Draw the 'frequencies' or projection matrix Omega for sketching.
 
     Arguments:
@@ -259,20 +271,24 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
     if drawType.lower() in ["drawfrequencies_gaussian", "gaussian", "g"]:
         drawFunc = lambda *args, **kwargs: drawFrequencies_Gaussian(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed, keep_splitted=keep_splitted)
     elif drawType.lower() in ["drawfrequencies_foldedgaussian", "foldedgaussian", "folded_gaussian", "fg"]:
-        drawFunc = lambda *args, **kwargs: drawFrequencies_FoldedGaussian(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed, keep_splitted=keep_splitted)
+        drawFunc = lambda *args, **kwargs: drawFrequencies_FoldedGaussian(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed, keep_splitted=keep_splitted, R_seeds=R_seeds)
     elif drawType.lower() in ["drawfrequencies_adapted", "adaptedradius", "adapted_radius", "ar"]:
-        drawFunc = lambda *args, **kwargs: drawFrequencies_AdaptedRadius(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed, keep_splitted=keep_splitted)
+        drawFunc = lambda *args, **kwargs: drawFrequencies_AdaptedRadius(*args, **kwargs, randn_mat_0_1=randn_mat_0_1, seed=seed, keep_splitted=keep_splitted, R_seeds=R_seeds)
     elif drawType.lower() in ["drawfrequencies_adapted_kmeans", "adaptedradius_kmeans", "adapted_radius_kmeans", "arkm",
                               "ar-km"]:
-        drawFunc = lambda _a, _b, _c: drawFrequencies_AdaptedRadius(_a, _b, _c, KMeans=True, randn_mat_0_1=randn_mat_0_1, seed=seed, keep_splitted=keep_splitted)
+        drawFunc = lambda _a, _b, _c: drawFrequencies_AdaptedRadius(_a, _b, _c, KMeans=True, randn_mat_0_1=randn_mat_0_1, seed=seed, keep_splitted=keep_splitted, R_seeds=R_seeds)
     else:
         raise ValueError("drawType not recognized")
+
 
     # Handle no input
     if Sigma is None:
         Sigma = np.identity(d)
     else:
         Sigma = Sigma
+
+    assert (isinstance(Sigma, numbers.Number) or Sigma.ndim != 1) or keep_splitted == True
+
     # Handle
     if isinstance(Sigma, np.ndarray) or isinstance(Sigma, numbers.Number):
         Omega = drawFunc(d, m, Sigma)
@@ -311,7 +327,10 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
         Omega[intg_index] = Omega_intg
 
     if return_torch:
-        return (torch.from_numpy(Omega[0]), torch.from_numpy(Omega[1]), torch.from_numpy(Omega[2]))
+        if keep_splitted:
+            return (torch.from_numpy(Omega[0]), torch.from_numpy(Omega[1]), torch.from_numpy(Omega[2]))
+        else:
+            return torch.from_numpy(Omega)
     else:
         return Omega
 

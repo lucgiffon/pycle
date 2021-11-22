@@ -23,6 +23,12 @@ class MatrixFeatureMap(FeatureMap):
             assert self.bool_sigfact_a_matrix or self.bool_multiple_sigmas or isinstance(self.SigFact, numbers.Number) or len(self.SigFact) == 1
             self.directions = Omega[1]
             self.R = Omega[2]
+            if self.R.ndim == 1:
+                try:
+                    self.R = self.R.unsqueeze(-1)
+                except:
+                    self.R = self.R[:, np.newaxis]
+            assert self.R.shape[0] == self.directions.shape[1]
         else:
             self._Omega = Omega
             self.splitted_Omega = False
@@ -38,13 +44,12 @@ class MatrixFeatureMap(FeatureMap):
     @property
     def Omega(self):
         if self.splitted_Omega:
+            raise ValueError(" Property Omega shouldn't be used when Omega is splitted"
+                             " because it involves to reconstruct the full matrix which makes"
+                             " splitting Omega useless.")
             if self.bool_sigfact_a_matrix:
                 return self.SigFact @ self.directions * self.R
             elif self.bool_multiple_sigmas:
-                raise ValueError(" This happens because use_torch == False:"
-                                 " Property Omega shouldn't be used when bool_multiple_sigmas is True"
-                                 " because it involves to reconstruct the full matrix which makes"
-                                 " the multiple sigmas option useless.")
                 dr = self.directions * self.R
                 r = self.module_math_functions.einsum("ij,jkl->kil", self.SigFact[:, self.module_math_functions.newaxis], dr[self.module_math_functions.newaxis])
                 return r.reshape(self.d, self.m)
@@ -65,12 +70,8 @@ class MatrixFeatureMap(FeatureMap):
     def init_shape(self):
         try:
             if self.splitted_Omega:
-                if self.bool_multiple_sigmas:
-                    return (self.directions.shape[0],
-                                self.directions.shape[1] * len(self.SigFact))
-
-                else:
-                    return self.directions.shape
+                return (self.directions.shape[0],
+                        self.directions.shape[1] * len(self.SigFact) * self.R.shape[-1])
             else:
                 return self._Omega.shape
         except AttributeError:
@@ -78,27 +79,34 @@ class MatrixFeatureMap(FeatureMap):
 
     def _apply_mat(self, x):
         if self.use_torch:
+            unsqueezed = False
             if x.ndim == 1:
-                if self.bool_multiple_sigmas:
-                    return MultiSigmaARFrequencyMatrixLinApEncDec.apply(x.unsqueeze(0), self.SigFact, self.directions, self.R, self.quantification, self.encoding_decoding, self.encoding_decoding_precision).squeeze(0)
-                else:
-                    return LinearFunctionEncDec.apply(x.unsqueeze(0), self.Omega, self.quantification, self.encoding_decoding, self.encoding_decoding_precision).squeeze(0)
+                unsqueezed = True
+                x = x.unsqueeze(0)
+                # if self.bool_multiple_sigmas:
+                #     return MultiSigmaARFrequencyMatrixLinApEncDec.apply(x.unsqueeze(0), self.SigFact, self.directions, self.R, self.quantification, self.encoding_decoding, self.encoding_decoding_precision).squeeze(0)
+                # else:
+                #     return LinearFunctionEncDec.apply(x.unsqueeze(0), self.Omega, self.quantification, self.encoding_decoding, self.encoding_decoding_precision).squeeze(0)
+
+            if self.splitted_Omega:
+                result = MultiSigmaARFrequencyMatrixLinApEncDec.apply(x, self.SigFact, self.directions, self.R, self.quantification, self.encoding_decoding, self.encoding_decoding_precision)
             else:
-                if self.bool_multiple_sigmas:
-                    return MultiSigmaARFrequencyMatrixLinApEncDec.apply(x, self.SigFact, self.directions, self.R, self.quantification, self.encoding_decoding, self.encoding_decoding_precision)
-                else:
-                    return LinearFunctionEncDec.apply(x, self.Omega, self.quantification,
-                                                  self.encoding_decoding, self.encoding_decoding_precision)
+                result = LinearFunctionEncDec.apply(x, self.Omega, self.quantification, self.encoding_decoding, self.encoding_decoding_precision)
+
+            if unsqueezed:
+                return result.squeeze(0)
+            else:
+                return result
         else:
             return self.wrap_transform(lambda inp: inp @ self.Omega, x, precision_encoding=self.encoding_decoding_precision)()
 
     # call the FeatureMap object as a function
     def call(self, x):
         # return self.c_norm*self.f(np.matmul(self.Omega.T,x.T).T + self.xi) # Evaluate the feature map at x
-        if self.bool_multiple_sigmas:
-            return self.c_norm * self.f(self._apply_mat(x) + self.xi)  # Evaluate the feature map at x
-        else:
-            return self.c_norm * self.f(self._apply_mat(x) + self.xi)  # Evaluate the feature map at x
+        return self.c_norm * self.f(self._apply_mat(x) + self.xi)  # Evaluate the feature map at x
+        # if self.bool_multiple_sigmas:
+        #     return self.c_norm * self.f(self._apply_mat(x) + self.xi)  # Evaluate the feature map at x
+        # else:
 
         # return self.c_norm * self.f(self._apply_mat(x) + self.xi)  # Evaluate the feature map at x
 
