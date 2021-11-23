@@ -1,7 +1,7 @@
 from pycle.compressive_learning.torch.CLOMP_CKM import CLOMP_CKM
 from pycle.sketching import MatrixFeatureMap
 from pycle.sketching.frequency_sampling import drawFrequencies, multi_scale_frequency_sampling, \
-    drawFrequencies_UniformRadius
+    drawFrequencies_UniformRadius, overproduce_and_choose
 import pytest
 import numpy as np
 import torch
@@ -42,6 +42,7 @@ def bounds(dim):
 
 
 
+@pytest.mark.skip(reason="Script not ready atm")
 def test_overproduce_and_choose(dim, nb_clust, bounds, X):
     Phi_emp = overproduce_and_choose(dim, nb_clust, X)
     z = pycle.sketching.computeSketch(X, Phi_emp)

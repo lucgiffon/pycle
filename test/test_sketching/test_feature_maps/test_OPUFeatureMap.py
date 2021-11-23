@@ -76,7 +76,7 @@ def test_calibration_OPUFeatureMap(my_dim):
               max_n_features=my_dim)
     opu.fit1d(n_features=my_dim)
     lst_omega = [sifact, _, R] = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
-                                                               seed=seed, keep_splitted=True)
+                                                               seed=seed, keep_splitted=True, return_torch=True)
     lst_omega = list(lst_omega)
     OFM = OPUFeatureMap(f="ComplexExponential",
                             dimension=my_dim, SigFact=sifact, R=R,
@@ -87,7 +87,7 @@ def test_calibration_OPUFeatureMap(my_dim):
                             calibration_backward=True,
                             calibrate_always=True,
                             re_center_result=False,
-                            sampling_method=sampling_method,
+                            sampling_method=sampling_method, use_torch=True
                         # seed=seed
                         )
     directions = OFM.directions_matrix()
@@ -97,63 +97,72 @@ def test_calibration_OPUFeatureMap(my_dim):
     #                                                            randn_mat_0_1=randn_opu_matrix_0_1, seed=seed)
 
 
-    MFM = MatrixFeatureMap("ComplexExponential", tuple(lst_omega))
-    input_mat = np.random.randn(nb_input, my_dim)
+    MFM = MatrixFeatureMap("ComplexExponential", tuple(lst_omega), use_torch=True)
+    input_mat = torch.from_numpy(np.random.randn(nb_input, my_dim))
 
     ofm_output = OFM(input_mat)
     mfm_output = MFM(input_mat)
 
     assert np.isclose(ofm_output, mfm_output).all()
 
-    input_vec = np.random.randn(1, my_dim)
-    ofm_output_grad = OFM.grad(input_vec)
-    mfm_output_grad = MFM.grad(input_vec)
-    assert np.isclose(ofm_output_grad, mfm_output_grad).all()
+    # input_vec = np.random.randn(1, my_dim)
+    # ofm_output_grad = OFM.grad(input_vec)
+    # mfm_output_grad = MFM.grad(input_vec)
+    # assert np.isclose(ofm_output_grad, mfm_output_grad).all()
 
 
 def test_OPUFeatureMap_multi_sigma(my_dim):
+    print()
     for use_torch in [True, False]:
-        for nb_repeats in [1, 3]:
-            print(f"nb_repeats={nb_repeats}")
-            print(f"use_torch={use_torch}")
-            sampling_method = "ARKM"
-            sketch_dim = my_dim * 2
-            Sigma = np.array([0.876] * nb_repeats)
-            nb_input = 3
-            seed = 0
+        for nb_sigmas in [0, 3, 1]:
+            for nb_replicates in [2, 1]:
+                print(f"nb_sigmas={nb_sigmas}")
+                print(f"nb_replicates={nb_replicates}")
+                print(f"use_torch={use_torch}")
+                sampling_method = "ARKM"
+                sketch_dim = my_dim * 2
+                Sigma = 0.876
+                if nb_sigmas != 0:
+                    Sigma = np.array([np.abs(np.random.randn(1)) for _ in range(nb_sigmas)]).flatten()
+                else:
+                    nb_sigmas = 1
+                nb_input = 3
+                seed = 0
+                r_seeds = [seed] * nb_replicates
 
-            opu = OPU(n_components=sketch_dim, opu_device=SimulatedOpuDevice(),
-                      max_n_features=my_dim)
-            opu.fit1d(n_features=my_dim)
-            lst_omega = [sifact, _, R] = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
-                                                                                            seed=seed, keep_splitted=True, return_torch=use_torch)
-            lst_omega = list(lst_omega)
-            # lst_omega[0] = np.array([lst_omega[0]] * nb_repeats)
-            # if use_torch:
-            #     lst_omega[0] = torch.from_numpy(lst_omega[0])
-            OFM = OPUFeatureMap(f="ComplexExponential",
-                                    dimension=my_dim, SigFact=lst_omega[0], R=R,
-                                    opu=opu,
-                                    calibration_param_estimation=True,
-                                    calibration_forward=True,
-                                    calibration_backward=True,
-                                    calibrate_always=True,
-                                    re_center_result=False,
-                                use_torch=use_torch
-                                )
-            directions = OFM.directions_matrix()
-            lst_omega[1] = directions
+                opu = OPU(n_components=sketch_dim, opu_device=SimulatedOpuDevice(),
+                          max_n_features=my_dim)
+                opu.fit1d(n_features=my_dim)
 
-            input_mat = np.random.randn(nb_input, my_dim)
-            if use_torch:
-                input_mat = torch.from_numpy(input_mat)
+                lst_omega = [sifact, _, R] = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
+                                                                                                seed=seed, keep_splitted=True, return_torch=use_torch,
+                                                                                                R_seeds=r_seeds)
 
-            ofm_output = OFM(input_mat)
-            assert ofm_output.shape[-1] == nb_repeats*sketch_dim
-            if use_torch:
-                ofm_output = ofm_output.numpy()
+                OFM = OPUFeatureMap(f="ComplexExponential",
+                                        dimension=my_dim, SigFact=lst_omega[0], R=R,
+                                        opu=opu,
+                                        calibration_param_estimation=True,
+                                        calibration_forward=True,
+                                        calibration_backward=True,
+                                        calibrate_always=True,
+                                        re_center_result=False,
+                                    use_torch=use_torch
+                                    )
+                # directions = OFM.directions_matrix()
+                # lst_omega[1] = directions
 
-            assert (np.tile(ofm_output[..., :sketch_dim], nb_repeats) == ofm_output).all()
+                input_mat = np.random.randn(nb_input, my_dim)
+                if use_torch:
+                    input_mat = torch.from_numpy(input_mat)
 
-            # z = pycle.sketching.computeSketch(X, MFM)
-            # print(z.shape)
+                ofm_output = OFM(input_mat)
+                assert ofm_output.shape[-1] == nb_sigmas*sketch_dim*nb_replicates
+                if use_torch:
+                    ofm_output = ofm_output.numpy()
+
+                if nb_sigmas == 1:
+                    assert (np.tile(ofm_output[..., :sketch_dim], nb_sigmas*nb_replicates) == ofm_output).all()
+                assert (np.tile(ofm_output[..., :sketch_dim*nb_sigmas], nb_replicates) == ofm_output).all()
+
+                # z = pycle.sketching.computeSketch(X, MFM)
+                # print(z.shape)

@@ -22,6 +22,7 @@ import pycle.sketching
 from pycle.utils.projectors import ProjectorNoProjection, ProjectorExactUnit2Norm
 
 
+@pytest.mark.skip(reason="Script not ready atm")
 def test_fit_once():
     raise NotImplementedError("Test never worked.")
     np.random.seed(20)  # easy

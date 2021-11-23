@@ -73,16 +73,20 @@ def test_unsplitted(my_dim, X):
 
 def test_MatrixFeatureMap_multi_sigma_multi_R(my_dim, X):
     for use_torch in [True]:
-        for nb_sigmas in [2, 1]:
+        for nb_sigmas in [0, 2, 1]:
             for nb_replicates in [3, 1]:
                 print(f"nb_sigmas={nb_sigmas}")
                 print(f"use_torch={use_torch}")
                 sampling_method = "ARKM"
                 sketch_dim = my_dim * 2
-                Sigma = np.array([np.abs(np.random.randn(1)) for _ in range(nb_sigmas)]).flatten()
+                Sigma = 0.876
+                if nb_sigmas != 0:
+                    Sigma = np.array([np.abs(np.random.randn(1)) for _ in range(nb_sigmas)]).flatten()
+                else:
+                    nb_sigmas = 1
                 nb_input = 4
                 seed = 0
-                r_seeds = [0] * nb_replicates
+                r_seeds = [seed] * nb_replicates
 
                 lst_omega = [sifact, directions, R] = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
                                                                                                          seed=seed, keep_splitted=True, return_torch=use_torch, R_seeds=r_seeds)

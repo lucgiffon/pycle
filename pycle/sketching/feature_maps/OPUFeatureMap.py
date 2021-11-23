@@ -1,3 +1,5 @@
+import numbers
+
 import torch
 
 from pycle.sketching import FeatureMap
@@ -157,11 +159,23 @@ class OPUFeatureMap(FeatureMap):
 
         self.SigFact = SigFact
         self.bool_sigfact_a_matrix = (isinstance(self.SigFact, torch.Tensor) or isinstance(self.SigFact, np.ndarray)) and self.SigFact.ndim > 1
-        self.bool_multiple_sigmas = (isinstance(self.SigFact, torch.Tensor) or isinstance(self.SigFact, np.ndarray)) and self.SigFact.ndim == 1
+
+        # self.bool_multiple_sigmas = (isinstance(self.SigFact, torch.Tensor) or isinstance(self.SigFact, np.ndarray)) and self.SigFact.ndim == 1
         self._Omega = None
         self.R = R
+        if self.R.ndim == 1:
+            try:
+                self.R = self.R.unsqueeze(-1)
+            except:
+                self.R = self.R[:, np.newaxis]
 
-        super().__init__(f, **kwargs)
+        super().__init__(f, dtype=self.Omega_dtype, **kwargs)
+        assert self.R.shape[0] == self.opu.n_components
+        if isinstance(self.SigFact, numbers.Number):
+            if self.use_torch:
+                self.SigFact = torch.Tensor([self.SigFact])
+            else:
+                self.SigFact = np.array([self.SigFact])
 
         self.light_memory = (not (calibration_param_estimation or calibration_forward or calibration_backward)) and (not calibrate_always)
         self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory),
@@ -200,12 +214,14 @@ class OPUFeatureMap(FeatureMap):
             d = self.provided_dimension
 
         m = self.opu.n_components
-        if self.bool_multiple_sigmas:
-            return (d,
-                    m * len(self.SigFact))
+        if not self.bool_sigfact_a_matrix:
+            m = m * len(self.SigFact)
+        m = m * self.R.shape[1]
+        return (d, m)
 
-        else:
-            return (d, m)
+    def Omega_dtype(self):
+        promote_types = self.module_math_functions.promote_types
+        return promote_types(self.R.dtype, self.SigFact.dtype)
 
 
     def set_use_calibration_forward(self, boolean):
@@ -250,7 +266,10 @@ class OPUFeatureMap(FeatureMap):
         return self.distribution_estimator.FHB
 
     def directions_matrix(self):
-        return self.get_randn_mat() * 1. / self.norm_scaling
+        r = self.get_randn_mat() * 1. / self.norm_scaling
+        if self.use_torch:
+            r = r.to(self.dtype)
+        return r
         # return (self.calibrated_matrix * 1. / self.std_opu * 1. / self.norm_scaling)
 
     def applyOPU(self, x):
@@ -274,35 +293,33 @@ class OPUFeatureMap(FeatureMap):
             mu_x = self.mu_opu * self.module_math_functions.sum(x, axis=1)  # sum other all dims
             y_dec = y_dec - mu_x.reshape(-1, 1)
 
-        y_dec = self.R * y_dec * 1./self.std_opu * 1./self.norm_scaling
+        if self.use_torch:
+            y_dec = (y_dec * 1./self.std_opu * 1./self.norm_scaling).unsqueeze(-1) * self.R
+        else:
+            y_dec = (y_dec * 1. / self.std_opu * 1. / self.norm_scaling)[..., np.newaxis] * self.R
         if not self.bool_sigfact_a_matrix:
-            if self.bool_multiple_sigmas:
-                if self.use_torch:
-                    y_dec = self.module_math_functions.einsum("ij,jkl->kil", self.SigFact.unsqueeze(-1), y_dec.unsqueeze(0))
-                else:
-                    y_dec = self.module_math_functions.einsum("ij,jkl->kil", self.SigFact[:, self.module_math_functions.newaxis], y_dec[self.module_math_functions.newaxis])
-                y_dec = y_dec.reshape((x.shape[0], y_dec.shape[-1] * len(self.SigFact)))
-            else:
-                y_dec = y_dec * self.SigFact
-
+            y_dec = self.module_math_functions.einsum("ijk,h->ikhj", y_dec, self.SigFact)
+            y_dec = y_dec.reshape((x.shape[0], self.m))
+            # if self.bool_multiple_sigmas: # todo rendre "multiple sigmas caduc pour toujours fonctionner avec 1 ou plusieurs sigmas
         out = y_dec
         return out
 
     # call the FeatureMap object as a function
     def call(self, x):
         # return self.c_norm*self.f(np.matmul(self.Omega.T,x.T).T + self.xi) # Evaluate the feature map at x
-        if self.bool_multiple_sigmas:
-            return self.c_norm * self.f(self.applyOPU(x) + self.xi)  # Evaluate the feature map at x
-        else:
-            return self.c_norm * self.f(self.applyOPU(x) + self.xi)  # Evaluate the feature map at x
+        return self.c_norm * self.f(self.applyOPU(x) + self.xi)  # Evaluate the feature map at x
 
     @property
     def Omega(self):
         if self._Omega is None:
             try:
                 self._Omega = self.SigFact @ self.directions_matrix() * self.R
-            except ValueError:
-                self._Omega = self.SigFact * self.directions_matrix() * self.R
+            except:
+                if self.use_torch:
+                    self._Omega = (self.SigFact * self.directions_matrix()).unsqueeze(-1) * self.R
+                else:
+                    self._Omega = (self.SigFact * self.directions_matrix())[..., np.newaxis] * self.R
+                self._Omega = self.module_math_functions.reshape(self._Omega, (-1, self.m))
         return self._Omega
 
     def grad(self, x):

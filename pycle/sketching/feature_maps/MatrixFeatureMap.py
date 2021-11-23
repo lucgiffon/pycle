@@ -19,8 +19,8 @@ class MatrixFeatureMap(FeatureMap):
             self.SigFact = Omega[0]
             self.bool_sigfact_a_matrix = (isinstance(self.SigFact, torch.Tensor) or isinstance(self.SigFact,
                                                                                                np.ndarray)) and self.SigFact.ndim > 1
-            self.bool_multiple_sigmas = (isinstance(self.SigFact, np.ndarray) or isinstance(self.SigFact, torch.Tensor)) and self.SigFact.ndim == 1 and len(self.SigFact) > 1
-            assert self.bool_sigfact_a_matrix or self.bool_multiple_sigmas or isinstance(self.SigFact, numbers.Number) or len(self.SigFact) == 1
+            # self.bool_multiple_sigmas = (isinstance(self.SigFact, np.ndarray) or isinstance(self.SigFact, torch.Tensor)) and self.SigFact.ndim == 1 and len(self.SigFact) > 1
+            # assert self.bool_sigfact_a_matrix or isinstance(self.SigFact, numbers.Number) or len(self.SigFact) == 1
             self.directions = Omega[1]
             self.R = Omega[2]
             if self.R.ndim == 1:

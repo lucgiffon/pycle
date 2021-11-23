@@ -189,6 +189,9 @@ class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
     def forward(ctx, input, SigFacts, directions, R, quantif=False, enc_dec=False, encoding_decoding_precision=8):
         assert not (quantif and enc_dec)
 
+        if R.ndim == 1:
+            R = R.unsqueeze(-1)
+
         ctx.save_for_backward(input, SigFacts, directions, R)
         if quantif or enc_dec:
             encoder = SeparatedBitPlanEncoder(precision=encoding_decoding_precision)
@@ -226,8 +229,10 @@ class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
     @staticmethod
     def backward(ctx, grad_output):
         input, SigFacts, directions, R = ctx.saved_tensors
-        grad_output = (grad_output).reshape((grad_output.shape[0], SigFacts.shape[0], directions.shape[1]))
-        grad_input = (torch.einsum("i,kil->kl", SigFacts, grad_output) * R).mm(directions.t())
+        grad_output = (grad_output).reshape((grad_output.shape[0], R.shape[-1], SigFacts.shape[0], directions.shape[1]))
+        # grad_input = (torch.einsum("ikhj,h->ijk", grad_output, SigFacts) * R).mm(directions.t())
+        grad_input = torch.einsum("ikhj,h->ijk", grad_output, SigFacts)
+        grad_input = torch.einsum("ijk,jk->ij", grad_input, R).mm(directions.t())
         # grad_input = grad_output.mm(weight.t())
 
         # the three first Nones are for the weights which have fixed values

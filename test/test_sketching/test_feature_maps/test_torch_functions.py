@@ -34,12 +34,16 @@ def test_LinearFunctionEncDec(dim):
 
 
 def test_MultiSigmaARFrequencyMatrixLinApEncDec(dim):
-    nb_repeats = 2
-    target = torch.unsqueeze(torch.randn(dim * nb_repeats, requires_grad=False), 0)
+    nb_sigmas = 2
+    nb_replicates = 5
+    target = torch.unsqueeze(torch.randn(dim * nb_sigmas * nb_replicates, requires_grad=False), 0)
 
-    directions = torch.eye(dim, requires_grad=False)
-    SigFacts = torch.tensor([1.] * nb_repeats)
-    R = torch.ones(dim)
+    # directions = torch.eye(dim, requires_grad=False)
+    # SigFacts = torch.tensor([1.] * nb_sigmas)
+    # R = torch.ones((dim, nb_replicates))
+    directions = torch.randn((dim, dim), requires_grad=False)
+    SigFacts = torch.randn((nb_sigmas,))
+    R = torch.randn((dim, nb_replicates))
 
     def loss(x):
         return (MultiSigmaARFrequencyMatrixLinApEncDec.apply(x, SigFacts, directions, R, False, False) - target).pow(2).sum()

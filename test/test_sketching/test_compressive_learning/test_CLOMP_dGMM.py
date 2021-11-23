@@ -1,9 +1,6 @@
 import pytest
 
-from pycle.compressive_learning.CLOMP_CKM import CLOMP_CKM
 
-from pycle.compressive_learning.generic.CLOMP import CLOMP
-from pycle.compressive_learning.CLOMP_dGMM import CLOMP_dGMM
 import numpy as np
 import matplotlib.pyplot as plt
 from lightonml import OPU
@@ -14,7 +11,6 @@ from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 from pycle.sketching.feature_maps.OPUFeatureMap import OPUFeatureMap
 from pycle.utils.datasets import generatedataset_GMM
 import pycle.sketching as sk
-from pycle.compressive_learning.CLOMP_CKM import CLOMP_CKM
 
 # from pycle.sketching.feature_maps.SimpleFeatureMap import SimpleFeatureMap
 
@@ -22,6 +18,7 @@ from pycle.sketching.frequency_sampling import drawFrequencies
 
 import pycle.sketching
 
+@pytest.mark.skip(reason="Script not ready atm")
 def test_fit_once():
     np.random.seed(20)  # easy
     # np.random.seed(722233)
