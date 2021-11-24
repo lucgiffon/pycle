@@ -273,3 +273,15 @@ class OPUFunctionEncDec(Function):
         # first None is for the weights which have fixed values
         # two last None correspond to `quantif` and `enc_dec` arguments in forward pass
         return grad_input, None, None, None
+
+def is_number(possible_number):
+    has_len = hasattr(possible_number, "__len__")
+    if not has_len:
+        return True
+    else:
+        try:
+            len(possible_number)
+        except:
+            return True
+
+    return False

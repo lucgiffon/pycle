@@ -9,7 +9,7 @@ from lightonml import OPU
 from lightonml.internal.simulated_device import SimulatedOpuDevice
 import numpy as np
 from pycle.sketching.frequency_sampling import sampleFromPDF, pdfAdaptedRadius
-from pycle.utils import enc_dec_fct, LinearFunctionEncDec, OPUFunctionEncDec
+from pycle.utils import enc_dec_fct, LinearFunctionEncDec, OPUFunctionEncDec, is_number
 from scipy.linalg import hadamard
 from fht import fht
 
@@ -171,7 +171,7 @@ class OPUFeatureMap(FeatureMap):
 
         super().__init__(f, dtype=self.Omega_dtype, **kwargs)
         assert self.R.shape[0] == self.opu.n_components
-        if isinstance(self.SigFact, numbers.Number):
+        if is_number(self.SigFact):
             if self.use_torch:
                 self.SigFact = torch.Tensor([self.SigFact])
             else:

@@ -1,7 +1,7 @@
 import numpy as np
 import numbers
 import torch
-from pycle.utils import enc_dec_fct, LinearFunctionEncDec, MultiSigmaARFrequencyMatrixLinApEncDec
+from pycle.utils import enc_dec_fct, LinearFunctionEncDec, MultiSigmaARFrequencyMatrixLinApEncDec, is_number
 
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 
@@ -10,15 +10,13 @@ from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 class MatrixFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(Omega^T*x + xi)."""
 
-    def __init__(self, f, Omega, **kwargs):
+    def __init__(self, f, Omega, use_torch=False, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
 
         if type(Omega) == tuple or type(Omega) == list:
             self.splitted_Omega = True
             # (sigma, directions, amplitudes)
             self.SigFact = Omega[0]
-            self.bool_sigfact_a_matrix = (isinstance(self.SigFact, torch.Tensor) or isinstance(self.SigFact,
-                                                                                               np.ndarray)) and self.SigFact.ndim > 1
             # self.bool_multiple_sigmas = (isinstance(self.SigFact, np.ndarray) or isinstance(self.SigFact, torch.Tensor)) and self.SigFact.ndim == 1 and len(self.SigFact) > 1
             # assert self.bool_sigfact_a_matrix or isinstance(self.SigFact, numbers.Number) or len(self.SigFact) == 1
             self.directions = Omega[1]
@@ -28,11 +26,22 @@ class MatrixFeatureMap(FeatureMap):
                     self.R = self.R.unsqueeze(-1)
                 except:
                     self.R = self.R[:, np.newaxis]
+
             assert self.R.shape[0] == self.directions.shape[1]
+            if is_number(self.SigFact):
+                if use_torch:
+                    self.SigFact = torch.Tensor([self.SigFact])
+                else:
+                    self.SigFact = np.array([self.SigFact])
+
+            self.bool_sigfact_a_matrix = self.SigFact.ndim > 1
         else:
             self._Omega = Omega
             self.splitted_Omega = False
-        super().__init__(f, dtype=self.Omega_dtype, **kwargs)
+
+        super().__init__(f, dtype=self.Omega_dtype, use_torch=use_torch, **kwargs)
+
+
 
     def Omega_dtype(self):
         if self.splitted_Omega:

@@ -6,6 +6,8 @@ import pycle.sketching.frequency_sampling
 
 from lightonml import OPU
 from lightonml.internal.simulated_device import SimulatedOpuDevice
+
+from pycle.sketching import get_sketch_Omega_xi_from_aggregation
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 from pycle.sketching.feature_maps.OPUFeatureMap import calibrate_lin_op, OPUFeatureMap
 from pycle.utils import enc_dec_fct
@@ -70,6 +72,100 @@ def test_unsplitted(my_dim, X):
 
         z = pycle.sketching.computeSketch(X, MFM)
         print(z.shape)
+
+def test_MatrixFeatureMap_retrieve_sketch_and_all(my_dim, X):
+    sampling_method = "ARKM"
+    sketch_dim = my_dim * 2
+    nb_sigmas = 3
+    base_Sigma = np.array([np.abs(np.random.randn(1)) for _ in range(nb_sigmas)]).flatten()
+    seed = 0
+    r_seeds = [0, 1, 2, 3, 4, 5]
+
+    xi = torch.rand(sketch_dim*nb_sigmas*len(r_seeds))
+    xi *= np.pi * 2
+    # base omega
+    sig, directions, R = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim,
+                                                                                             sketch_dim, base_Sigma,
+                                                                                             seed=seed,
+                                                                                             keep_splitted=True,
+                                                                                             return_torch=True,
+                                                                                             R_seeds=r_seeds)
+    lst_omega = (sig, directions, R)
+    MFM = MatrixFeatureMap(f="ComplexExponential", Omega=lst_omega, xi=xi, use_torch=True)
+    # input_mat = np.random.randn(nb_input, my_dim)
+    # input_mat = torch.Tensor(input_mat)
+    # mfm_output = MFM(input_mat)
+    aggregated_sketch = pycle.sketching.computeSketch(X, MFM)  # sketch 1
+
+    # sketch with only one sigma and R
+    indice_sigma = 2
+    assert nb_sigmas > indice_sigma
+    indice_R = 3
+    assert indice_R < len(r_seeds)
+    my_sigma = sig[indice_sigma]
+    my_R_seed = r_seeds[indice_R]
+    my_R = R[:, indice_R]
+
+    begin_R = sketch_dim*nb_sigmas*indice_R
+    end_R = sketch_dim*nb_sigmas*(indice_R+1)
+    part_of_aggregated_sketch = aggregated_sketch[begin_R:end_R]
+    my_xi = xi[begin_R:end_R]
+    begin_sig = sketch_dim*indice_sigma
+    end_sig = sketch_dim*(indice_sigma+1)
+    part_of_aggregated_sketch = part_of_aggregated_sketch[begin_sig:end_sig]  # sketch 3
+    my_xi = my_xi[begin_sig:end_sig]
+
+    MFM = MatrixFeatureMap(f="ComplexExponential", Omega=(my_sigma, directions, my_R), xi=my_xi, use_torch=True)
+    localized_sketch = pycle.sketching.computeSketch(X, MFM)  # sketch 2
+
+    assert localized_sketch.size() == part_of_aggregated_sketch.size()
+    equality = torch.isclose(localized_sketch, part_of_aggregated_sketch)
+    assert equality.all()
+
+    part_of_aggregated_sketch_fct, (needed_sigma_fct, directions_fct, needed_R_fct), aggregated_xi_fct = \
+        get_sketch_Omega_xi_from_aggregation(aggregated_sketch=aggregated_sketch.numpy(),
+                                             aggregated_sigmas=sig.numpy(),
+                                             directions=directions.numpy(),
+                                             aggregated_R=R.numpy(),
+                                             aggregated_xi=xi.numpy(),
+                                             Omega=None,
+                                             R_seeds=r_seeds,
+                                             needed_sigma=my_sigma,
+                                             needed_seed=my_R_seed,
+                                             keep_all_sigmas=False,
+                                             use_torch=True)  # sketch 3 bis
+
+    assert localized_sketch.size() == part_of_aggregated_sketch_fct.size()
+    equality = torch.isclose(localized_sketch, part_of_aggregated_sketch_fct)
+    assert equality.all()
+
+    assert torch.isclose(directions_fct, directions).all()
+    assert torch.isclose(needed_sigma_fct, torch.Tensor([my_sigma])).all()
+    assert torch.isclose(needed_R_fct, my_R).all()
+
+    MFM = MatrixFeatureMap(f="ComplexExponential", Omega=(needed_sigma_fct, directions_fct, needed_R_fct), xi=aggregated_xi_fct, use_torch=True)
+    localized_sketch = pycle.sketching.computeSketch(X, MFM)  # sketch 2
+
+    assert torch.isclose(part_of_aggregated_sketch_fct, localized_sketch).all()
+
+    part_of_aggregated_sketch_fct, (needed_sigma_fct, directions_fct, needed_R_fct), aggregated_xi_fct = \
+        get_sketch_Omega_xi_from_aggregation(aggregated_sketch=aggregated_sketch.numpy(),
+                                             aggregated_sigmas=sig.numpy(),
+                                             directions=directions.numpy(),
+                                             aggregated_R=R.numpy(),
+                                             aggregated_xi=xi.numpy(),
+                                             Omega=None,
+                                             R_seeds=r_seeds,
+                                             needed_sigma=sig.numpy(),
+                                             needed_seed=my_R_seed,
+                                             keep_all_sigmas=True,
+                                             use_torch=True)
+
+    begin_R = sketch_dim * nb_sigmas * indice_R
+    end_R = sketch_dim * nb_sigmas * (indice_R + 1)
+    part_of_aggregated_sketch = aggregated_sketch[begin_R:end_R]
+    assert torch.isclose(part_of_aggregated_sketch_fct, part_of_aggregated_sketch).all()
+
 
 def test_MatrixFeatureMap_multi_sigma_multi_R(my_dim, X):
     for use_torch in [True]:

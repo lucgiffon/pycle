@@ -9,6 +9,7 @@ import torch
 
 import pycle
 from pycle.sketching import MatrixFeatureMap
+from pycle.utils import is_number
 
 
 def drawDithering(m, bounds=None):
@@ -28,7 +29,7 @@ def drawFrequencies_Gaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None, ke
 
     if keep_splitted:
         directions = randn_mat_0_1 or np.random.RandomState(seed).randn(d, m)
-        if isinstance(Sigma, numbers.Number):
+        if is_number(Sigma):
             Sigma = np.array([Sigma])
         return np.linalg.inv(Sigma), directions, np.linalg.norm(directions, axis=1)
     else:
@@ -36,7 +37,8 @@ def drawFrequencies_Gaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None, ke
             Om = np.random.RandomState(seed).multivariate_normal(np.zeros(d), np.linalg.inv(Sigma), m).T  # inverse of sigma
         else:
             assert randn_mat_0_1.shape == (d, m)
-            if isinstance(Sigma, numbers.Number):
+
+            if is_number(Sigma):
                 Om = 1./Sigma * randn_mat_0_1
             else:
                 Om = np.linalg.inv(Sigma) @ randn_mat_0_1
@@ -65,7 +67,7 @@ def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=No
 
     phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
 
-    if isinstance(Sigma, numbers.Number) :
+    if is_number(Sigma):
         SigFact = np.array([1./ np.sqrt(Sigma)])
     elif (isinstance(Sigma, np.ndarray) and Sigma.ndim == 1):
         SigFact = 1. / np.sqrt(Sigma)
@@ -75,7 +77,7 @@ def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=No
     if keep_splitted:
         return SigFact, phi, R.T
     else:
-        if isinstance(Sigma, numbers.Number):
+        if is_number(Sigma):
             Om = SigFact * phi * R
         else:
             Om = SigFact @ phi * R
@@ -130,7 +132,7 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
         phi = randn_mat_0_1
     phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
 
-    if isinstance(Sigma, numbers.Number) :
+    if is_number(Sigma):
         SigFact = np.array([1./ np.sqrt(Sigma)])
     elif (isinstance(Sigma, np.ndarray) and Sigma.ndim == 1):
         SigFact = 1. / np.sqrt(Sigma)
@@ -140,7 +142,7 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
     if keep_splitted:
         return SigFact, phi, R.T
     else:
-        if isinstance(Sigma, numbers.Number):
+        if is_number(Sigma):
             Om = SigFact * phi * R
         else:
             Om = SigFact @ phi * R
@@ -287,10 +289,10 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
     else:
         Sigma = Sigma
 
-    assert (isinstance(Sigma, numbers.Number) or Sigma.ndim != 1) or keep_splitted == True
+    assert (is_number(Sigma) or Sigma.ndim != 1) or keep_splitted == True
 
     # Handle
-    if isinstance(Sigma, np.ndarray) or isinstance(Sigma, numbers.Number):
+    if isinstance(Sigma, np.ndarray) or is_number(Sigma):
         Omega = drawFunc(d, m, Sigma)
 
     # Handle mixture-type input
