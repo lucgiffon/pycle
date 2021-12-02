@@ -1,7 +1,8 @@
 import numpy as np
-import numbers
 import torch
-from pycle.utils import enc_dec_fct, LinearFunctionEncDec, MultiSigmaARFrequencyMatrixLinApEncDec, is_number
+
+from pycle.sketching.frequency_sampling import rebuild_Omega_from_sig_dir_R
+from pycle.utils import LinearFunctionEncDec, MultiSigmaARFrequencyMatrixLinApEncDec, is_number
 
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 
@@ -10,17 +11,16 @@ from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 class MatrixFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(Omega^T*x + xi)."""
 
-    def __init__(self, f, Omega, use_torch=False, **kwargs):
+    def __init__(self, f, Omega, use_torch=False, device=None, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
-
         if type(Omega) == tuple or type(Omega) == list:
             self.splitted_Omega = True
             # (sigma, directions, amplitudes)
-            self.SigFact = Omega[0]
+            self.SigFact = Omega[0].to(device)
             # self.bool_multiple_sigmas = (isinstance(self.SigFact, np.ndarray) or isinstance(self.SigFact, torch.Tensor)) and self.SigFact.ndim == 1 and len(self.SigFact) > 1
             # assert self.bool_sigfact_a_matrix or isinstance(self.SigFact, numbers.Number) or len(self.SigFact) == 1
-            self.directions = Omega[1]
-            self.R = Omega[2]
+            self.directions = Omega[1].to(device)
+            self.R = Omega[2].to(device)
             if self.R.ndim == 1:
                 try:
                     self.R = self.R.unsqueeze(-1)
@@ -30,16 +30,16 @@ class MatrixFeatureMap(FeatureMap):
             assert self.R.shape[0] == self.directions.shape[1]
             if is_number(self.SigFact):
                 if use_torch:
-                    self.SigFact = torch.Tensor([self.SigFact])
+                    self.SigFact = torch.Tensor([self.SigFact]).to(device)
                 else:
                     self.SigFact = np.array([self.SigFact])
 
             self.bool_sigfact_a_matrix = self.SigFact.ndim > 1
         else:
-            self._Omega = Omega
+            self._Omega = Omega.to(device)
             self.splitted_Omega = False
 
-        super().__init__(f, dtype=self.Omega_dtype, use_torch=use_torch, **kwargs)
+        super().__init__(f, dtype=self.Omega_dtype, use_torch=use_torch, device=device, **kwargs)
 
 
 
@@ -53,15 +53,17 @@ class MatrixFeatureMap(FeatureMap):
     @property
     def Omega(self):
         if self.splitted_Omega:
-            raise ValueError(" Property Omega shouldn't be used when Omega is splitted"
-                             " because it involves to reconstruct the full matrix which makes"
-                             " splitting Omega useless.")
+            # raise ValueError(" Property Omega shouldn't be used when Omega is splitted"
+            #                  " because it involves to reconstruct the full matrix which makes"
+            #                  " splitting Omega useless.")
             if self.bool_sigfact_a_matrix:
                 return self.SigFact @ self.directions * self.R
-            elif self.bool_multiple_sigmas:
-                dr = self.directions * self.R
-                r = self.module_math_functions.einsum("ij,jkl->kil", self.SigFact[:, self.module_math_functions.newaxis], dr[self.module_math_functions.newaxis])
-                return r.reshape(self.d, self.m)
+            elif not is_number(self.SigFact):
+                # dr = self.directions * self.R
+                return rebuild_Omega_from_sig_dir_R(self.SigFact, self.directions, self.R, self.module_math_functions)
+                # dr = self.module_math_functions.einsum("ij,jk->ikj", self.directions, self.R)
+                # r = self.module_math_functions.einsum("l,ikj->iklj", self.SigFact, dr)
+                # return r.reshape(self.d, self.m)
             else:
                 return self.SigFact * self.directions * self.R
         else:
@@ -71,7 +73,6 @@ class MatrixFeatureMap(FeatureMap):
         assert self.splitted_Omega == True
         self._Omega = self.Omega
         self.splitted_Omega = False
-
         del self.SigFact
         del self.directions
         del self.R

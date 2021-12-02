@@ -43,9 +43,9 @@ class FeatureMap(ABC):
 
         # 3) extract the dithering
         if xi is None:
-            self.xi = self.module_math_functions.zeros(self._m)
+            self.xi = self.module_math_functions.zeros(self._m).to(self.device)
         else:
-            self.xi = xi
+            self.xi = xi.to(self.device)
 
         # 4) extract the normalization constant
         if isinstance(c_norm, str):

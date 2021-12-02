@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 import torch
 
 import pycle
-from pycle.sketching import MatrixFeatureMap
+# from pycle.sketching import MatrixFeatureMap
 from pycle.utils import is_number
 
 
@@ -124,10 +124,10 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
     for R_seed in R_seeds:
         # Sample the radii
         lst_R.append(sampleFromPDF(pdfAdaptedRadius(r, KMeans), r, nsamples=m, seed=R_seed))
-    R = np.squeeze(np.array(lst_R))
+    R = np.array(lst_R)
 
     if randn_mat_0_1 is None:
-        phi = np.random.randn(d, m)
+        phi = np.random.RandomState(seed).randn(d, m)
     else:
         phi = randn_mat_0_1
     phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
@@ -140,12 +140,17 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
         SigFact = np.linalg.inv(np.linalg.cholesky(Sigma))
 
     if keep_splitted:
-        return SigFact, phi, R.T
+        return SigFact, phi, np.squeeze(R.T)
     else:
-        if is_number(Sigma):
-            Om = SigFact * phi * R
-        else:
-            Om = SigFact @ phi * R
+        # Om = np.einsum("ij,jk->ijk", phi, R.T)
+        # Om = Om.reshape((Om.shape[0], -1))
+        # if is_number(Sigma):
+        #     Om = SigFact * Om
+        # else:
+        #     # todo wont work with multiple sigmas
+        #     Om = SigFact @ Om
+        # Om = Om.reshape((Om.shape[0], -1))
+        Om = rebuild_Omega_from_sig_dir_R(SigFact, phi, R.T, math_module=np)
         return Om
 
 
@@ -289,7 +294,6 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
     else:
         Sigma = Sigma
 
-    assert (is_number(Sigma) or Sigma.ndim != 1) or keep_splitted == True
 
     # Handle
     if isinstance(Sigma, np.ndarray) or is_number(Sigma):
@@ -409,22 +413,27 @@ def choose(base_sketch, max_nb_freq, strategy="in-boundaries", threshold=0.01):
         selected_indices = (torch.ones(len(accepted_indices)) / len(accepted_indices)).multinomial(num_samples=max_nb_freq, replacement=False)
         indices_ok = accepted_indices[selected_indices]
         return indices_ok
+#
+# def overproduce_and_choose(dim, X, overproduce_factor, final_sketch_size):
+#     max_number_frequencies = final_sketch_size
+#
+#     Omega, xi = overproduce(dim, max_number_frequencies, overproduce_factor)
+#     Phi_emp = MatrixFeatureMap("ComplexExponential", Omega, c_norm=1., xi=xi, use_torch=True, device=torch.device("cpu"))
+#     too_big_of_a_z = pycle.sketching.computeSketch(X, Phi_emp)
+#     indices_to_keep = choose(too_big_of_a_z, max_number_frequencies, strategy="in-boundaries", threshold=0.01)
+#     Phi_emp = MatrixFeatureMap("ComplexExponential", Omega[:, indices_to_keep], c_norm=1., xi=xi[indices_to_keep], use_torch=True,
+#                                device=torch.device("cpu"))
+#     z = pycle.sketching.computeSketch(X, Phi_emp)
+#     z_kept = too_big_of_a_z[indices_to_keep]
+#     assert torch.isclose(z, z_kept).all()
+#
+#     return Phi_emp
 
-def overproduce_and_choose(dim, X, overproduce_factor, final_sketch_size):
-    max_number_frequencies = final_sketch_size
 
-    Omega, xi = overproduce(dim, max_number_frequencies, overproduce_factor)
-    Phi_emp = MatrixFeatureMap("ComplexExponential", Omega, c_norm=1., xi=xi, use_torch=True, device=torch.device("cpu"))
-    too_big_of_a_z = pycle.sketching.computeSketch(X, Phi_emp)
-    indices_to_keep = choose(too_big_of_a_z, max_number_frequencies, strategy="in-boundaries", threshold=0.01)
-    Phi_emp = MatrixFeatureMap("ComplexExponential", Omega[:, indices_to_keep], c_norm=1., xi=xi[indices_to_keep], use_torch=True,
-                               device=torch.device("cpu"))
-    z = pycle.sketching.computeSketch(X, Phi_emp)
-    z_kept = too_big_of_a_z[indices_to_keep]
-    assert torch.isclose(z, z_kept).all()
-
-    return Phi_emp
-
+def rebuild_Omega_from_sig_dir_R(sig, dir, R, math_module=torch):
+    dr = math_module.einsum("ij,jk->ikj", dir, R)
+    r = math_module.einsum("l,ikj->iklj", sig, dr)
+    return r.reshape((dir.shape[0], -1))
 
 if __name__ == "__main__":
     om = multi_scale_frequency_sampling(10, 20, -4, 0, 5, "arkm")

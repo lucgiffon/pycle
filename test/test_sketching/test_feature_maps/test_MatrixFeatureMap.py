@@ -49,29 +49,50 @@ def X(my_dim):
 
     return X
 
-def test_unsplitted(my_dim, X):
+def test_split_unsplit(my_dim, X):
     sampling_method = "ARKM"
     sketch_dim = my_dim * 2
-    Sigma = 0.187
+    Sigma = np.array([0.187, 0.36743])
     nb_input = 4
     seed = 0
-    for use_torch in [True]:
+    use_torch = True
+    # r_seeds = [0]
+    r_seeds = [0, 1]
+
+    def build_mfm(splitted):
         Omega = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim,
-                                                                                             sketch_dim, Sigma,
-                                                                                             seed=seed,
-                                                                                             keep_splitted=False,
-                                                                                             return_torch=use_torch)
-
-
+                                                                   sketch_dim, Sigma,
+                                                                   seed=seed,
+                                                                   keep_splitted=splitted,
+                                                                   return_torch=use_torch,
+                                                                   R_seeds=r_seeds)
 
         MFM = MatrixFeatureMap(f="ComplexExponential", Omega=Omega, use_torch=use_torch)
+        return MFM
 
-        input_mat = np.random.randn(nb_input, my_dim)
-        input_mat = torch.Tensor(input_mat)
-        mfm_output = MFM(input_mat)
+    input_mat = np.random.randn(nb_input, my_dim)
+    input_mat = torch.Tensor(input_mat)
 
-        z = pycle.sketching.computeSketch(X, MFM)
-        print(z.shape)
+    MFM = build_mfm(splitted=False)
+    mfm_output1 = MFM(input_mat)
+    z1 = pycle.sketching.computeSketch(X, MFM)
+
+    MFM2 = build_mfm(splitted=True)
+    mfm_output2 = MFM2(input_mat)
+    z2 = pycle.sketching.computeSketch(X, MFM2)
+
+    assert torch.isclose(z1, z2).all()
+    assert torch.isclose(mfm_output1, mfm_output2).all()
+
+    MFM2.unsplit()
+    mfm_output3 = MFM2(input_mat)
+    z3 = pycle.sketching.computeSketch(X, MFM2)
+
+    assert np.isclose(z1, z3).all()
+    assert np.isclose(mfm_output1, mfm_output3).all()
+
+    assert torch.isclose(MFM2.Omega, MFM.Omega).all()
+
 
 def test_MatrixFeatureMap_retrieve_sketch_and_all(my_dim, X):
     sampling_method = "ARKM"

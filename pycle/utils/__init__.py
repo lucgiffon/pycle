@@ -161,7 +161,6 @@ class LinearFunctionEncDec(Function):
             x_enc = decoder.transform(x_enc)
 
         # if ever using the opu here: careful with the type of x_enc and y_dec
-
         y_dec = x_enc.to(weight.dtype).mm(weight)
 
         if not quantif and enc_dec:

@@ -32,7 +32,7 @@ def calibrate_lin_op(fct_lin_op, dim):
 
 
 class OPUDistributionEstimator:
-    def __init__(self, opu, input_dim, compute_calibration=False, use_calibration_transform=False, encoding_decoding_precision=8, use_torch=False):
+    def __init__(self, opu, input_dim, compute_calibration=False, use_calibration_transform=False, encoding_decoding_precision=8, use_torch=False, device=None):
         """
 
         :param opu:
@@ -42,6 +42,7 @@ class OPUDistributionEstimator:
         self.opu = opu
         self.d = input_dim
         self.m = self.opu.n_components
+        self.device = device
 
         self.use_torch = use_torch
         if use_torch:
@@ -53,7 +54,7 @@ class OPUDistributionEstimator:
         self.compute_calibration = compute_calibration
         assert use_calibration_transform is False or compute_calibration is True
         if self.compute_calibration:
-            self.FHB = self.calibrate_opu()
+            self.FHB = self.calibrate_opu().to(self.device)
         else:
             self.FHB = None
 
@@ -151,36 +152,37 @@ class OPUDistributionEstimator:
 class OPUFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
 
-    def __init__(self, f, opu, SigFact, R, dimension=None, calibration_param_estimation=False, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, **kwargs):
+    def __init__(self, f, opu, SigFact, R, dimension=None, calibration_param_estimation=False, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, device=None, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         # todoopu initialiser l'opu
         self.opu = opu
         self.provided_dimension = dimension
 
-        self.SigFact = SigFact
+        self.SigFact = SigFact.to(device)
         self.bool_sigfact_a_matrix = (isinstance(self.SigFact, torch.Tensor) or isinstance(self.SigFact, np.ndarray)) and self.SigFact.ndim > 1
-
         # self.bool_multiple_sigmas = (isinstance(self.SigFact, torch.Tensor) or isinstance(self.SigFact, np.ndarray)) and self.SigFact.ndim == 1
         self._Omega = None
-        self.R = R
+        self.R = R.to(device)
         if self.R.ndim == 1:
             try:
                 self.R = self.R.unsqueeze(-1)
             except:
                 self.R = self.R[:, np.newaxis]
 
-        super().__init__(f, dtype=self.Omega_dtype, **kwargs)
+        super().__init__(f, dtype=self.Omega_dtype, device=device, **kwargs)
+
         assert self.R.shape[0] == self.opu.n_components
         if is_number(self.SigFact):
             if self.use_torch:
-                self.SigFact = torch.Tensor([self.SigFact])
+                self.SigFact = torch.Tensor([self.SigFact]).to(self.device)
             else:
                 self.SigFact = np.array([self.SigFact])
 
         self.light_memory = (not (calibration_param_estimation or calibration_forward or calibration_backward)) and (not calibrate_always)
         self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory),
                                                                use_calibration_transform=calibration_param_estimation,
-                                                               encoding_decoding_precision=self.encoding_decoding_precision, use_torch=self.use_torch)
+                                                               encoding_decoding_precision=self.encoding_decoding_precision, use_torch=self.use_torch,
+                                                               device=self.device)
         self.calibration_param_estimation = calibration_param_estimation
         self.switch_use_calibration_forward = calibration_forward  # if True, use the calibrated OPU (the implicit matrix of the OPU) for the forward multiplication
         self.switch_use_calibration_backward = calibration_backward  # same, but for the gradient (backward) computation
@@ -192,18 +194,18 @@ class OPUFeatureMap(FeatureMap):
 
     def get_distribution_opu(self):
         if self.calibration_param_estimation:
-            mu = self.distribution_estimator.mu_estimation(method="mean")
-            std = np.sqrt(self.distribution_estimator.var_estimation(method="var"))
+            mu = self.distribution_estimator.mu_estimation(method="mean").to(self.device)
+            std = np.sqrt(self.distribution_estimator.var_estimation(method="var")).to(self.device)
             # multiplied by 1/std because we want the norm of the matrix
             # whose coefficients are sampled in N(0,1)
-            col_norm = self.module_math_functions.linalg.norm(self.distribution_estimator.FHB * 1./std, axis=0)
+            col_norm = self.module_math_functions.linalg.norm(self.distribution_estimator.FHB * 1./std, axis=0).to(self.device)
             col_norm[self.module_math_functions.where(col_norm == 0)] = np.inf
 
         else:
             # todo choisir le n_iter dynamiquement et utiliser une autre methode que "ones"
-            mu = self.distribution_estimator.mu_estimation(method="ones")
-            std = np.sqrt(self.distribution_estimator.var_estimation(method="ones"))
-            col_norm = np.sqrt(self.d) * self.module_math_functions.ones(self.opu.n_components)
+            mu = self.distribution_estimator.mu_estimation(method="ones").to(self.device)
+            std = np.sqrt(self.distribution_estimator.var_estimation(method="ones")).to(self.device)
+            col_norm = np.sqrt(self.d) * self.module_math_functions.ones(self.opu.n_components).to(self.device)
 
         return mu, std, col_norm
 
@@ -222,7 +224,6 @@ class OPUFeatureMap(FeatureMap):
     def Omega_dtype(self):
         promote_types = self.module_math_functions.promote_types
         return promote_types(self.R.dtype, self.SigFact.dtype)
-
 
     def set_use_calibration_forward(self, boolean):
         if boolean is True and self.light_memory is True:
@@ -268,7 +269,7 @@ class OPUFeatureMap(FeatureMap):
     def directions_matrix(self):
         r = self.get_randn_mat() * 1. / self.norm_scaling
         if self.use_torch:
-            r = r.to(self.dtype)
+            r = r.to(self.dtype).to(self.device)
         return r
         # return (self.calibrated_matrix * 1. / self.std_opu * 1. / self.norm_scaling)
 
@@ -300,7 +301,7 @@ class OPUFeatureMap(FeatureMap):
         if not self.bool_sigfact_a_matrix:
             y_dec = self.module_math_functions.einsum("ijk,h->ikhj", y_dec, self.SigFact)
             y_dec = y_dec.reshape((x.shape[0], self.m))
-            # if self.bool_multiple_sigmas: # todo rendre "multiple sigmas caduc pour toujours fonctionner avec 1 ou plusieurs sigmas
+
         out = y_dec
         return out
 

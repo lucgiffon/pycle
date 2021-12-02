@@ -56,7 +56,7 @@ def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=100):
     nb_batches = int(np.ceil(n / batch_size))
 
     if use_torch:
-        sketch = torch.zeros(m)
+        sketch = torch.zeros(m).to(featureMap.device)
         sum_arg = {"dim": 0}
     else:
         sketch = np.zeros(m)
