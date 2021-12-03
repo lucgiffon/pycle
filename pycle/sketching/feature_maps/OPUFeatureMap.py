@@ -153,7 +153,7 @@ class OPUDistributionEstimator:
 class OPUFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
 
-    def __init__(self, f, opu, SigFact, R, dimension=None, calibration_param_estimation=False, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, device=None, **kwargs):
+    def __init__(self, f, opu, SigFact, R, dimension=None, calibration_param_estimation=None, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, device=None, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         # todoopu initialiser l'opu
         self.opu = opu
@@ -180,6 +180,10 @@ class OPUFeatureMap(FeatureMap):
                 self.SigFact = np.array([self.SigFact])
 
         self.light_memory = (not (calibration_param_estimation or calibration_forward or calibration_backward)) and (not calibrate_always)
+        if calibration_param_estimation is None and not self.light_memory:
+            calibration_param_estimation = True
+        else:
+            calibration_param_estimation = False
         self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory),
                                                                use_calibration_transform=calibration_param_estimation,
                                                                encoding_decoding_precision=self.encoding_decoding_precision, use_torch=self.use_torch,
@@ -204,8 +208,8 @@ class OPUFeatureMap(FeatureMap):
 
         else:
             # todo choisir le n_iter dynamiquement et utiliser une autre methode que "ones"
-            mu = self.distribution_estimator.mu_estimation(method="ones").to(self.device)
-            std = np.sqrt(self.distribution_estimator.var_estimation(method="ones")).to(self.device)
+            mu = torch.from_numpy(self.distribution_estimator.mu_estimation(method="ones")).to(self.device)
+            std = torch.from_numpy(np.sqrt(self.distribution_estimator.var_estimation(method="ones"))).to(self.device)
             col_norm = np.sqrt(self.d) * self.module_math_functions.ones(self.opu.n_components).to(self.device)
 
         return mu, std, col_norm
