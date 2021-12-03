@@ -15,6 +15,7 @@ from fht import fht
 
 
 def calibrate_lin_op(fct_lin_op, dim):
+    # todo make torch compatible
     first_pow_of_2_gt_d = 2 ** int(np.ceil(np.log2(dim)))
     H = hadamard(first_pow_of_2_gt_d)
     H_truncated_left = H[:dim, :dim]
