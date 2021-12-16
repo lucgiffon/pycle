@@ -183,7 +183,7 @@ class OPUFeatureMap(FeatureMap):
         if calibration_param_estimation is None and not self.light_memory:
             calibration_param_estimation = True
         else:
-            calibration_param_estimation = False
+            calibration_param_estimation = calibration_param_estimation
         self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory),
                                                                use_calibration_transform=calibration_param_estimation,
                                                                encoding_decoding_precision=self.encoding_decoding_precision, use_torch=self.use_torch,
@@ -253,9 +253,9 @@ class OPUFeatureMap(FeatureMap):
             # if self.light_memory:
             if self.use_torch:
                 if x.ndim == 1:
-                    return OPUFunctionEncDec.apply(x.unsqueeze(0), self.opu.linear_transform, self.calibrated_matrix,  self.encoding_decoding_precision).squeeze(0)
+                    return OPUFunctionEncDec.apply(x.unsqueeze(0).cpu(), self.opu.linear_transform, self.calibrated_matrix,  self.encoding_decoding_precision).squeeze(0).to(self.device)
                 else:
-                    return OPUFunctionEncDec.apply(x, self.opu.linear_transform, self.calibrated_matrix, self.encoding_decoding_precision)
+                    return OPUFunctionEncDec.apply(x.cpu(), self.opu.linear_transform, self.calibrated_matrix, self.encoding_decoding_precision).to(self.device)
             else:
                 return self.wrap_transform(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision)()
 
@@ -303,6 +303,7 @@ class OPUFeatureMap(FeatureMap):
             y_dec = (y_dec * 1./self.std_opu * 1./self.norm_scaling).unsqueeze(-1) * self.R
         else:
             y_dec = (y_dec * 1. / self.std_opu * 1. / self.norm_scaling)[..., np.newaxis] * self.R
+
         if not self.bool_sigfact_a_matrix:
             y_dec = self.module_math_functions.einsum("ijk,h->ikhj", y_dec, self.SigFact)
             y_dec = y_dec.reshape((x.shape[0], self.m))

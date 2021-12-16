@@ -1,12 +1,13 @@
 import numpy as np
 import scipy.stats
-
+from scipy.sparse import diags
+from scipy.stats import multivariate_normal
 
 ############################
 # DATASET GENERATION TOOLS #
 ############################
 
-def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, normalize=None, grid_aligned=True, seed=None, **generation_params):
+def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, normalize=None, grid_aligned=True, seed=None, no_covariances=False, **generation_params):
     """
     Generate a synthetic dataset according to a Gaussian Mixture Model distribution.
 
@@ -15,6 +16,7 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
     d: int, the dataset dimension
     K: int, the number of Gaussian modes
     n: int, the number of elements in the dataset (cardinality)
+    no_covariances: bool, store and return the covariances (usefull to set True if the dataset has udge dimension)
     output_required: string (default='dataset'), specifies the required outputs (see below). Available options:
        - 'dataset': returns X, the dataset;
        - 'GMM': returns (X,GMM), where GMM = (weigths,means,covariances) is a tuple describing the generating mixture;
@@ -86,7 +88,10 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
     # Pre-allocate memory
     X = np.empty((n,d))
     means = np.empty((K,d))
-    covariances = np.empty((K,d,d))
+    if no_covariances:
+        covariances = None
+    else:
+        covariances = np.empty((K,d,d))
 
     # Loop over the modes and generate each Gaussian
     for k in range(K):
@@ -106,7 +111,13 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
         scale_variance_this_mode = 10**(random_state.uniform(0,_gen_params['covariance_variability_inter']))
         scale_variance_this_mode *= _gen_params['all_covariance_scaling'] # take into account global scaling
         unscaled_variances_this_mode = 10**(random_state.uniform(0,_gen_params['covariance_variability_intra'],d))
-        Sigma_this_mode = scale_variance_this_mode*np.diag(unscaled_variances_this_mode)
+        if no_covariances:
+            # this should be equivalent but I did not want to make all the tests.
+            # Sigma_this_mode = scale_variance_this_mode*unscaled_variances_this_mode
+            Sigma_this_mode = scale_variance_this_mode*diags(unscaled_variances_this_mode)
+        else:
+            Sigma_this_mode = scale_variance_this_mode*np.diag(unscaled_variances_this_mode)
+
 
         # Rotate if necessary
         # (https://math.stackexchange.com/questions/442418/random-generation-of-rotation-matrices)
@@ -116,7 +127,8 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
 
         # Save the mean and covariance
         means[k] = mu_this_mode
-        covariances[k] = Sigma_this_mode
+        if not no_covariances:
+            covariances[k] = Sigma_this_mode
 
         # Get the indices we have to fill
         indices_for_this_mode = np.where(y == k)[0]
@@ -124,9 +136,12 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
 
         # Fill the dataset with samples drawn from the current mode
 
-        X[indices_for_this_mode] = random_state.multivariate_normal(mu_this_mode, Sigma_this_mode, nb_samples_in_this_mode)
+        # X[indices_for_this_mode] = random_state.multivariate_normal(mu_this_mode, Sigma_this_mode, nb_samples_in_this_mode)
+        # X[indices_for_this_mode] = (random_state.randn(nb_samples_in_this_mode, d) + mu_this_mode) @ np.sqrt(Sigma_this_mode)
+        # X[indices_for_this_mode] = scipy.stats.multivariate_normal(mean=mu_this_mode, cov=Sigma_this_mode).rvs(size=nb_samples_in_this_mode, random_state=random_state)
+        X[indices_for_this_mode] = (random_state.randn(nb_samples_in_this_mode, d) @ np.sqrt(Sigma_this_mode)) + mu_this_mode
 
-
+        # X[indices_for_this_mode] = X[indices_for_this_mode] @ np.sqrt(Sigma_this_mode)
     ## STEP 4: If needed, normalize the dataset
     if normalize is not None:
         if normalize in ['l_2-unit-ball']:
@@ -138,7 +153,8 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
         # Normalize by maxNorm
         X /= maxNorm
         means /= maxNorm
-        covariances /= maxNorm**2
+        if not no_covariances:
+            covariances /= maxNorm**2
 
     ## STEP 5: output
     if output_required == 'dataset':

@@ -19,6 +19,21 @@ def SSE(X,C):
     return np.min(distances,axis=1).sum()
 
 
+def indicator_vector(X,C):
+    """Computes the indicator vector giving labels of the closest c in C to every x in X
+
+    Arguments:
+        - X: (n,d)-numpy array, the dataset of n examples in dimension d
+        - C: (K,d)-numpy array, the K centroids in dimension d
+
+    Returns:
+        - indicator vector: (n)-array of the indices in C
+    """
+    distances = scipy.spatial.distance.cdist(X, C, 'sqeuclidean')
+
+    return np.argmin(distances, axis=1)
+
+
 def loglikelihood_GMM(P,X,robust = True):
     """Computes the loglikelihood of GMM model P on data X, defined as follows:
         loglikelihood = (1/n) * sum_{i=1..n} log(sum_{k=1..K} (w_k)*N(x_i ; mu_k, Sigma_k) )
