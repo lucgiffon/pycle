@@ -109,6 +109,14 @@ def pdfAdaptedRadius(r, KMeans=False):
     else:
         return np.sqrt(r ** 2 + (r ** 4) / 4) * np.exp(-(r ** 2) / 2)
 
+def draw_radii(m, R_seeds, KMeans):
+    r = np.linspace(0, 5, 2001)
+    lst_R = []
+    for R_seed in R_seeds:
+        # Sample the radii
+        lst_R.append(sampleFromPDF(pdfAdaptedRadius(r, KMeans), r, nsamples=m, seed=R_seed))
+    R = np.array(lst_R)
+    return R
 
 def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=None, seed=None, keep_splitted=False, R_seeds=None):
     """draws frequencies according to some sampling pattern
@@ -119,12 +127,7 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
     if R_seeds is None:
         R_seeds = [seed]
 
-    r = np.linspace(0, 5, 2001)
-    lst_R = []
-    for R_seed in R_seeds:
-        # Sample the radii
-        lst_R.append(sampleFromPDF(pdfAdaptedRadius(r, KMeans), r, nsamples=m, seed=R_seed))
-    R = np.array(lst_R)
+    R = draw_radii(m, R_seeds, KMeans)
 
     if randn_mat_0_1 is None:
         phi = np.random.RandomState(seed).randn(d, m)
@@ -142,14 +145,7 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
     if keep_splitted:
         return SigFact, phi, np.squeeze(R.T)
     else:
-        # Om = np.einsum("ij,jk->ijk", phi, R.T)
-        # Om = Om.reshape((Om.shape[0], -1))
-        # if is_number(Sigma):
-        #     Om = SigFact * Om
-        # else:
-        #     # todo wont work with multiple sigmas
-        #     Om = SigFact @ Om
-        # Om = Om.reshape((Om.shape[0], -1))
+
         Om = rebuild_Omega_from_sig_dir_R(SigFact, phi, R.T, math_module=np)
         return Om
 
