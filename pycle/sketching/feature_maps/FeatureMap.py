@@ -44,8 +44,10 @@ class FeatureMap(ABC):
         # 3) extract the dithering
         if xi is None:
             self.xi = self.module_math_functions.zeros(self._m).to(self.device)
+            self.xi_all_zeros = True
         else:
             self.xi = xi.to(self.device)
+            self.xi_all_zeros = all(self.xi == 0)
 
         # 4) extract the normalization constant
         if isinstance(c_norm, str):
@@ -86,8 +88,17 @@ class FeatureMap(ABC):
         pass
 
     def call(self, x):
-        # todo make conditions so that self.c_norm and xi are not used if they have no effect
-        return self.c_norm * self.f(self.lin_op_transform(x) + self.xi)  # Evaluate the feature map at x
+
+        if not self.xi_all_zeros:
+            before_norm = self.f(self.lin_op_transform(x) + self.xi)
+        else:
+            before_norm = self.f(self.lin_op_transform(x))
+
+        if self.c_norm == 1.:
+            return before_norm
+        else:
+            return self.c_norm * before_norm
+
 
     def __call__(self, x):
         self.account_call(x)
