@@ -278,6 +278,9 @@ class OPUFeatureMap(FeatureMap):
         return r
         # return (self.calibrated_matrix * 1. / self.std_opu * 1. / self.norm_scaling)
 
+    def lin_op_transform(self, x):
+        return self.applyOPU(x)
+
     def applyOPU(self, x):
         if x.ndim == 1:
             x = x.reshape(1, -1)
@@ -310,11 +313,6 @@ class OPUFeatureMap(FeatureMap):
 
         out = y_dec
         return out
-
-    # call the FeatureMap object as a function
-    def call(self, x):
-        # return self.c_norm*self.f(np.matmul(self.Omega.T,x.T).T + self.xi) # Evaluate the feature map at x
-        return self.c_norm * self.f(self.applyOPU(x) + self.xi)  # Evaluate the feature map at x
 
     @property
     def Omega(self):

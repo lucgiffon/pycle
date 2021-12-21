@@ -110,15 +110,8 @@ class MatrixFeatureMap(FeatureMap):
         else:
             return self.wrap_transform(lambda inp: inp @ self.Omega, x, precision_encoding=self.encoding_decoding_precision)()
 
-    # call the FeatureMap object as a function
-    def call(self, x):
-        # return self.c_norm*self.f(np.matmul(self.Omega.T,x.T).T + self.xi) # Evaluate the feature map at x
-        return self.c_norm * self.f(self._apply_mat(x) + self.xi)  # Evaluate the feature map at x
-        # if self.bool_multiple_sigmas:
-        #     return self.c_norm * self.f(self._apply_mat(x) + self.xi)  # Evaluate the feature map at x
-        # else:
-
-        # return self.c_norm * self.f(self._apply_mat(x) + self.xi)  # Evaluate the feature map at x
+    def lin_op_transform(self, x):
+        return self._apply_mat(x)
 
     def grad(self, x):
         """Gradient (Jacobian matrix) of Phi, as a (n_x,d,m)-numpy array. n_x being the batch size of x."""

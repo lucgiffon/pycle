@@ -115,7 +115,7 @@ def test_calibration_OPUFeatureMap(my_dim):
 
 def test_OPUFeatureMap_multi_sigma(my_dim):
     print()
-    for use_torch in [True, False]:
+    for use_torch in [True]:
         for nb_sigmas in [0, 3, 1]:
             for nb_replicates in [2, 1]:
                 print(f"nb_sigmas={nb_sigmas}")

@@ -82,8 +82,12 @@ class FeatureMap(ABC):
         self.counter_call_sketching_operator = 0
 
     @abstractmethod
+    def lin_op_transform(self, x):
+        pass
+
     def call(self, x):
-        raise NotImplementedError("The way to compute the feature map is not specified.")
+        # todo make conditions so that self.c_norm and xi are not used if they have no effect
+        return self.c_norm * self.f(self.lin_op_transform(x) + self.xi)  # Evaluate the feature map at x
 
     def __call__(self, x):
         self.account_call(x)
