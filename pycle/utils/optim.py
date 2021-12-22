@@ -25,6 +25,12 @@ class ObjectiveValuesStorage(metaclass=SingletonMeta):
     def store_objective_values(self, path_output_file):
         np.savez(path_output_file, **self.dct_objective_values)
 
+    def load_objective_values(self, path_input_file):
+        z_loaded = np.load(path_input_file)
+        self.dct_objective_values.update(
+            **dict(z_loaded)
+        )
+
     def show(self):
         fig, tpl_axs = plt.subplots(nrows=1, ncols=len(self.dct_objective_values))
 
