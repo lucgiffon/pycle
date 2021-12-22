@@ -22,6 +22,9 @@ class ObjectiveValuesStorage(metaclass=SingletonMeta):
     def get_all_curve_names(self):
         return sorted(list(self.dct_objective_values.keys()))
 
+    def store_objective_values(self, path_output_file):
+        np.savez(path_output_file, **self.dct_objective_values)
+
     def show(self):
         fig, tpl_axs = plt.subplots(nrows=1, ncols=len(self.dct_objective_values))
 

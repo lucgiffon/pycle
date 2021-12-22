@@ -97,7 +97,7 @@ class CLOMP(SolverTorch):
         # note the "minus 1" that transforms the problem into a minimization problem
         result = -1. / norm_atom * torch.real(torch.vdot(sketch_of_atom, self.residual))
         if self.show_curves:
-            ObjectiveValuesStorage().add(result, "loss_atom_correlation")
+            ObjectiveValuesStorage().add(float(result), "loss_atom_correlation")
         return result
 
     ## Second subproblem: best non negative weights
@@ -266,7 +266,7 @@ class CLOMP(SolverTorch):
             (_alpha, _Theta) = self._destack_sol(stacked_x)
             result = float(self.loss_global(all_thetas=torch.from_numpy(_Theta), alphas=torch.from_numpy(_alpha)))
             if self.show_curves:
-                ObjectiveValuesStorage().add(result, f"minimize_cost_from_current_sol_pdfo/{prefix}")
+                ObjectiveValuesStorage().add(float(result), f"minimize_cost_from_current_sol_pdfo/{prefix}")
             return result
 
         stacked_x_init = self._stack_sol(alpha=all_alphas.cpu().numpy(), Theta=all_thetas.cpu().numpy())
