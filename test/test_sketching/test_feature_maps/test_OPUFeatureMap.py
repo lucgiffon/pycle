@@ -37,17 +37,18 @@ def my_lst_lin_op(my_dim, my_pow2dim):
 
 def test_calibrate_lin_op(my_lst_lin_op):
     print()
-    for idx, lin_op in enumerate(my_lst_lin_op):
-        for use_torch in [False]:  # I don't really need it to be compatible with torch yet.
-            print(f"use_torch: {use_torch}")
-            if use_torch:
-                lin_op = torch.from_numpy(lin_op)
-            dim = lin_op.shape[0]
-            calibrated_lin_op = calibrate_lin_op(lambda x: x @ lin_op, dim)
-            assert np.isclose(calibrated_lin_op, lin_op).all(), f"idx {idx} failed"
-            var_lin_op = np.var(lin_op)
-            var_calibrated = np.var(calibrated_lin_op)
-            assert np.isclose(var_calibrated, var_lin_op).all(), f"idx {idx} failed var estimation"
+    for nb_iter in [1, 3]:
+        for idx, lin_op in enumerate(my_lst_lin_op):
+            for use_torch in [False]:  # I don't really need it to be compatible with torch yet.
+                print(f"use_torch: {use_torch}")
+                if use_torch:
+                    lin_op = torch.from_numpy(lin_op)
+                dim = lin_op.shape[0]
+                calibrated_lin_op = calibrate_lin_op(lambda x: x @ lin_op, dim, nb_iter=nb_iter)
+                assert np.isclose(calibrated_lin_op, lin_op).all(), f"idx {idx} failed"
+                var_lin_op = np.var(lin_op)
+                var_calibrated = np.var(calibrated_lin_op)
+                assert np.isclose(var_calibrated, var_lin_op).all(), f"idx {idx} failed var estimation"
 
 
 def test_enc_dec_opu_transform():

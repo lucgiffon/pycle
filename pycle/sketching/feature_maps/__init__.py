@@ -92,6 +92,7 @@ _dico_nonlinearities_torch = {
     "universalquantization_complex": (_universalQuantization_complex, None),
     # "universalquantization_complex": (lambda x: torch.sign(torch.cos(x)) + 1.j * torch.sign(torch.sin(x)), None),
     "cosine": (lambda x: torch.cos(x), None),
+    "identity": (lambda x: x, None)
 }
 _dico_normalization_rpf = {
     "complexexponential": 1,
@@ -99,4 +100,5 @@ _dico_normalization_rpf = {
     "universalquantization": 2 / np.pi,
     "universalquantization_complex": 4 / np.pi,
     "cosine": 1,
+    "identity": (lambda x: x, None)
 }

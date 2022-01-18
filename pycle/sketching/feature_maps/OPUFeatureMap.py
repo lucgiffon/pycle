@@ -14,26 +14,49 @@ from scipy.linalg import hadamard
 from fht import fht
 
 
-def calibrate_lin_op(fct_lin_op, dim):
+def calibrate_lin_op(fct_lin_op, dim, nb_iter=1):
+    """
+    Perform calibration of a linear operator with input dimension dim. (Return the associated
+
+    :param fct_lin_op: The linear operator function to call with one 2D np-array
+    :param dim: input dimension of linear operator
+    :param nb_iter: if the linear operator has centered noise, result will be the average of nb_iter runs
+    :return:
+    """
     # todo make torch compatible
     first_pow_of_2_gt_d = 2 ** int(np.ceil(np.log2(dim)))
     H = hadamard(first_pow_of_2_gt_d)
     H_truncated_left = H[:dim, :dim]
+    # keep only the first dim rows to pretend fct_lin_op have been padded with zeros
     H_truncated_right = H[:dim, dim:]
-    B_truncated_left = np.array(
-        fct_lin_op(H_truncated_left > 0) - fct_lin_op(H_truncated_left < 0))
-    B_truncated_right = np.array(
+    # the last cols of H need also to be transformed by fct_lin_op so that the output result has the right shape
+    # for backward FHT.
+
+    acc_B_truncated_left = np.array(
+        fct_lin_op(H_truncated_left.T > 0) - fct_lin_op(H_truncated_left.T < 0))
+    acc_B_truncated_right = np.array(
         fct_lin_op(H_truncated_right.T > 0) - fct_lin_op(H_truncated_right.T < 0))
-    B = np.vstack([B_truncated_left, B_truncated_right])
+    i_iter = 1
+    while i_iter < nb_iter:
+        # the transpose is because fct_lin_op transforms rows and not cols
+        # because hadamard is symmetric, it has no effect on the left side (also symmetric), but I write it for lisibility
+        acc_B_truncated_left += np.array(
+            fct_lin_op(H_truncated_left.T > 0) - fct_lin_op(H_truncated_left.T < 0))
+        acc_B_truncated_right += np.array(
+            fct_lin_op(H_truncated_right.T > 0) - fct_lin_op(H_truncated_right.T < 0))
+        i_iter += 1
+
+    # this B is the result of W H as if W was padded with cols full of zeros. W stands for the matrix repr of fct_lin_op
     # B = np.array((self.opu.linear_transform(H > 0) - self.opu.linear_transform(H < 0)))
-    sqrt_d = np.sqrt(first_pow_of_2_gt_d)
+    B = 1. / nb_iter * np.vstack([acc_B_truncated_left, acc_B_truncated_right])
+    sqrt_d = np.sqrt(first_pow_of_2_gt_d)  # need to rescale the result because fht implements a scaled Hadamard matrix
     FHB = np.array([1. / first_pow_of_2_gt_d * fht(b) * sqrt_d for b in B.T]).T
     # FHB = H @ B / self.d
     return FHB[:dim]
 
 
 class OPUDistributionEstimator:
-    def __init__(self, opu, input_dim, compute_calibration=False, use_calibration_transform=False, encoding_decoding_precision=8, use_torch=False, device=None):
+    def __init__(self, opu, input_dim, compute_calibration=False, use_calibration_transform=False, nb_iter_calibration=1, encoding_decoding_precision=8, use_torch=False, device=None):
         """
 
         :param opu:
@@ -53,6 +76,7 @@ class OPUDistributionEstimator:
 
         self.use_calibration_transform = use_calibration_transform
         self.compute_calibration = compute_calibration
+        self.nb_iter_calibration = nb_iter_calibration
         assert use_calibration_transform is False or compute_calibration is True
         if self.compute_calibration:
             self.FHB = self.calibrate_opu().to(self.device)
@@ -88,9 +112,9 @@ class OPUDistributionEstimator:
 
     def calibrate_opu(self):
         if self.use_torch:
-            return torch.from_numpy(calibrate_lin_op(lambda x: self.opu.linear_transform(x), self.d))
+            return torch.from_numpy(calibrate_lin_op(lambda x: self.opu.linear_transform(x), self.d, nb_iter=self.nb_iter_calibration))
         else:
-            return calibrate_lin_op(lambda x: self.opu.linear_transform(x), self.d)
+            return calibrate_lin_op(lambda x: self.opu.linear_transform(x), self.d, nb_iter=self.nb_iter_calibration)
 
     def mu_estimation(self, method="ones"):
         """
@@ -153,7 +177,7 @@ class OPUDistributionEstimator:
 class OPUFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
 
-    def __init__(self, f, opu, SigFact, R, dimension=None, calibration_param_estimation=None, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, device=None, **kwargs):
+    def __init__(self, f, opu, SigFact, R, dimension=None, nb_iter_calibration=1, calibration_param_estimation=None, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, device=None, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         # todoopu initialiser l'opu
         self.opu = opu
@@ -184,8 +208,10 @@ class OPUFeatureMap(FeatureMap):
             calibration_param_estimation = True
         else:
             calibration_param_estimation = calibration_param_estimation
+        self.nb_iter_calibration = nb_iter_calibration
         self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory),
                                                                use_calibration_transform=calibration_param_estimation,
+                                                               nb_iter_calibration=self.nb_iter_calibration,
                                                                encoding_decoding_precision=self.encoding_decoding_precision, use_torch=self.use_torch,
                                                                device=self.device)
         self.calibration_param_estimation = calibration_param_estimation
