@@ -243,20 +243,32 @@ class OPUFunctionEncDec(Function):
 
     @staticmethod
     # def forward(ctx, input, weight):
-    def forward(ctx, input, opu_function, calibrated_opu, encoding_decoding_precision=8):
+    def forward(ctx, input, opu_function, calibrated_opu, encoding_decoding_precision=8, save_outputs=False):
+        from pycle.utils.optim import IntermediateResultStorage
+
+        if save_outputs:
+            IntermediateResultStorage().add(input.cpu().numpy(), "input_opu_fct")
 
         ctx.save_for_backward(input, calibrated_opu)
         encoder = SeparatedBitPlanEncoder(precision=encoding_decoding_precision)
         x_enc = encoder.fit_transform(input.data)
         decoder = SeparatedBitPlanDecoder(**encoder.get_params())
-
-        # if ever using the opu here: careful with the type of x_enc and y_dec
+        if save_outputs:
+            IntermediateResultStorage().add(x_enc.cpu().numpy(), "input_encoded")
+            input_encoded_decoded = decoder.transform(x_enc)
+            IntermediateResultStorage().add(input_encoded_decoded.cpu().numpy(), "input_encoded_decoded")
 
         y_dec = opu_function(x_enc)
         # y_dec = x_enc.to(weight.dtype).mm(weight)
 
+        if save_outputs:
+            IntermediateResultStorage().add(y_dec.cpu().numpy(), "output_encoded")
+
         # standard scenario: dequantification happens after the transformation
         y_dec = decoder.transform(y_dec)
+
+        if save_outputs:
+            IntermediateResultStorage().add(y_dec.cpu().numpy(), "output_decoded")
 
         return y_dec.to(input.dtype)
 
@@ -270,8 +282,8 @@ class OPUFunctionEncDec(Function):
         # grad_weight = grad_output.t().mm(input)
 
         # first None is for the weights which have fixed values
-        # two last None correspond to `quantif` and `enc_dec` arguments in forward pass
-        return grad_input, None, None, None
+        # 3 last None correspond to `quantif` and `enc_dec` and `save_outputs` arguments in forward pass
+        return grad_input, None, None, None, None
 
 def is_number(possible_number):
     has_len = hasattr(possible_number, "__len__")

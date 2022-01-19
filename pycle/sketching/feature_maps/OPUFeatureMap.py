@@ -13,6 +13,8 @@ from pycle.utils import enc_dec_fct, LinearFunctionEncDec, OPUFunctionEncDec, is
 from scipy.linalg import hadamard
 from fht import fht
 
+from pycle.utils.optim import IntermediateResultStorage
+
 
 def calibrate_lin_op(fct_lin_op, dim, nb_iter=1):
     """
@@ -223,6 +225,7 @@ class OPUFeatureMap(FeatureMap):
         self.re_center_result = re_center_result
         # todoopu deplacer ca
 
+
     def get_distribution_opu(self):
         if self.calibration_param_estimation:
             mu = self.distribution_estimator.mu_estimation(method="mean").to(self.device)
@@ -279,9 +282,9 @@ class OPUFeatureMap(FeatureMap):
             # if self.light_memory:
             if self.use_torch:
                 if x.ndim == 1:
-                    return OPUFunctionEncDec.apply(x.unsqueeze(0).cpu(), self.opu.linear_transform, self.calibrated_matrix,  self.encoding_decoding_precision).squeeze(0).to(self.device)
+                    return OPUFunctionEncDec.apply(x.unsqueeze(0).cpu(), self.opu.linear_transform, self.calibrated_matrix,  self.encoding_decoding_precision, self.save_outputs).squeeze(0).to(self.device)
                 else:
-                    return OPUFunctionEncDec.apply(x.cpu(), self.opu.linear_transform, self.calibrated_matrix, self.encoding_decoding_precision).to(self.device)
+                    return OPUFunctionEncDec.apply(x.cpu(), self.opu.linear_transform, self.calibrated_matrix, self.encoding_decoding_precision, self.save_outputs).to(self.device)
             else:
                 return self.wrap_transform(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision)()
 
@@ -311,8 +314,13 @@ class OPUFeatureMap(FeatureMap):
         if x.ndim == 1:
             x = x.reshape(1, -1)
 
+        if self.save_outputs:
+            IntermediateResultStorage().add(x.cpu().numpy(), "input_x")
+
         if self.bool_sigfact_a_matrix:
             x = x @ self.SigFact
+            if self.save_outputs:
+                IntermediateResultStorage().add(x.cpu().numpy(), "input_x_frequencies_rescaled")
 
         # x_enc = self.encoder.transform(x)
         # y_enc = self.opu.transform(x_enc)
@@ -329,13 +337,25 @@ class OPUFeatureMap(FeatureMap):
             y_dec = y_dec - mu_x.reshape(-1, 1)
 
         if self.use_torch:
-            y_dec = (y_dec * 1./self.std_opu * 1./self.norm_scaling).unsqueeze(-1) * self.R
+            y_dec = y_dec * 1./self.std_opu
+
+            if self.save_outputs:
+                IntermediateResultStorage().add(y_dec.cpu().numpy(), "output_y_rescaled")
+
+            y_dec = (y_dec * 1./self.norm_scaling).unsqueeze(-1) * self.R
+
+            if self.save_outputs:
+                IntermediateResultStorage().add(y_dec.cpu().numpy(), "output_y")
+
         else:
-            y_dec = (y_dec * 1. / self.std_opu * 1. / self.norm_scaling)[..., np.newaxis] * self.R
+            y_dec = y_dec * 1./self.std_opu
+            y_dec = (y_dec * 1. / self.norm_scaling)[..., np.newaxis] * self.R
 
         if not self.bool_sigfact_a_matrix:
             y_dec = self.module_math_functions.einsum("ijk,h->ikhj", y_dec, self.SigFact)
             y_dec = y_dec.reshape((x.shape[0], self.m))
+            if self.save_outputs:
+                IntermediateResultStorage().add(y_dec.cpu().numpy(), "output_y_frequencies_rescaled")
 
         out = y_dec
         return out

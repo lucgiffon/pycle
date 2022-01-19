@@ -4,6 +4,7 @@ import torch
 import numpy as np
 from pycle.sketching.feature_maps import _dico_nonlinearities, _dico_nonlinearities_torch, _dico_normalization_rpf
 from pycle.utils import enc_dec_fct, only_quantification_fct
+from pycle.utils.optim import IntermediateResultStorage
 
 
 class FeatureMap(ABC):
@@ -11,7 +12,8 @@ class FeatureMap(ABC):
     Template for a generic Feature Map. Useful to check if an object is an instance of FeatureMap."""
 
     def __init__(self, *args, f="complexexponential", xi=None, c_norm=1., encoding_decoding=False,
-                 quantification=False, encoding_decoding_precision=8, use_torch=False, device=None, dtype=None, **kwargs):
+                 quantification=False, encoding_decoding_precision=8, use_torch=False, device=None, dtype=None,
+                 save_outputs=False, **kwargs):
         """
         - f can be one of the following:
             -- a string for one of the predefined feature maps:
@@ -65,6 +67,8 @@ class FeatureMap(ABC):
         assert encoding_decoding is False or quantification is False
         self.encoding_decoding_precision = encoding_decoding_precision
 
+        self.save_outputs = save_outputs
+
     def wrap_transform(self, transform, x, *args, **kwargs):
         if self.encoding_decoding:
             return lambda: enc_dec_fct(transform, x, *args, **kwargs)
@@ -93,6 +97,9 @@ class FeatureMap(ABC):
             before_norm = self.f(self.lin_op_transform(x) + self.xi)
         else:
             before_norm = self.f(self.lin_op_transform(x))
+
+        if self.save_outputs:
+            IntermediateResultStorage().add(before_norm.cpu().numpy(), "output_y_after_non_lin")
 
         if self.c_norm == 1.:
             return before_norm

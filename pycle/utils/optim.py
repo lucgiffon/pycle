@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from pycle.utils import SingletonMeta
 
 
-class ObjectiveValuesStorage(metaclass=SingletonMeta):
+class IntermediateResultStorage(metaclass=SingletonMeta):
     def __init__(self):
         self.dct_objective_values = defaultdict(list)
 
@@ -16,20 +16,34 @@ class ObjectiveValuesStorage(metaclass=SingletonMeta):
     def clear(self):
         self.dct_objective_values = defaultdict(list)
 
-    def get_objective_values(self, list_name):
-        return self.dct_objective_values[list_name]
+    def __getitem__(self, item):
+        return self.dct_objective_values[item]
 
-    def get_all_curve_names(self):
+    def get_all_names(self):
         return sorted(list(self.dct_objective_values.keys()))
 
-    def store_objective_values(self, path_output_file):
+    def store_all_items(self, path_output_file):
         np.savez(path_output_file, **self.dct_objective_values)
 
-    def load_objective_values(self, path_input_file):
+    def load_items(self, path_input_file):
         z_loaded = np.load(path_input_file)
         self.dct_objective_values.update(
             **dict(z_loaded)
         )
+
+
+class ObjectiveValuesStorage(IntermediateResultStorage):
+    def get_objective_values(self, list_name):
+        return self[list_name]
+
+    def get_all_curve_names(self):
+        return self.get_all_names()
+
+    def store_objective_values(self, path_output_file):
+        self.store_all_items(path_output_file)
+
+    def load_objective_values(self, path_input_file):
+        self.load_items(path_input_file)
 
     def show(self):
         fig, tpl_axs = plt.subplots(nrows=1, ncols=len(self.dct_objective_values))
@@ -46,3 +60,4 @@ class ObjectiveValuesStorage(metaclass=SingletonMeta):
                 tpl_axs.set_title(name_trace)
 
         plt.show()
+
