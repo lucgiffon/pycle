@@ -179,7 +179,7 @@ class OPUDistributionEstimator:
 class OPUFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
 
-    def __init__(self, f, opu, SigFact, R, dimension=None, nb_iter_calibration=1, calibration_param_estimation=None, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, device=None, **kwargs):
+    def __init__(self, f, opu, SigFact, R, dimension=None, nb_iter_calibration=1, nb_iter_linear_transformation=1, calibration_param_estimation=None, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, device=None, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         # todoopu initialiser l'opu
         self.opu = opu
@@ -211,6 +211,7 @@ class OPUFeatureMap(FeatureMap):
         else:
             calibration_param_estimation = calibration_param_estimation
         self.nb_iter_calibration = nb_iter_calibration
+        self.nb_iter_linear_transformation = nb_iter_linear_transformation
         self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory),
                                                                use_calibration_transform=calibration_param_estimation,
                                                                nb_iter_calibration=self.nb_iter_calibration,
@@ -282,9 +283,9 @@ class OPUFeatureMap(FeatureMap):
             # if self.light_memory:
             if self.use_torch:
                 if x.ndim == 1:
-                    return OPUFunctionEncDec.apply(x.unsqueeze(0).cpu(), self.opu.linear_transform, self.calibrated_matrix,  self.encoding_decoding_precision, self.save_outputs).squeeze(0).to(self.device)
+                    return OPUFunctionEncDec.apply(x.unsqueeze(0).cpu(), self.opu.linear_transform, self.calibrated_matrix,  self.encoding_decoding_precision, self.save_outputs, self.nb_iter_linear_transformation).squeeze(0).to(self.device)
                 else:
-                    return OPUFunctionEncDec.apply(x.cpu(), self.opu.linear_transform, self.calibrated_matrix, self.encoding_decoding_precision, self.save_outputs).to(self.device)
+                    return OPUFunctionEncDec.apply(x.cpu(), self.opu.linear_transform, self.calibrated_matrix, self.encoding_decoding_precision, self.save_outputs, self.nb_iter_linear_transformation).to(self.device)
             else:
                 return self.wrap_transform(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision)()
 

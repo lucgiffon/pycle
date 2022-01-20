@@ -243,7 +243,7 @@ class OPUFunctionEncDec(Function):
 
     @staticmethod
     # def forward(ctx, input, weight):
-    def forward(ctx, input, opu_function, calibrated_opu, encoding_decoding_precision=8, save_outputs=False):
+    def forward(ctx, input, opu_function, calibrated_opu, encoding_decoding_precision=8, save_outputs=False, nb_iter_linear_transformation=1):
         from pycle.utils.optim import IntermediateResultStorage
 
         if save_outputs:
@@ -259,6 +259,12 @@ class OPUFunctionEncDec(Function):
             IntermediateResultStorage().add(input_encoded_decoded.cpu().numpy(), "input_encoded_decoded")
 
         y_dec = opu_function(x_enc)
+        i_repeat_opu = 1
+        while i_repeat_opu < nb_iter_linear_transformation:
+            y_dec += opu_function(x_enc)
+            i_repeat_opu += 1
+        y_dec /= nb_iter_linear_transformation
+
         # y_dec = x_enc.to(weight.dtype).mm(weight)
 
         if save_outputs:
@@ -282,8 +288,8 @@ class OPUFunctionEncDec(Function):
         # grad_weight = grad_output.t().mm(input)
 
         # first None is for the weights which have fixed values
-        # 3 last None correspond to `quantif` and `enc_dec` and `save_outputs` arguments in forward pass
-        return grad_input, None, None, None, None
+        # 4 last None correspond to `quantif` and `enc_dec` and `save_outputs` and `nb_iter_linear_transformation` arguments in forward pass
+        return grad_input, None, None, None, None, None
 
 def is_number(possible_number):
     has_len = hasattr(possible_number, "__len__")
