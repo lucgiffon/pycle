@@ -14,7 +14,7 @@ from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 from pycle.utils import is_number
 
 
-def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=100):
+def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=100, display=True):
     """
     Computes the sketch of a dataset given a generic feature map.
 
@@ -64,7 +64,7 @@ def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=100):
 
     if datasetWeights is None:
         for b in range(nb_batches):
-            if b%100 == 0:
+            if b%100 == 0 and display:
                 logger.info(f"Sketching batch: {b+1}/{nb_batches}")
             sketch = sketch + featureMap(dataset[b * batch_size:(b + 1) * batch_size]).sum(**sum_arg)
         sketch /= n

@@ -45,7 +45,9 @@ class FeatureMap(ABC):
 
         # 3) extract the dithering
         if xi is None:
-            self.xi = self.module_math_functions.zeros(self._m).to(self.device)
+            self.xi = self.module_math_functions.zeros(self._m)
+            if use_torch:
+                self.xi = self.xi.to(self.device)
             self.xi_all_zeros = True
         else:
             self.xi = xi.to(self.device)
@@ -92,11 +94,14 @@ class FeatureMap(ABC):
         pass
 
     def call(self, x):
+        out = self.lin_op_transform(x)
+        if self.save_outputs:
+            IntermediateResultStorage().add(out.cpu().numpy(), "output_y before non lin")
 
         if not self.xi_all_zeros:
-            before_norm = self.f(self.lin_op_transform(x) + self.xi)
+            before_norm = self.f(out + self.xi)
         else:
-            before_norm = self.f(self.lin_op_transform(x))
+            before_norm = self.f(out)
 
         if self.save_outputs:
             IntermediateResultStorage().add(before_norm.cpu().numpy(), "output_y_after_non_lin")

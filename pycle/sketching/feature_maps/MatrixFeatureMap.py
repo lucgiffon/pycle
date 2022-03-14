@@ -8,6 +8,9 @@ from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 
 
 # schellekensvTODO find a better name
+from pycle.utils.optim import IntermediateResultStorage
+
+
 class MatrixFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(Omega^T*x + xi)."""
 
@@ -36,7 +39,10 @@ class MatrixFeatureMap(FeatureMap):
 
             self.bool_sigfact_a_matrix = self.SigFact.ndim > 1
         else:
-            self._Omega = Omega.to(device)
+            if use_torch:
+                self._Omega = Omega.to(device)
+            else:
+                self._Omega = Omega
             self.splitted_Omega = False
 
         super().__init__(f, dtype=self.Omega_dtype, use_torch=use_torch, device=device, **kwargs)
@@ -98,10 +104,16 @@ class MatrixFeatureMap(FeatureMap):
                 # else:
                 #     return LinearFunctionEncDec.apply(x.unsqueeze(0), self.Omega, self.quantification, self.encoding_decoding, self.encoding_decoding_precision).squeeze(0)
 
+            if self.save_outputs:
+                IntermediateResultStorage().add(x.cpu().numpy(), "input_x")
+
             if self.splitted_Omega:
-                result = MultiSigmaARFrequencyMatrixLinApEncDec.apply(x, self.SigFact, self.directions, self.R, self.quantification, self.encoding_decoding, self.encoding_decoding_precision)
+                result = MultiSigmaARFrequencyMatrixLinApEncDec.apply(x, self.SigFact, self.directions, self.R, self.quantification, self.encoding_decoding, self.encoding_decoding_precision, self.save_outputs)
             else:
                 result = LinearFunctionEncDec.apply(x, self.Omega, self.quantification, self.encoding_decoding, self.encoding_decoding_precision)
+
+            if self.save_outputs:
+                IntermediateResultStorage().add(result.cpu().numpy(), "output_y")
 
             if unsqueezed:
                 return result.squeeze(0)

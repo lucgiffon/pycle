@@ -145,8 +145,10 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
     if keep_splitted:
         return SigFact, phi, np.squeeze(R.T)
     else:
-
-        Om = rebuild_Omega_from_sig_dir_R(SigFact, phi, R.T, math_module=np)
+        if SigFact.ndim == 2:
+            Om = SigFact @ (phi * R)
+        else:
+            Om = rebuild_Omega_from_sig_dir_R(SigFact, phi, R.T, math_module=np)
         return Om
 
 

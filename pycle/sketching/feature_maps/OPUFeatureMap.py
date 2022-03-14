@@ -34,18 +34,28 @@ def calibrate_lin_op(fct_lin_op, dim, nb_iter=1):
     # the last cols of H need also to be transformed by fct_lin_op so that the output result has the right shape
     # for backward FHT.
 
-    acc_B_truncated_left = np.array(
-        fct_lin_op(H_truncated_left.T > 0) - fct_lin_op(H_truncated_left.T < 0))
-    acc_B_truncated_right = np.array(
-        fct_lin_op(H_truncated_right.T > 0) - fct_lin_op(H_truncated_right.T < 0))
+    def compute_B():
+        # the transpose is because fct_lin_op transforms rows and not cols
+        # because hadamard is symmetric, it has no effect on the left side (also symmetric),
+        # but I write it for lisibility
+        acc_B_truncated_left = np.array(
+            fct_lin_op(H_truncated_left.T > 0) - fct_lin_op(H_truncated_left.T < 0))
+
+        if bool(H_truncated_right.size):
+            acc_B_truncated_right = np.array(
+                fct_lin_op(H_truncated_right.T > 0) - fct_lin_op(H_truncated_right.T < 0))
+        else:
+            assert first_pow_of_2_gt_d == dim
+            acc_B_truncated_right = np.empty((0, acc_B_truncated_left.shape[1]))
+
+        return acc_B_truncated_left, acc_B_truncated_right
+
+    acc_B_truncated_left, acc_B_truncated_right = compute_B()
     i_iter = 1
     while i_iter < nb_iter:
-        # the transpose is because fct_lin_op transforms rows and not cols
-        # because hadamard is symmetric, it has no effect on the left side (also symmetric), but I write it for lisibility
-        acc_B_truncated_left += np.array(
-            fct_lin_op(H_truncated_left.T > 0) - fct_lin_op(H_truncated_left.T < 0))
-        acc_B_truncated_right += np.array(
-            fct_lin_op(H_truncated_right.T > 0) - fct_lin_op(H_truncated_right.T < 0))
+        acc_B_truncated_left_tmp, acc_B_truncated_right_tmp = compute_B()
+        acc_B_truncated_left += acc_B_truncated_left_tmp
+        acc_B_truncated_right += acc_B_truncated_right_tmp
         i_iter += 1
 
     # this B is the result of W H as if W was padded with cols full of zeros. W stands for the matrix repr of fct_lin_op
@@ -321,7 +331,7 @@ class OPUFeatureMap(FeatureMap):
         if self.bool_sigfact_a_matrix:
             x = x @ self.SigFact
             if self.save_outputs:
-                IntermediateResultStorage().add(x.cpu().numpy(), "input_x_frequencies_rescaled")
+                IntermediateResultStorage().add(x.cpu().numpy(), "input_x_frequencies_rescaled by sigma")
 
         # x_enc = self.encoder.transform(x)
         # y_enc = self.opu.transform(x_enc)
@@ -341,12 +351,10 @@ class OPUFeatureMap(FeatureMap):
             y_dec = y_dec * 1./self.std_opu
 
             if self.save_outputs:
-                IntermediateResultStorage().add(y_dec.cpu().numpy(), "output_y_rescaled")
+                IntermediateResultStorage().add(y_dec.cpu().numpy(), "output_y ")
 
             y_dec = (y_dec * 1./self.norm_scaling).unsqueeze(-1) * self.R
 
-            if self.save_outputs:
-                IntermediateResultStorage().add(y_dec.cpu().numpy(), "output_y")
 
         else:
             y_dec = y_dec * 1./self.std_opu
@@ -356,7 +364,7 @@ class OPUFeatureMap(FeatureMap):
             y_dec = self.module_math_functions.einsum("ijk,h->ikhj", y_dec, self.SigFact)
             y_dec = y_dec.reshape((x.shape[0], self.m))
             if self.save_outputs:
-                IntermediateResultStorage().add(y_dec.cpu().numpy(), "output_y_frequencies_rescaled")
+                IntermediateResultStorage().add(y_dec.cpu().numpy(), "output y rescaled by sigma")
 
         out = y_dec
         return out

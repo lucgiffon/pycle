@@ -3,6 +3,7 @@ funtions allows to estimate Sigma (some utils first, main function is "estimate_
 """
 import numpy as np
 import scipy.optimize
+import torch
 from matplotlib import pyplot as plt
 
 from pycle.sketching import computeSketch

@@ -185,7 +185,8 @@ class LinearFunctionEncDec(Function):
 class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
 
     @staticmethod
-    def forward(ctx, input, SigFacts, directions, R, quantif=False, enc_dec=False, encoding_decoding_precision=8):
+    def forward(ctx, input, SigFacts, directions, R, quantif=False, enc_dec=False, encoding_decoding_precision=8, save_outputs=False):
+        from pycle.utils.optim import IntermediateResultStorage
         assert not (quantif and enc_dec)
 
         if R.ndim == 1:
@@ -196,6 +197,11 @@ class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
             encoder = SeparatedBitPlanEncoder(precision=encoding_decoding_precision)
             x_enc = encoder.fit_transform(input.data)
             decoder = SeparatedBitPlanDecoder(**encoder.get_params())
+
+            if save_outputs:
+                IntermediateResultStorage().add(x_enc.cpu().numpy(), "input_encoded")
+                input_encoded_decoded = decoder.transform(x_enc)
+                IntermediateResultStorage().add(input_encoded_decoded.cpu().numpy(), "input_encoded_decoded")
         else:
             x_enc = input
 
@@ -213,15 +219,24 @@ class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
         # R: (M, NR)
         # how to multiply the transformed vector by R:
         # torch.einsum("ij,jk->ijk", xtd, R) == xtd.unsqueeze(-1) * R
+        if save_outputs:
+            IntermediateResultStorage().add(y_dec.cpu().numpy(), "output before rescaling by sigma")
+
         y_dec = y_dec.unsqueeze(-1) * R
         y_dec = torch.einsum("ijk,h->ikhj", y_dec, SigFacts)
         # y_dec = torch.einsum("ij,jkl->kil", SigFacts.unsqueeze(-1), y_dec.unsqueeze(0))
 
-        y_dec = y_dec.reshape((input.shape[0], directions.shape[1] * SigFacts.shape[0] * R.shape[-1]))
+        y_dec = y_dec.reshape((y_dec.shape[0], directions.shape[1] * SigFacts.shape[0] * R.shape[-1]))
 
         if not quantif and enc_dec:
+            if save_outputs:
+                IntermediateResultStorage().add(y_dec.cpu().numpy(), "output_encoded")
             # standard scenario: dequantification happens after the transformation
             y_dec = decoder.transform(y_dec)
+            if save_outputs:
+                IntermediateResultStorage().add(y_dec.cpu().numpy(), "output_decoded")
+
+
 
         return y_dec.to(weight_dtype)
 
@@ -236,7 +251,7 @@ class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
 
         # the three first Nones are for the weights which have fixed values
         # two last None correspond to `quantif` and `enc_dec` arguments in forward pass
-        return grad_input, None, None, None, None, None, None
+        return grad_input, None, None, None, None, None, None, None
 
 
 class OPUFunctionEncDec(Function):
