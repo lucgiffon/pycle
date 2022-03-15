@@ -13,12 +13,11 @@ class GMMFeatureMap(FeatureMap):
 
     def __init__(self, f, Omega, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
-        # cleaning make a deprecation error here because this class is not ready to use
+        raise NotImplementedError("Class GMMFeatureMap is not available yet and must be adapted to torch.")
         self.Omega = Omega
 
         super().__init__(f=f, dtype=Omega.dtype, **kwargs)
 
-        assert self.use_torch == True, "GMMFeature map only available with torch (gradient not implemented and maybe other bugs)"
         assert f == "None", "Only non-linearity f='None' is allowed in GMMFeatureMap"
 
     def init_shape(self):
@@ -40,19 +39,3 @@ class GMMFeatureMap(FeatureMap):
                 sig = sig.unsqueeze(sig, 0)
 
         return fourier_sketch_of_gaussianS(mu, sig, self.Omega, self.xi, self.c_norm, use_torch=self.use_torch)
-
-    def grad(self, x):
-        """Gradient (Jacobian matrix) of Phi, as a (n_x,d,m)-numpy array. n_x being the batch size of x."""
-        if self.use_torch:
-            raise NotImplementedError("No gradient available with `use_torch`=True")
-        else:
-            raise NotImplementedError("Gradient computation for GMMFeatureMap doesn't work.")
-            (mu, sig) = (x[..., :self.d], x[..., -self.d:])
-
-            sketch_of_atom = fourierSketchOfGaussian(mu, np.diag(sig.squeeze()), self.Omega, self.xi, self.c_norm)
-
-            jacobian = 1j * np.zeros((self.d*2, self.m))
-            jacobian[:self.d] = 1j * self.Omega * sketch_of_atom  # Jacobian w.r.t. mu
-            jacobian[self.d:] = -0.5 * (self.Omega ** 2) * sketch_of_atom  # Jacobian w.r.t. sigma
-
-            return jacobian
