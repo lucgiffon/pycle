@@ -1,6 +1,8 @@
 import numpy as np
 
 
+# cleaning check that these functions are compatible with the distribution estimator? and torchify if necessary.
+
 def mu_estimation_ones(lin_op_fct, in_dim):
     """
     Estimate the mean coefficient of lin_op_fct by probing it with ones.

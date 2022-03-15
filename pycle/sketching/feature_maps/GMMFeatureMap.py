@@ -13,6 +13,7 @@ class GMMFeatureMap(FeatureMap):
 
     def __init__(self, f, Omega, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
+        # cleaning make a deprecation error here because this class is not ready to use
         self.Omega = Omega
 
         super().__init__(f=f, dtype=Omega.dtype, **kwargs)

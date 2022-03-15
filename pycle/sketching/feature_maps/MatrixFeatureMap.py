@@ -15,6 +15,7 @@ class MatrixFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(Omega^T*x + xi)."""
 
     def __init__(self, f, Omega, use_torch=False, device=None, **kwargs):
+        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         if type(Omega) == tuple or type(Omega) == list:
             self.splitted_Omega = True
@@ -32,6 +33,7 @@ class MatrixFeatureMap(FeatureMap):
 
             assert self.R.shape[0] == self.directions.shape[1]
             if is_number(self.SigFact):
+                # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
                 if use_torch:
                     self.SigFact = torch.Tensor([self.SigFact]).to(device)
                 else:
@@ -39,6 +41,7 @@ class MatrixFeatureMap(FeatureMap):
 
             self.bool_sigfact_a_matrix = self.SigFact.ndim > 1
         else:
+            # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
             if use_torch:
                 self._Omega = Omega.to(device)
             else:
@@ -51,6 +54,7 @@ class MatrixFeatureMap(FeatureMap):
 
     def Omega_dtype(self):
         if self.splitted_Omega:
+            # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
             promote_types = self.module_math_functions.promote_types
             return promote_types(promote_types(self.directions.dtype, self.R.dtype), self.SigFact.dtype)
         else:
@@ -94,6 +98,7 @@ class MatrixFeatureMap(FeatureMap):
             raise ValueError("The provided projection matrix Omega should be a (d,m) linear operator.")
 
     def _apply_mat(self, x):
+        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
         if self.use_torch:
             unsqueezed = False
             if x.ndim == 1:
@@ -127,6 +132,7 @@ class MatrixFeatureMap(FeatureMap):
 
     def grad(self, x):
         """Gradient (Jacobian matrix) of Phi, as a (n_x,d,m)-numpy array. n_x being the batch size of x."""
+        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
         if self.use_torch:
             raise NotImplementedError("No gradient available with `use_torch`=True")
         else:

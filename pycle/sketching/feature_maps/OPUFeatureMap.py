@@ -80,6 +80,7 @@ class OPUDistributionEstimator:
         self.m = self.opu.n_components
         self.device = device
 
+        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
         self.use_torch = use_torch
         if use_torch:
             self.module_math_functions = torch
@@ -98,6 +99,7 @@ class OPUDistributionEstimator:
         self.encoding_decoding_precision = encoding_decoding_precision
 
     def OPU(self, x):
+        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
         if self.use_torch:
             return torch.from_numpy(enc_dec_fct(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision))
         else:
@@ -124,6 +126,7 @@ class OPUDistributionEstimator:
 
     def calibrate_opu(self):
         if self.use_torch:
+            # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
             return torch.from_numpy(calibrate_lin_op(lambda x: self.opu.linear_transform(x), self.d, nb_iter=self.nb_iter_calibration))
         else:
             return calibrate_lin_op(lambda x: self.opu.linear_transform(x), self.d, nb_iter=self.nb_iter_calibration)
@@ -138,6 +141,7 @@ class OPUDistributionEstimator:
             return self._mu_estimation_ones()
         elif method == "mean":
             try:
+                # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
                 return self.module_math_functions.mean(self.FHB)
             except TypeError as e:
                 raise ValueError(f"Method `mean` only works with `compute_calibration` flag.")
@@ -192,6 +196,7 @@ class OPUFeatureMap(FeatureMap):
     def __init__(self, f, opu, SigFact, R, dimension=None, nb_iter_calibration=1, nb_iter_linear_transformation=1, calibration_param_estimation=None, calibration_forward=False, calibration_backward=False, calibrate_always=False, re_center_result=False, device=None, **kwargs):
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         # todoopu initialiser l'opu
+        # cleaning add documentation
         self.opu = opu
         self.provided_dimension = dimension
 
@@ -210,6 +215,7 @@ class OPUFeatureMap(FeatureMap):
 
         assert self.R.shape[0] == self.opu.n_components
         if is_number(self.SigFact):
+            # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
             if self.use_torch:
                 self.SigFact = torch.Tensor([self.SigFact]).to(self.device)
             else:
@@ -222,6 +228,7 @@ class OPUFeatureMap(FeatureMap):
             calibration_param_estimation = calibration_param_estimation
         self.nb_iter_calibration = nb_iter_calibration
         self.nb_iter_linear_transformation = nb_iter_linear_transformation
+        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
         self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory),
                                                                use_calibration_transform=calibration_param_estimation,
                                                                nb_iter_calibration=self.nb_iter_calibration,
@@ -267,6 +274,7 @@ class OPUFeatureMap(FeatureMap):
         return (d, m)
 
     def Omega_dtype(self):
+        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
         promote_types = self.module_math_functions.promote_types
         return promote_types(self.R.dtype, self.SigFact.dtype)
 
@@ -282,6 +290,7 @@ class OPUFeatureMap(FeatureMap):
 
     def _OPU(self, x):
         if self.switch_use_calibration_forward:
+            # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
             if self.use_torch:
                 if x.ndim == 1:
                     return LinearFunctionEncDec.apply(x.unsqueeze(0), self.calibrated_matrix).squeeze(0)
@@ -291,6 +300,7 @@ class OPUFeatureMap(FeatureMap):
                 return self.wrap_transform(lambda inp: inp @ self.calibrated_matrix, x, precision_encoding=self.encoding_decoding_precision)()
         else:
             # if self.light_memory:
+            # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
             if self.use_torch:
                 if x.ndim == 1:
                     return OPUFunctionEncDec.apply(x.unsqueeze(0).cpu(), self.opu.linear_transform, self.calibrated_matrix,  self.encoding_decoding_precision, self.save_outputs, self.nb_iter_linear_transformation).squeeze(0).to(self.device)
@@ -313,6 +323,7 @@ class OPUFeatureMap(FeatureMap):
 
     def directions_matrix(self):
         r = self.get_randn_mat() * 1. / self.norm_scaling
+        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
         if self.use_torch:
             r = r.to(self.dtype).to(self.device)
         return r
@@ -343,10 +354,12 @@ class OPUFeatureMap(FeatureMap):
         y_dec = self._OPU(x)
 
         # now center the coefficients of the matrix then scale the result
+        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
         if self.re_center_result:
             mu_x = self.mu_opu * self.module_math_functions.sum(x, axis=1)  # sum other all dims
             y_dec = y_dec - mu_x.reshape(-1, 1)
 
+        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
         if self.use_torch:
             y_dec = y_dec * 1./self.std_opu
 
@@ -361,6 +374,7 @@ class OPUFeatureMap(FeatureMap):
             y_dec = (y_dec * 1. / self.norm_scaling)[..., np.newaxis] * self.R
 
         if not self.bool_sigfact_a_matrix:
+            # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
             y_dec = self.module_math_functions.einsum("ijk,h->ikhj", y_dec, self.SigFact)
             y_dec = y_dec.reshape((x.shape[0], self.m))
             if self.save_outputs:
@@ -375,6 +389,7 @@ class OPUFeatureMap(FeatureMap):
             try:
                 self._Omega = self.SigFact @ self.directions_matrix() * self.R
             except:
+                # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
                 if self.use_torch:
                     self._Omega = (self.SigFact * self.directions_matrix()).unsqueeze(-1) * self.R
                 else:
@@ -383,6 +398,7 @@ class OPUFeatureMap(FeatureMap):
         return self._Omega
 
     def grad(self, x):
+        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
         if self.switch_use_calibration_backward:
             f_grad_val = self.f_grad(np.matmul(self.Omega.T, x.T).T + self.xi)
             new = self.c_norm * np.einsum("ij,kj->ikj", f_grad_val, self.Omega)

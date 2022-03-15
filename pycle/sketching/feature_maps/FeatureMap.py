@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 import torch
 import numpy as np
-from pycle.sketching.feature_maps import _dico_nonlinearities, _dico_nonlinearities_torch, _dico_normalization_rpf
+from pycle.sketching.feature_maps import _dico_nonlinearities_torch, _dico_normalization_rpf
 from pycle.utils import enc_dec_fct, only_quantification_fct
 from pycle.utils.optim import IntermediateResultStorage
 
@@ -12,26 +12,38 @@ class FeatureMap(ABC):
     Template for a generic Feature Map. Useful to check if an object is an instance of FeatureMap."""
 
     def __init__(self, *args, f="complexexponential", xi=None, c_norm=1., encoding_decoding=False,
-                 quantification=False, encoding_decoding_precision=8, use_torch=False, device=None, dtype=None,
-                 save_outputs=False, **kwargs):
+                 quantification=False, encoding_decoding_precision=8, device=torch.device("cpu"), dtype=torch.float,
+                 save_outputs=False):
         """
-        - f can be one of the following:
-            -- a string for one of the predefined feature maps:
-                -- "complexExponential"
-                -- "universalQuantization"
-                -- "cosine"
-            -- a callable function
-            -- a tuple of function (specify the derivative too)
 
+        Parameters
+        ----------
+        args
+        f: [callable, Choice("complexexponential", "universalquantization", "cosine"), None]
+            The activation function for the feature map. Default: "complexexponential".
+        xi: [torch.Tensor, None]
+            The dithering to add to the result of the random projection before the activation function.
+            Default: no dithering.
+        c_norm: [float, Choice('unit', 'normalized')]
+            Normalization factor for the feature map. Default: no normalization.
+        encoding_decoding: [bool]
+            Encode the input with `SeparatedBitPlans` before the feature map. Then decode the output accordingly.
+            Default: False.
+        quantification: [bool]
+            Quantify the input as if it was encoded decoded.
+            Default: False.
+        encoding_decoding_precision: [int]
+            Maximum precision for the quantification and encoding_decoding parameters.
+            Default: max possible precision = 8.
+        device: [torch.device]
+            The device on which to perform the tensor operations. torch.device("cpu") or torch.device("cuda:*").
+            Default: torch.device("cpu")
+        dtype: [type, torch.dtype, np.dtype]
+            The type of the tensor operations.
+        save_outputs: [bool]
+            Use the class `IntermediateResultStorage` to store the intermediate steps in the transformation by
+            the feature map. Be careful with memory use. Default: False.
         """
-        self.use_torch = use_torch
-        if use_torch:
-            self.module_math_functions = torch
-            self.dico_nonlinearities = _dico_nonlinearities_torch
-        else:
-            self.module_math_functions = np
-            self.dico_nonlinearities = _dico_nonlinearities
-
         self.device = device
         if callable(dtype) and not type(dtype) == type and not isinstance(dtype, torch.dtype):
             self.dtype = dtype()
@@ -45,9 +57,7 @@ class FeatureMap(ABC):
 
         # 3) extract the dithering
         if xi is None:
-            self.xi = self.module_math_functions.zeros(self._m)
-            if use_torch:
-                self.xi = self.xi.to(self.device)
+            self.xi = torch.zeros(self._m).to(self.device)
             self.xi_all_zeros = True
         else:
             self.xi = xi.to(self.device)
@@ -66,12 +76,33 @@ class FeatureMap(ABC):
 
         self.encoding_decoding = encoding_decoding
         self.quantification = quantification
-        assert encoding_decoding is False or quantification is False
+        assert encoding_decoding is False or quantification is False, \
+            "It is useless to do both quantification and encoding/decoding wrapping"
         self.encoding_decoding_precision = encoding_decoding_precision
 
         self.save_outputs = save_outputs
 
     def wrap_transform(self, transform, x, *args, **kwargs):
+        """
+        Wraps the `transform` function with encoding decoding or quantification utilities on the input `x`.
+
+        It is usefull if the feature map is OPU based or for experiments.
+
+        Parameters
+        ----------
+        transform: [callable]
+            The transform method to call for x.
+        x: [torch.Tensor]
+            The input to transform.
+        args: [list]
+            List of positional arguments for the transform method.
+        kwargs: [dict]
+            Key value arguments for the transform method.
+
+        Returns
+        -------
+            The output of the wrapped `transform` function applied on `x`.
+        """
         if self.encoding_decoding:
             return lambda: enc_dec_fct(transform, x, *args, **kwargs)
         elif self.quantification:
@@ -80,6 +111,16 @@ class FeatureMap(ABC):
             return lambda: transform(x)
 
     def account_call(self, x):
+        """
+        Increment the count of calls to the feature map.
+
+        If `x` has ndim==2, then the counter of feature map calls is incremented as many times as there is rows in `x`.
+
+        Parameters
+        ----------
+        x: [torch.Tensor]
+            The input to the feature map.
+        """
         if len(x.shape) == 1:
             self.counter_call_sketching_operator += 1
         else:
@@ -87,58 +128,117 @@ class FeatureMap(ABC):
             self.counter_call_sketching_operator += x.shape[0]
 
     def reset_counter(self):
+        """
+        Reset the counter of feature map calls to 0.
+        """
         self.counter_call_sketching_operator = 0
 
     @abstractmethod
     def lin_op_transform(self, x):
+        """
+        The linear transformation (usually random projection) applied to the input before the non-linearity.
+
+        Parameters
+        ----------
+        x: [torch.Tensor]
+            Input of the feature map.
+
+        Returns
+        -------
+            [torch.Tensor]
+            The output of the linear transformation.
+        """
         pass
 
     def call(self, x):
+        """
+        Calls the feature map on `x`
+
+        Parameters
+        ----------
+        x: [torch.Tensor]
+            The input to which the feature map must be applied.
+
+        Returns
+        -------
+            The result of the feature map on `x`.
+        """
+        # first make the linear transformation
         out = self.lin_op_transform(x)
         if self.save_outputs:
             IntermediateResultStorage().add(out.cpu().numpy(), "output_y before non lin")
 
+        # then apply the dithering and the activation function.
         if not self.xi_all_zeros:
             before_norm = self.f(out + self.xi)
         else:
+            # small optimisation: if xi is full of zeros, it is useless to add it.
             before_norm = self.f(out)
 
         if self.save_outputs:
             IntermediateResultStorage().add(before_norm.cpu().numpy(), "output_y_after_non_lin")
 
+        # normalize the output of the feature map if necessary and return the result.
         if self.c_norm == 1.:
+            # small optimisation: if the normalization is 1, it is useless to apply it.
             return before_norm
         else:
             return self.c_norm * before_norm
 
-
     def __call__(self, x):
+        """
+        Calls the feature map on `x` and count the call.
+
+        Parameters
+        ----------
+        x: [torch.Tensor]
+            The input to which the feature map must be applied.
+
+        Returns
+        -------
+            The result of the feature map on `x`.
+
+        """
         self.account_call(x)
         return self.call(x) * (1. / _dico_normalization_rpf[self.name])
 
-    @abstractmethod
-    def grad(self, x):
-        raise NotImplementedError("The way to compute the gradient of the feature map is not specified.")
-
     @property
     def m(self):
+        """
+        The number of output features of the feature map.
+        """
         return self._m
 
     @abstractmethod
     def init_shape(self):
+        """
+        The shape of the linear transformation matrix used inside the feature map.
+
+        The shape correspond to the (input, output) dimensions.
+
+        Returns
+        -------
+            [tuple(Int)]
+            The (input, output) dimension of the feature map.
+        """
         pass
 
     def update_activation(self, f):
+        """
+        Update the activation function.
+
+        Parameters
+        ----------
+        f: [callable, str]
+            The new activation function.
+        """
         if isinstance(f, str):
             try:
-                (self.f, self.f_grad) = self.dico_nonlinearities[f.lower()]
                 self.name = f.lower()  # Keep the feature function name in memory so that we know we have a specific fct
+                self.f = _dico_nonlinearities_torch[f.lower()]
             except KeyError:
-                raise NotImplementedError(
-                    f"The provided feature map name {f} is not implemented with `use_torch`={self.use_torch}.")
+                raise NotImplementedError(f"The provided feature map name {f} is not implemented.")
         elif callable(f):
-            (self.f, self.f_grad) = (f, None)
-        elif (isinstance(f, tuple)) and (len(f) == 2) and (callable(f[0]) and callable(f[1])):
-            (self.f, self.f_grad) = f
+            self.f = f
         else:
-            raise ValueError("The provided feature map f does not match any of the supported types.")
+            raise ValueError(f"The provided feature map f={f} does not match any of the supported types.")

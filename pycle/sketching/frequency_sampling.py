@@ -168,6 +168,7 @@ def drawFrequencies_UniformRadius(d, m, min_val, max_val, randn_mat_0_1=None, us
 
     Om = phi * R
 
+    # cleaning replace these use_torch with a parameter more explicit about the returned type
     if use_torch:
         return torch.from_numpy(Om)
     else:
@@ -351,6 +352,7 @@ def multi_scale_frequency_sampling(dim, m, scale_min, scale_max, nb_scales, samp
     :param use_torch:
     :return:
     """
+    # cleaning replace these use_torch with a parameter more explicit about the returned type
     if use_torch:
         backend = torch
     else:
@@ -379,6 +381,7 @@ def multi_scale_frequency_sampling(dim, m, scale_min, scale_max, nb_scales, samp
 
 
 def overproduce(dim, max_number_of_frequencies, overproduce_factor, strategy="MULTI_SCALE"):
+    # cleaning add documentation
     # For this simple example, assume we have a priori a rough idea of the size of the clusters
     Sigma = 0.1 * np.eye(dim)
     # Pick the dimension m: 5*K*d is usually (just) enough in clustering (here m = 50)
@@ -399,6 +402,7 @@ def overproduce(dim, max_number_of_frequencies, overproduce_factor, strategy="MU
 
 
 def choose(base_sketch, max_nb_freq, strategy="in-boundaries", threshold=0.01):
+    # cleaning add documentation
     abs_base_sketch = base_sketch.abs()
     if strategy == "closest-to-mid":
         sorted_indices = torch.argsort((abs_base_sketch - 0.5).abs())
@@ -411,27 +415,13 @@ def choose(base_sketch, max_nb_freq, strategy="in-boundaries", threshold=0.01):
         selected_indices = (torch.ones(len(accepted_indices)) / len(accepted_indices)).multinomial(num_samples=max_nb_freq, replacement=False)
         indices_ok = accepted_indices[selected_indices]
         return indices_ok
-#
-# def overproduce_and_choose(dim, X, overproduce_factor, final_sketch_size):
-#     max_number_frequencies = final_sketch_size
-#
-#     Omega, xi = overproduce(dim, max_number_frequencies, overproduce_factor)
-#     Phi_emp = MatrixFeatureMap("ComplexExponential", Omega, c_norm=1., xi=xi, use_torch=True, device=torch.device("cpu"))
-#     too_big_of_a_z = pycle.sketching.computeSketch(X, Phi_emp)
-#     indices_to_keep = choose(too_big_of_a_z, max_number_frequencies, strategy="in-boundaries", threshold=0.01)
-#     Phi_emp = MatrixFeatureMap("ComplexExponential", Omega[:, indices_to_keep], c_norm=1., xi=xi[indices_to_keep], use_torch=True,
-#                                device=torch.device("cpu"))
-#     z = pycle.sketching.computeSketch(X, Phi_emp)
-#     z_kept = too_big_of_a_z[indices_to_keep]
-#     assert torch.isclose(z, z_kept).all()
-#
-#     return Phi_emp
 
 
 def rebuild_Omega_from_sig_dir_R(sig, dir, R, math_module=torch):
     dr = math_module.einsum("ij,jk->ikj", dir, R)
     r = math_module.einsum("l,ikj->iklj", sig, dr)
     return r.reshape((dir.shape[0], -1))
+
 
 if __name__ == "__main__":
     om = multi_scale_frequency_sampling(10, 20, -4, 0, 5, "arkm")
