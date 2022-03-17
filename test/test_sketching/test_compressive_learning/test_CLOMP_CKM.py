@@ -61,7 +61,7 @@ def Phi_emp(nb_clust, dim):
     Omega = pycle.sketching.frequency_sampling.drawFrequencies("FoldedGaussian", dim, sketch_dim, Sigma, return_torch=True)
 
     # The feature map is a standard one, the complex exponential of projections on Omega^T
-    Phi_emp = MatrixFeatureMap("ComplexExponential", Omega, use_torch=True, device=torch.device("cpu"))
+    Phi_emp = MatrixFeatureMap("complexexponential", Omega, device=torch.device("cpu"))
     return Phi_emp
 
 @pytest.fixture
@@ -75,7 +75,7 @@ def Phi_emp_xi(nb_clust, dim):
     Omega = pycle.sketching.frequency_sampling.drawFrequencies("FoldedGaussian", dim, sketch_dim, Sigma, return_torch=True)
 
     # The feature map is a standard one, the complex exponential of projections on Omega^T
-    Phi_emp = MatrixFeatureMap("ComplexExponential", Omega, c_norm="unit", xi=torch.rand(sketch_dim) * np.pi * 2, use_torch=True, device=torch.device("cpu"))
+    Phi_emp = MatrixFeatureMap("complexexponential", Omega, c_norm="unit", xi=torch.rand(sketch_dim) * np.pi * 2, device=torch.device("cpu"))
     return Phi_emp
 
 def test_neg_floor_div_torch():

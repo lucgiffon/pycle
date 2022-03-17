@@ -7,6 +7,7 @@ from loguru import logger
 
 
 # cleaning add documentation
+# cleaning check if use_torch parameter is necessary
 
 def _complexExponential(t, T=2 * np.pi, use_torch=False):
     if use_torch:

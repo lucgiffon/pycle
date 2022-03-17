@@ -35,7 +35,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 
-
+@pytest.mark.skip(reason="Not usefull anymore")
 def test_fit_once():
     np.random.seed(20)  # easy
     # np.random.seed(722233)
