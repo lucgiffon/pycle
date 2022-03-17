@@ -1,12 +1,9 @@
-import numpy as np
 import torch
 from torch.nn import functional as f
 
-from pycle.compressive_learning.numpy import CLOMP_dGMM
-
 
 ## 2.2 (diagonal) GMM with Hierarchical Splitting
-from pycle.compressive_learning.torch.CLHS import CLHS
+from pycle.compressive_learning.CLHS import CLHS
 from pycle.utils.projectors import ProjectorClip, ProjectorLessUnit2Norm
 
 

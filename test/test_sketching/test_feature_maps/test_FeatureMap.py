@@ -1,8 +1,4 @@
-from pycle.compressive_learning.torch.CLOMP_CKM import CLOMP_CKM
-from pycle.sketching import MatrixFeatureMap
-from pycle.sketching.frequency_sampling import drawFrequencies, multi_scale_frequency_sampling, \
-    drawFrequencies_UniformRadius
-#, overproduce_and_choose
+from pycle.compressive_learning.CLOMP_CKM import CLOMP_CKM
 import pytest
 import numpy as np
 import torch

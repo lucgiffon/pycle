@@ -1,4 +1,4 @@
-from pycle.compressive_learning.torch.CLOMP import CLOMP
+from pycle.compressive_learning.CLOMP import CLOMP
 from pycle.sketching import FeatureMap
 from pycle.utils.projectors import Projector, ProjectorClip, ProjectorNoProjection
 import torch

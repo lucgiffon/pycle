@@ -4,11 +4,8 @@ import torch
 import scipy
 from pdfo import pdfo
 from loguru import logger
-from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as f
-import socket
-from datetime import datetime
-from pycle.compressive_learning.torch.SolverTorch import SolverTorch
+from pycle.compressive_learning.SolverTorch import SolverTorch
 from pycle.utils.optim import ObjectiveValuesStorage
 import numpy as np
 

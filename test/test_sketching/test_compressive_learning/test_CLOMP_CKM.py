@@ -1,28 +1,16 @@
-import copy
-
 import pytest
 import torch
 import numpy as np
 from loguru import logger
 import matplotlib.pyplot as plt
-from lightonml import OPU
-from lightonml.internal.simulated_device import SimulatedOpuDevice
-
 from pycle.sketching.feature_maps import _universalQuantization, _universalQuantization_complex
-from pycle.sketching.feature_maps.GMMFeatureMap import GMMFeatureMap
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
-from pycle.sketching.feature_maps.OPUFeatureMap import OPUFeatureMap
 from pycle.utils.datasets import generatedataset_GMM
-import pycle.sketching as sk
-from pycle.compressive_learning.torch.CLOMP_CKM import CLOMP_CKM
-from pycle.compressive_learning.numpy.CLOMP_CKM import CLOMP_CKM as CLOMP_CKM_NP
-
-# from pycle.sketching.feature_maps.SimpleFeatureMap import SimpleFeatureMap
+from pycle.compressive_learning.CLOMP_CKM import CLOMP_CKM
 
 from pycle.sketching.frequency_sampling import drawFrequencies
 
 import pycle.sketching
-from pycle.utils.projectors import ProjectorNoProjection, ProjectorExactUnit2Norm
 
 
 @pytest.fixture

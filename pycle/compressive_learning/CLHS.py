@@ -5,11 +5,7 @@ import numpy as np
 from loguru import logger
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import TensorDataset, DataLoader
-from torch.utils.tensorboard import SummaryWriter
-import os.path
-
-from pycle.compressive_learning.torch.SolverTorch import SolverTorch
-from pycle.sketching import MatrixFeatureMap
+from pycle.compressive_learning.SolverTorch import SolverTorch
 from pycle.sketching.feature_maps.GMMFeatureMap import GMMFeatureMap
 
 

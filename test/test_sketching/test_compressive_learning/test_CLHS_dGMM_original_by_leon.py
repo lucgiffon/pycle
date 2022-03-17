@@ -1,39 +1,10 @@
 import pytest
-import torch
-import numpy as np
 import matplotlib.pyplot as plt
-from lightonml import OPU
-from lightonml.internal.simulated_device import SimulatedOpuDevice
 from pycle_gpu.cl_algo.simplified_algo import SimplifiedHierarchicalGmm
 from sgd_comp_learning import sampling_frequencies, compute_sketch
-
-from pycle.compressive_learning.torch.CLHS_dGMM import CLHS_dGMM
-from pycle.sketching.feature_maps.GMMFeatureMap import GMMFeatureMap
-from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
-from pycle.sketching.feature_maps.OPUFeatureMap import OPUFeatureMap
 from pycle.utils.datasets import generatedataset_GMM
-import pycle.sketching as sk
-from pycle.compressive_learning.torch.CLOMP_CKM import CLOMP_CKM
-from pycle.compressive_learning.numpy.CLOMP_CKM import CLOMP_CKM as CLOMP_CKM_NP
-
-# from pycle.sketching.feature_maps.SimpleFeatureMap import SimpleFeatureMap
-
-from pycle.sketching.frequency_sampling import drawFrequencies
-
-import pycle.sketching
-from pycle.utils.projectors import ProjectorNoProjection, ProjectorExactUnit2Norm, ProjectorClip, ProjectorLessUnit2Norm
-import os
-
 import numpy as np
 import torch
-from torch.nn import functional as f
-from torch.optim.lr_scheduler import StepLR
-from torch.utils.data import TensorDataset, DataLoader
-from torch.utils.tensorboard import SummaryWriter
-# from src.pycle_gpu.sketching.frequency_matrix import DenseFrequencyMatrix
-# from src.pycle_gpu.cl_algo.optimization import ProjectorClip, ProjectorLessUnit2Norm
-
-
 
 @pytest.mark.skip(reason="Not usefull anymore")
 def test_fit_once():
