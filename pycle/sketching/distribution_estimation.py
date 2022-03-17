@@ -103,5 +103,5 @@ def var_estimation_any(lin_op_fct: Callable, dim: int, n_iter: int = 1) -> torch
     Y = lin_op_fct(X)  # linear transformation of X
     Y_squared = Y ** 2
     Y_norm_2 = torch.sum(Y_squared)  # sum of all the Y_{i,j}^2
-    var = Y_norm_2 / Y.size  # get the mean value of Y_{i,j}^2
+    var = Y_norm_2 / torch.numel(Y)  # get the mean value of Y_{i,j}^2
     return var
