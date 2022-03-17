@@ -55,7 +55,6 @@ def test_split_unsplit(my_dim, X):
     Sigma = np.array([0.187, 0.36743])
     nb_input = 4
     seed = 0
-    use_torch = True
     # r_seeds = [0]
     r_seeds = [0, 1]
 
@@ -64,10 +63,10 @@ def test_split_unsplit(my_dim, X):
                                                                    sketch_dim, Sigma,
                                                                    seed=seed,
                                                                    keep_splitted=splitted,
-                                                                   return_torch=use_torch,
+                                                                   return_torch=True,
                                                                    R_seeds=r_seeds)
 
-        MFM = MatrixFeatureMap(f="ComplexExponential", Omega=Omega, use_torch=use_torch)
+        MFM = MatrixFeatureMap(f="complexexponential", Omega=Omega)
         return MFM
 
     input_mat = np.random.randn(nb_input, my_dim)
@@ -112,7 +111,7 @@ def test_MatrixFeatureMap_retrieve_sketch_and_all(my_dim, X):
                                                                                              return_torch=True,
                                                                                              R_seeds=r_seeds)
     lst_omega = (sig, directions, R)
-    MFM = MatrixFeatureMap(f="ComplexExponential", Omega=lst_omega, xi=xi, use_torch=True)
+    MFM = MatrixFeatureMap(f="complexexponential", Omega=lst_omega, xi=xi)
     # input_mat = np.random.randn(nb_input, my_dim)
     # input_mat = torch.Tensor(input_mat)
     # mfm_output = MFM(input_mat)
@@ -136,7 +135,7 @@ def test_MatrixFeatureMap_retrieve_sketch_and_all(my_dim, X):
     part_of_aggregated_sketch = part_of_aggregated_sketch[begin_sig:end_sig]  # sketch 3
     my_xi = my_xi[begin_sig:end_sig]
 
-    MFM = MatrixFeatureMap(f="ComplexExponential", Omega=(my_sigma, directions, my_R), xi=my_xi, use_torch=True)
+    MFM = MatrixFeatureMap(f="complexexponential", Omega=(my_sigma, directions, my_R), xi=my_xi)
     localized_sketch = pycle.sketching.computeSketch(X, MFM)  # sketch 2
 
     assert localized_sketch.size() == part_of_aggregated_sketch.size()
@@ -164,7 +163,7 @@ def test_MatrixFeatureMap_retrieve_sketch_and_all(my_dim, X):
     assert torch.isclose(needed_sigma_fct, torch.Tensor([my_sigma])).all()
     assert torch.isclose(needed_R_fct, my_R).all()
 
-    MFM = MatrixFeatureMap(f="ComplexExponential", Omega=(needed_sigma_fct, directions_fct, needed_R_fct), xi=aggregated_xi_fct, use_torch=True)
+    MFM = MatrixFeatureMap(f="complexexponential", Omega=(needed_sigma_fct, directions_fct, needed_R_fct), xi=aggregated_xi_fct)
     localized_sketch = pycle.sketching.computeSketch(X, MFM)  # sketch 2
 
     assert torch.isclose(part_of_aggregated_sketch_fct, localized_sketch).all()
@@ -189,49 +188,44 @@ def test_MatrixFeatureMap_retrieve_sketch_and_all(my_dim, X):
 
 
 def test_MatrixFeatureMap_multi_sigma_multi_R(my_dim, X):
-    for use_torch in [True]:
-        for nb_sigmas in [0, 2, 1]:
-            for nb_replicates in [3, 1]:
-                print(f"nb_sigmas={nb_sigmas}")
-                print(f"use_torch={use_torch}")
-                sampling_method = "ARKM"
-                sketch_dim = my_dim * 2
-                Sigma = 0.876
-                if nb_sigmas != 0:
-                    Sigma = np.array([np.abs(np.random.randn(1)) for _ in range(nb_sigmas)]).flatten()
-                else:
-                    nb_sigmas = 1
-                nb_input = 4
-                seed = 0
-                r_seeds = [seed] * nb_replicates
+    for nb_sigmas in [0, 2, 1]:
+        for nb_replicates in [3, 1]:
+            print(f"nb_sigmas={nb_sigmas}")
+            sampling_method = "ARKM"
+            sketch_dim = my_dim * 2
+            Sigma = 0.876
+            if nb_sigmas != 0:
+                Sigma = np.array([np.abs(np.random.randn(1)) for _ in range(nb_sigmas)]).flatten()
+            else:
+                nb_sigmas = 1
+            nb_input = 4
+            seed = 0
+            r_seeds = [seed] * nb_replicates
 
-                lst_omega = [sifact, directions, R] = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
-                                                                                                         seed=seed, keep_splitted=True, return_torch=use_torch, R_seeds=r_seeds)
-                # if nb_replicates != 1:
-                #     if use_torch:
-                #         R = R.repeat(nb_replicates, 1).T
+            lst_omega = [sifact, directions, R] = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
+                                                                                                     seed=seed, keep_splitted=True, R_seeds=r_seeds, return_torch=True)
+            # if nb_replicates != 1:
+            #     if use_torch:
+            #         R = R.repeat(nb_replicates, 1).T
 
-                # lst_omega = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
-                #                                                            seed=seed, keep_splitted=False)
+            # lst_omega = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
+            #                                                            seed=seed, keep_splitted=False)
 
-                lst_omega = list(lst_omega)
+            lst_omega = list(lst_omega)
 
-                lst_omega[-1] = R
+            lst_omega[-1] = R
 
-                lst_omega = tuple(lst_omega)
+            lst_omega = tuple(lst_omega)
 
-                MFM = MatrixFeatureMap(f="ComplexExponential", Omega=lst_omega, use_torch=use_torch)
+            MFM = MatrixFeatureMap(f="complexexponential", Omega=lst_omega)
 
-                input_mat = np.random.randn(nb_input, my_dim)
-                input_mat = torch.Tensor(input_mat)
-                mfm_output = MFM(input_mat)
-                assert mfm_output.shape[-1] == sketch_dim*nb_sigmas*nb_replicates
-                if use_torch:
-                    if nb_sigmas == 1:
-                        assert (np.tile(mfm_output[..., :sketch_dim], nb_sigmas*nb_replicates) == mfm_output.numpy()).all()
-                    assert (np.tile(mfm_output[..., :sketch_dim*nb_sigmas], nb_replicates) == mfm_output.numpy()).all()
-                else:
-                    assert (np.tile(mfm_output[..., :sketch_dim], nb_sigmas*nb_replicates) == mfm_output).all()
+            input_mat = np.random.randn(nb_input, my_dim)
+            input_mat = torch.Tensor(input_mat)
+            mfm_output = MFM(input_mat)
+            assert mfm_output.shape[-1] == sketch_dim*nb_sigmas*nb_replicates
+            if nb_sigmas == 1:
+                assert (np.tile(mfm_output[..., :sketch_dim], nb_sigmas*nb_replicates) == mfm_output.numpy()).all()
+            assert (np.tile(mfm_output[..., :sketch_dim*nb_sigmas], nb_replicates) == mfm_output.numpy()).all()
 
-                z = pycle.sketching.computeSketch(X, MFM)
-                print(z.shape)
+            z = pycle.sketching.computeSketch(X, MFM)
+            print(z.shape)

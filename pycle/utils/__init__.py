@@ -105,6 +105,8 @@ class SingletonMeta(type):
         return cls._instances[cls]
 
 
+# cleaning move bellow elements in separate submodule for torch functions
+
 def enc_dec_fct(fct, x, precision_encoding=8):
     """
     Encode x in binary for OPU transformation then decode.
@@ -181,7 +183,6 @@ class LinearFunctionEncDec(Function):
         return grad_input, None, None, None, None
 
 
-
 class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
 
     @staticmethod
@@ -235,8 +236,6 @@ class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
             y_dec = decoder.transform(y_dec)
             if save_outputs:
                 IntermediateResultStorage().add(y_dec.cpu().numpy(), "output_decoded")
-
-
 
         return y_dec.to(weight_dtype)
 
@@ -305,6 +304,7 @@ class OPUFunctionEncDec(Function):
         # first None is for the weights which have fixed values
         # 4 last None correspond to `quantif` and `enc_dec` and `save_outputs` and `nb_iter_linear_transformation` arguments in forward pass
         return grad_input, None, None, None, None, None
+
 
 def is_number(possible_number):
     has_len = hasattr(possible_number, "__len__")

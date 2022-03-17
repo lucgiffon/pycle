@@ -1,5 +1,8 @@
+from typing import Literal, Union, Callable, Optional, NoReturn, Tuple
+
 import numpy as np
 import torch
+from enum import Enum
 
 from pycle.sketching.frequency_sampling import rebuild_Omega_from_sig_dir_R
 from pycle.utils import LinearFunctionEncDec, MultiSigmaARFrequencyMatrixLinApEncDec, is_number
@@ -14,72 +17,76 @@ from pycle.utils.optim import IntermediateResultStorage
 class MatrixFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(Omega^T*x + xi)."""
 
-    def __init__(self, f, Omega, use_torch=False, device=None, **kwargs):
-        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
+    def __init__(self, f: Optional[Union[Literal["complexexponential", "universalquantization", "cosine"], Callable]],
+                 Omega: [torch.Tensor, tuple, list], device: torch.device = torch.device("cpu"), **kwargs):
+        """
+        Parameters
+        ----------
+        f:
+            The activation function for the feature map. Default: "complexexponential".
+        Omega:
+            The random projection matrix. If it is a tuple or a list,
+        device:
+            The device on which to perform the tensor operations. torch.device("cpu") or torch.device("cuda:*").
+        kwargs:
+            Other key word arguments for FeatureMap object.
+        """
         # 2) extract Omega the projection matrix schellekensvTODO allow callable Omega for fast transform
         if type(Omega) == tuple or type(Omega) == list:
             self.splitted_Omega = True
             # (sigma, directions, amplitudes)
             self.SigFact = Omega[0].to(device)
-            # self.bool_multiple_sigmas = (isinstance(self.SigFact, np.ndarray) or isinstance(self.SigFact, torch.Tensor)) and self.SigFact.ndim == 1 and len(self.SigFact) > 1
-            # assert self.bool_sigfact_a_matrix or isinstance(self.SigFact, numbers.Number) or len(self.SigFact) == 1
             self.directions = Omega[1].to(device)
             self.R = Omega[2].to(device)
             if self.R.ndim == 1:
-                try:
-                    self.R = self.R.unsqueeze(-1)
-                except:
-                    self.R = self.R[:, np.newaxis]
+                self.R = self.R.unsqueeze(-1)
 
             assert self.R.shape[0] == self.directions.shape[1]
             if is_number(self.SigFact):
-                # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
-                if use_torch:
-                    self.SigFact = torch.Tensor([self.SigFact]).to(device)
-                else:
-                    self.SigFact = np.array([self.SigFact])
+                self.SigFact = torch.Tensor([self.SigFact]).to(device)
 
             self.bool_sigfact_a_matrix = self.SigFact.ndim > 1
         else:
-            # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
-            if use_torch:
-                self._Omega = Omega.to(device)
-            else:
-                self._Omega = Omega
+            self._Omega = Omega.to(device)
             self.splitted_Omega = False
 
-        super().__init__(f, dtype=self.Omega_dtype, use_torch=use_torch, device=device, **kwargs)
+        super().__init__(f, dtype=self.Omega_dtype, device=device, **kwargs)
 
-
-
-    def Omega_dtype(self):
+    @property
+    def Omega_dtype(self) -> torch.dtype:
+        """
+        Returns
+        -------
+            The type of the Omega linear transform matrix
+        """
         if self.splitted_Omega:
-            # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
-            promote_types = self.module_math_functions.promote_types
-            return promote_types(promote_types(self.directions.dtype, self.R.dtype), self.SigFact.dtype)
+            return torch.promote_types(torch.promote_types(self.directions.dtype, self.R.dtype), self.SigFact.dtype)
         else:
             return self._Omega.dtype
 
     @property
-    def Omega(self):
+    def Omega(self) -> torch.Tensor:
+        """
+        Be careful with the memory use if the `splitted_Omega` attribute is True.
+
+        Returns
+        -------
+            The (reconstructed) Omega matrix.
+        """
         if self.splitted_Omega:
-            # raise ValueError(" Property Omega shouldn't be used when Omega is splitted"
-            #                  " because it involves to reconstruct the full matrix which makes"
-            #                  " splitting Omega useless.")
             if self.bool_sigfact_a_matrix:
                 return self.SigFact @ self.directions * self.R
             elif not is_number(self.SigFact):
-                # dr = self.directions * self.R
-                return rebuild_Omega_from_sig_dir_R(self.SigFact, self.directions, self.R, self.module_math_functions)
-                # dr = self.module_math_functions.einsum("ij,jk->ikj", self.directions, self.R)
-                # r = self.module_math_functions.einsum("l,ikj->iklj", self.SigFact, dr)
-                # return r.reshape(self.d, self.m)
+                return rebuild_Omega_from_sig_dir_R(self.SigFact, self.directions, self.R)
             else:
                 return self.SigFact * self.directions * self.R
         else:
             return self._Omega
 
-    def unsplit(self):
+    def unsplit(self) -> NoReturn:
+        """
+        Rebuild the Omega matrix and remove the parts.
+        """
         assert self.splitted_Omega == True
         self._Omega = self.Omega
         self.splitted_Omega = False
@@ -87,7 +94,16 @@ class MatrixFeatureMap(FeatureMap):
         del self.directions
         del self.R
 
-    def init_shape(self):
+    def init_shape(self) -> Tuple[int, int]:
+        """
+        The shape of the linear transformation matrix used inside the feature map.
+
+        The shape correspond to the (input, output) dimensions.
+
+        Returns
+        -------
+            The (input, output) dimensions of the feature map.
+        """
         try:
             if self.splitted_Omega:
                 return (self.directions.shape[0],
@@ -97,49 +113,56 @@ class MatrixFeatureMap(FeatureMap):
         except AttributeError:
             raise ValueError("The provided projection matrix Omega should be a (d,m) linear operator.")
 
-    def _apply_mat(self, x):
-        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
-        if self.use_torch:
-            unsqueezed = False
-            if x.ndim == 1:
-                unsqueezed = True
-                x = x.unsqueeze(0)
-                # if self.bool_multiple_sigmas:
-                #     return MultiSigmaARFrequencyMatrixLinApEncDec.apply(x.unsqueeze(0), self.SigFact, self.directions, self.R, self.quantification, self.encoding_decoding, self.encoding_decoding_precision).squeeze(0)
-                # else:
-                #     return LinearFunctionEncDec.apply(x.unsqueeze(0), self.Omega, self.quantification, self.encoding_decoding, self.encoding_decoding_precision).squeeze(0)
+    def _apply_mat(self, x: torch.Tensor) -> torch.Tensor:
+        """
 
-            if self.save_outputs:
-                IntermediateResultStorage().add(x.cpu().numpy(), "input_x")
+        Parameters
+        ----------
+        x:
+            Input of the feature map.
 
-            if self.splitted_Omega:
-                result = MultiSigmaARFrequencyMatrixLinApEncDec.apply(x, self.SigFact, self.directions, self.R, self.quantification, self.encoding_decoding, self.encoding_decoding_precision, self.save_outputs)
-            else:
-                result = LinearFunctionEncDec.apply(x, self.Omega, self.quantification, self.encoding_decoding, self.encoding_decoding_precision)
+        Returns
+        -------
+            The output of the Omega matrix applied to the input.
+        """
 
-            if self.save_outputs:
-                IntermediateResultStorage().add(result.cpu().numpy(), "output_y")
+        # the rest of the function only works for data presented as rows. If x is a column vector, make it a row.
+        unsqueezed = False
+        if x.ndim == 1:
+            unsqueezed = True
+            x = x.unsqueeze(0)
 
-            if unsqueezed:
-                return result.squeeze(0)
-            else:
-                return result
+        if self.save_outputs:
+            IntermediateResultStorage().add(x.cpu().numpy(), "input_x")
+
+        if self.splitted_Omega:
+            result = MultiSigmaARFrequencyMatrixLinApEncDec.apply(x, self.SigFact, self.directions, self.R,
+                                                                  self.quantification, self.encoding_decoding, self.encoding_decoding_precision,
+                                                                  self.save_outputs)
         else:
-            return self.wrap_transform(lambda inp: inp @ self.Omega, x, precision_encoding=self.encoding_decoding_precision)()
+            result = LinearFunctionEncDec.apply(x, self.Omega,
+                                                self.quantification, self.encoding_decoding, self.encoding_decoding_precision)
 
-    def lin_op_transform(self, x):
+        if self.save_outputs:
+            IntermediateResultStorage().add(result.cpu().numpy(), "output_y")
+
+        # return a column vector if the input was a column.
+        if unsqueezed:
+            return result.squeeze(0)
+        else:
+            return result
+
+    def lin_op_transform(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        The linear transformation (usually random projection) applied to the input before the non-linearity.
+
+        Parameters
+        ----------
+        x:
+            Input of the feature map.
+
+        Returns
+        -------
+            The output of the linear transformation.
+        """
         return self._apply_mat(x)
-
-    def grad(self, x):
-        """Gradient (Jacobian matrix) of Phi, as a (n_x,d,m)-numpy array. n_x being the batch size of x."""
-        # cleaning remove use_torch parameter and module_maths_functions attribute and usages and dico_non_lin
-        if self.use_torch:
-            raise NotImplementedError("No gradient available with `use_torch`=True")
-        else:
-            #return self.c_norm * self.f_grad(np.matmul(self.Omega.T, x.T).T + self.xi) * self.Omega
-            f_grad_val = self.f_grad(np.matmul(self.Omega.T, x.T).T + self.xi)
-            new = self.c_norm * np.einsum("ij,kj->ikj", f_grad_val, self.Omega)
-            if x.shape[0] == 1 or x.ndim == 1:
-                return new.squeeze()
-            else:
-                return new

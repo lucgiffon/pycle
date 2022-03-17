@@ -48,19 +48,13 @@ def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=100, disp
         except Exception:
             raise ValueError("Unexpected error while calling the sketch feature map:", sys.exc_info()[0])
 
-    use_torch = featureMap.use_torch
-
     # Split the batches
     # if batch_size is None:
     #     batch_size = int(1e6 / m)  # Rough heuristic, best batch size will vary on different machines
     nb_batches = int(np.ceil(n / batch_size))
 
-    if use_torch:
-        sketch = torch.zeros(m).to(featureMap.device)
-        sum_arg = {"dim": 0}
-    else:
-        sketch = np.zeros(m)
-        sum_arg = {"axis": 0}
+    sketch = torch.zeros(m).to(featureMap.device)
+    sum_arg = {"dim": 0}
 
     if datasetWeights is None:
         for b in range(nb_batches):
