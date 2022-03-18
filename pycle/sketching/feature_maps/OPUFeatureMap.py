@@ -242,7 +242,7 @@ class OPUFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
 
     def __init__(self, f: Optional[Union[Literal["complexexponential", "universalquantization", "cosine"], Callable]],
-                 opu: OPU, SigFact: Union[float, torch.Tensor], R: torch.Tensor, dimension: int,
+                 opu: OPU, SigFact: Union[torch.FloatTensor, torch.Tensor], R: torch.Tensor, dimension: int,
                  nb_iter_calibration: int = 1, nb_iter_linear_transformation: int = 1,
                  calibration_param_estimation: Optional[bool] = None, calibration_forward: bool = False,
                  calibration_backward: bool = False, calibrate_always: bool = False,
@@ -320,7 +320,7 @@ class OPUFeatureMap(FeatureMap):
         self.mu_opu, self.std_opu, self.norm_scaling = self.get_distribution_opu()
         self.re_center_result = re_center_result
 
-    def get_distribution_opu(self) -> Tuple[float, float, float]:
+    def get_distribution_opu(self) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
         """
         Get the mean, standard deviation and norm of the lines of the OPU transmission matrix.
 
