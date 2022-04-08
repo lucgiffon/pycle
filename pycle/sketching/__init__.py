@@ -382,7 +382,39 @@ def fourierSketchOfBox(box, featureMap, nb_cat_per_dim=None, dimensions_to_consi
             z *= 2 * np.exp(1j * Omega[i] * c_box[i]) * sincTerm
     return z
 
-def get_sketch_Omega_xi_from_aggregation(aggregated_sketch, aggregated_sigmas, directions, aggregated_R, aggregated_xi, Omega, R_seeds, needed_sigma, needed_seed, keep_all_sigmas, use_torch):
+def get_sketch_Omega_xi_from_aggregation(aggregated_sketch, aggregated_sigmas, directions, aggregated_R, aggregated_xi,
+                                         Omega, R_seeds, needed_sigma, needed_seed, keep_all_sigmas, use_torch):
+    """
+
+    Parameters
+    ----------
+    aggregated_sketch:
+        The sketch obtained from the "mutualized" sketching operator. The "end-to-end" concatenation of the sketch
+        obtained with the various sigmas and seeds.
+    aggregated_sigmas:
+        The list of possible sigmas ordered in the same order than in the aggregated_sketch.
+    directions:
+        The base directions, common between the different sketches.
+    aggregated_R:
+        The list of possible radius samples ordered in the same order than in the aggregated_sketch.
+    aggregated_xi:
+        The list of possible xi samples ordered in the same order than in the aggregated_sketch.
+    Omega:
+
+    R_seeds:
+        The list of seeds used to generate the different R ordered in the same order than in the aggregated_sketch.
+    needed_sigma:
+        The desired sigma. Should be in the list of possible sigmas.
+    needed_seed:
+        The desired seed. Should be in the list of seeds.
+    keep_all_sigmas:
+        Tells to keep all the sigmas.
+    use_torch
+        Return the result as torch.Tensors instead of a numpy.ndarrays.
+    Returns
+    -------
+
+    """
     # Omega can be equal to None if it is a numpy array containing None (hence not technically None, because a nparray)
     if Omega != None :  # hot potato
         if use_torch:
