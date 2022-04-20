@@ -157,6 +157,8 @@ class FeatureMap(ABC):
         -------
             The result of the feature map on `x`.
         """
+        if self.save_outputs:
+            IntermediateResultStorage().add(x.cpu().numpy(), "input_x")
         # first make the linear transformation
         out = self.lin_op_transform(x)
         if self.save_outputs:
@@ -170,7 +172,7 @@ class FeatureMap(ABC):
             before_norm = self.f(out)
 
         if self.save_outputs:
-            IntermediateResultStorage().add(before_norm.cpu().numpy(), "output_y_after_non_lin")
+            IntermediateResultStorage().add(before_norm.cpu().numpy(), "output_y after non lin")
 
         # normalize the output of the feature map if necessary and return the result.
         if self.c_norm == 1.:

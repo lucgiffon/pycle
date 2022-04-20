@@ -132,19 +132,12 @@ class MatrixFeatureMap(FeatureMap):
             unsqueezed = True
             x = x.unsqueeze(0)
 
-        if self.save_outputs:
-            IntermediateResultStorage().add(x.cpu().numpy(), "input_x")
-
         if self.splitted_Omega:
             result = MultiSigmaARFrequencyMatrixLinApEncDec.apply(x, self.SigFact, self.directions, self.R,
-                                                                  self.quantification, self.encoding_decoding, self.encoding_decoding_precision,
-                                                                  self.save_outputs)
+                                                                  self.quantification, self.encoding_decoding, self.encoding_decoding_precision)
         else:
             result = LinearFunctionEncDec.apply(x, self.Omega,
                                                 self.quantification, self.encoding_decoding, self.encoding_decoding_precision)
-
-        if self.save_outputs:
-            IntermediateResultStorage().add(result.cpu().numpy(), "output_y")
 
         # return a column vector if the input was a column.
         if unsqueezed:

@@ -422,11 +422,11 @@ class OPUFeatureMap(FeatureMap):
         else:
             if x.ndim == 1:
                 return OPUFunctionEncDec.apply(x.unsqueeze(0).cpu(), self.opu.linear_transform, self.calibrated_matrix,
-                                               self.encoding_decoding_precision, self.save_outputs,
+                                               self.encoding_decoding_precision,
                                                self.nb_iter_linear_transformation).squeeze(0).to(self.device)
             else:
                 return OPUFunctionEncDec.apply(x.cpu(), self.opu.linear_transform, self.calibrated_matrix,
-                                               self.encoding_decoding_precision, self.save_outputs,
+                                               self.encoding_decoding_precision,
                                                self.nb_iter_linear_transformation).to(self.device)
 
     def get_randn_mat(self, mu: float = 0, sigma: float = 1.) -> torch.Tensor:
@@ -504,13 +504,8 @@ class OPUFeatureMap(FeatureMap):
         if x.ndim == 1:
             x = x.reshape(1, -1)
 
-        if self.save_outputs:
-            IntermediateResultStorage().add(x.cpu().numpy(), "input_x")
-
         if self.bool_sigfact_a_matrix:
             x = x @ self.SigFact
-            if self.save_outputs:
-                IntermediateResultStorage().add(x.cpu().numpy(), "input_x_frequencies_rescaled by sigma")
 
         y_dec = self._OPU(x)
 
@@ -522,16 +517,11 @@ class OPUFeatureMap(FeatureMap):
 
         y_dec = y_dec * 1./self.std_opu
 
-        if self.save_outputs:
-            IntermediateResultStorage().add(y_dec.cpu().numpy(), "output_y ")
-
         y_dec = (y_dec * 1./self.norm_scaling).unsqueeze(-1) * self.R
 
         if not self.bool_sigfact_a_matrix:
             y_dec = torch.einsum("ijk,h->ikhj", y_dec, self.SigFact)
             y_dec = y_dec.reshape((x.shape[0], self.m))
-            if self.save_outputs:
-                IntermediateResultStorage().add(y_dec.cpu().numpy(), "output y rescaled by sigma")
 
         out = y_dec
         return out
