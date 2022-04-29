@@ -12,7 +12,7 @@ class FeatureMap(ABC):
     """Abstract feature map class
     Template for a generic Feature Map. Useful to check if an object is an instance of FeatureMap."""
 
-    def __init__(self, f: Optional[Union[Literal["complexexponential", "universalquantization", "cosine"], Callable]] = "complexexponential",
+    def __init__(self, f: Optional[Union[Literal["complexexponential", "universalquantization", "cosine", "none"], Callable]] = "complexexponential",
                  xi: Optional[torch.Tensor] = None, c_norm: Union[float, Literal["unit", "normalized"]] = 1.,
                  encoding_decoding: bool = False, quantification: bool = False, encoding_decoding_precision: int = 8,
                  device: torch.device = torch.device("cpu"), dtype: torch.dtype = torch.float, save_outputs: bool = False):
@@ -157,8 +157,6 @@ class FeatureMap(ABC):
         -------
             The result of the feature map on `x`.
         """
-        if self.save_outputs:
-            IntermediateResultStorage().add(x.cpu().numpy(), "input_x")
         # first make the linear transformation
         out = self.lin_op_transform(x)
         if self.save_outputs:

@@ -17,7 +17,7 @@ from pycle.utils.optim import IntermediateResultStorage
 class MatrixFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(Omega^T*x + xi)."""
 
-    def __init__(self, f: Optional[Union[Literal["complexexponential", "universalquantization", "cosine"], Callable]],
+    def __init__(self, f: Optional[Union[Literal["complexexponential", "universalquantization", "cosine", "none"], Callable]],
                  Omega: [torch.Tensor, tuple, list], device: torch.device = torch.device("cpu"), **kwargs):
         """
         Parameters

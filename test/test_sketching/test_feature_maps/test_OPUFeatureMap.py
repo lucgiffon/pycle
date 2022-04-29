@@ -37,18 +37,14 @@ def my_lst_lin_op(my_dim, my_pow2dim):
 
 def test_calibrate_lin_op(my_lst_lin_op):
     print()
-    for nb_iter in [1, 3]:
+    for nb_iter in [1, 3, 100, 1000]:
         for idx, lin_op in enumerate(my_lst_lin_op):
-            for use_torch in [False]:  # I don't really need it to be compatible with torch yet.
-                print(f"use_torch: {use_torch}")
-                if use_torch:
-                    lin_op = torch.from_numpy(lin_op)
-                dim = lin_op.shape[0]
-                calibrated_lin_op = calibrate_lin_op(lambda x: x @ lin_op, dim, nb_iter=nb_iter)
-                assert np.isclose(calibrated_lin_op, lin_op).all(), f"idx {idx} failed"
-                var_lin_op = np.var(lin_op)
-                var_calibrated = np.var(calibrated_lin_op)
-                assert np.isclose(var_calibrated, var_lin_op).all(), f"idx {idx} failed var estimation"
+            dim = lin_op.shape[0]
+            calibrated_lin_op = calibrate_lin_op(lambda x: x @ lin_op, dim, nb_iter=nb_iter)
+            assert np.isclose(calibrated_lin_op, lin_op).all(), f"idx {idx} failed"
+            var_lin_op = np.var(lin_op)
+            var_calibrated = np.var(calibrated_lin_op)
+            assert np.isclose(var_calibrated, var_lin_op).all(), f"idx {idx} failed var estimation"
 
 
 def test_enc_dec_opu_transform():
@@ -80,32 +76,41 @@ def test_calibration_OPUFeatureMap(my_dim):
     seed = 0
     # seed = np.random.randint(0, 2**10)
 
-    for use_torch in [True]:
-        opu = OPU(n_components=sketch_dim, opu_device=SimulatedOpuDevice(),
-                  max_n_features=my_dim)
-        opu.fit1d(n_features=my_dim)
-        lst_omega = [sifact, _, R] = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
-                                                                   seed=seed, keep_splitted=True, return_torch=use_torch)
-        lst_omega = list(lst_omega)
-        OFM = OPUFeatureMap(f="complexexponential",
-                                dimension=my_dim, SigFact=sifact, R=R,
-                                opu=opu,
-                                calibration_param_estimation=True,
-                                calibration_forward=True,
-                                calibration_backward=True,
-                                calibrate_always=True,
-                                re_center_result=False,
-                            )
-        directions = OFM.directions_matrix()
-        lst_omega[1] = directions
+    opu = OPU(n_components=sketch_dim, opu_device=SimulatedOpuDevice(),
+              max_n_features=my_dim)
+    opu.fit1d(n_features=my_dim)
+    lst_omega = [sifact, _, R] = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim, Sigma,
+                                                               seed=seed, keep_splitted=True, return_torch=True)
+    lst_omega = list(lst_omega)
+    OFM = OPUFeatureMap(f="none",
+                        dimension=my_dim, SigFact=sifact, R=R,
+                        opu=opu,
+                        calibration_param_estimation=True,
+                        calibration_forward=False,
+                        calibration_backward=False,
+                        calibrate_always=True,
+                        re_center_result=False,
+                        nb_iter_linear_transformation=1,
+                        nb_iter_calibration=1
+                        )
+    directions = OFM.directions_matrix()
+    lst_omega[1] = directions
 
-        MFM = MatrixFeatureMap("complexexponential", tuple(lst_omega))
-        input_mat = torch.from_numpy(np.random.randn(nb_input, my_dim))
+    MFM = MatrixFeatureMap("none", tuple(lst_omega), encoding_decoding=True)
+    input_mat = torch.from_numpy(np.random.randn(nb_input, my_dim))
 
-        ofm_output = OFM(input_mat)
-        mfm_output = MFM(input_mat)
-
-        assert np.isclose(ofm_output, mfm_output).all()
+    acc = OFM(input_mat)
+    nb_iter=10000
+    for i in range(nb_iter-1):
+        acc += OFM(input_mat)
+    acc /= nb_iter
+    ofm_output = acc
+    noise = ofm_output - OFM(input_mat)
+    print(torch.linalg.norm(noise))
+    ofm_output = OFM(input_mat)
+    mfm_output = MFM(input_mat)
+    print("\nnorm difference:", torch.linalg.norm(ofm_output-mfm_output))
+    assert np.isclose(ofm_output, mfm_output).all()
 
     # input_vec = np.random.randn(1, my_dim)
     # ofm_output_grad = OFM.grad(input_vec)

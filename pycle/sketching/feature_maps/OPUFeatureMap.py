@@ -58,22 +58,24 @@ def calibrate_lin_op(fct_lin_op: Callable, dim: int, nb_iter: int = 1) -> np.nda
 
         return acc_B_truncated_left, acc_B_truncated_right
 
-    acc_B_truncated_left, acc_B_truncated_right = compute_B()
+    def make_one_iteration():
+        acc_B_truncated_left, acc_B_truncated_right = compute_B()
+        # this B is the result of W H as if W was padded with cols full of zeros. W stands for the matrix repr of fct_lin_op
+        # B = np.array((self.opu.linear_transform(H > 0) - self.opu.linear_transform(H < 0)))
+
+        B = np.vstack([acc_B_truncated_left, acc_B_truncated_right])
+        sqrt_d = np.sqrt(first_pow_of_2_gt_d)  # need to rescale the result because fht implements a scaled Hadamard matrix
+        FHB = np.array([1. / first_pow_of_2_gt_d * fht(b) * sqrt_d for b in B.T]).T
+        # FHB = H @ B / self.d
+        return FHB[:dim]
+
+    FHB = make_one_iteration()
     i_iter = 1
     while i_iter < nb_iter:
-        acc_B_truncated_left_tmp, acc_B_truncated_right_tmp = compute_B()
-        acc_B_truncated_left += acc_B_truncated_left_tmp
-        acc_B_truncated_right += acc_B_truncated_right_tmp
+        FHB += make_one_iteration()
         i_iter += 1
 
-    # this B is the result of W H as if W was padded with cols full of zeros. W stands for the matrix repr of fct_lin_op
-    # B = np.array((self.opu.linear_transform(H > 0) - self.opu.linear_transform(H < 0)))
-    B = 1. / nb_iter * np.vstack([acc_B_truncated_left, acc_B_truncated_right])
-    sqrt_d = np.sqrt(first_pow_of_2_gt_d)  # need to rescale the result because fht implements a scaled Hadamard matrix
-    FHB = np.array([1. / first_pow_of_2_gt_d * fht(b) * sqrt_d for b in B.T]).T
-    # FHB = H @ B / self.d
-    return FHB[:dim]
-
+    return FHB / nb_iter
 
 # cleaning separate files for the classes? careful with circular imports
 class OPUDistributionEstimator:

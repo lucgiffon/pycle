@@ -77,7 +77,7 @@ def _fourierSeriesEvaluate(t, coefficients, T=2 * np.pi):
 # dict of nonlinearities for torch (no gradient provided because autodiff)
 _dico_nonlinearities_torch = {
     "complexexponential": _complexExponentialTorch,
-    "none": None,
+    "none": lambda x: x,
     "universalquantization": _universalQuantization,
     # "universalquantization": (lambda x: torch.sign(torch.cos(x)), None),
     "universalquantization_complex": _universalQuantization_complex,
@@ -87,9 +87,9 @@ _dico_nonlinearities_torch = {
 }
 _dico_normalization_rpf = {
     "complexexponential": 1,
-    "none": None,
+    "none": 1,
     "universalquantization": 2 / np.pi,
     "universalquantization_complex": 4 / np.pi,
     "cosine": 1,
-    "identity": lambda x: x
+    "identity": 1
 }
