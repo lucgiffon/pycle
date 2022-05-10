@@ -1,3 +1,10 @@
+"""
+This module contains encoding/decoding utilities necessary when working with the OPU function.
+
+The OPU function only takes inputs with values in {0, 1} so all OPU calls must be wrapped with
+separatedbitplanencoding functions (provided by lighton).
+"""
+
 from typing import Callable, Union
 
 import numpy as np
@@ -15,7 +22,8 @@ def enc_dec_fct(fct: Callable, x: Union[torch.Tensor, np.ndarray], precision_enc
     fct:
         fct taking x as input and needing encoding/decoding wrapping.
     x:
-        The input to transform.
+        The input to transform. It must have len(shape)==2 with single observations as rows. If there is only
+        one observation to transform, this observation must be formated as a row.
     precision_encoding:
         Encoding precision in number of bits for quantification. It is useless to set it to a value greater than 6.
 
