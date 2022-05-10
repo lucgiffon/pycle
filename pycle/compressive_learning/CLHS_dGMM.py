@@ -7,6 +7,7 @@ from pycle.compressive_learning.CLHS import CLHS
 from pycle.utils.projectors import ProjectorClip, ProjectorLessUnit2Norm
 
 
+# cleaning see what is the point of this class and make test
 class CLHS_dGMM(CLHS):
 
     def __init__(self, sigma2_bar, random_atom, std_lower_bound=1e-10, *args, **kwargs):

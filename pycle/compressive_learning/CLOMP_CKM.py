@@ -5,6 +5,7 @@ import torch
 import numpy
 
 
+# cleaning make clean documentation for this class
 class CLOMP_CKM(CLOMP):
     def __init__(self, phi: FeatureMap, centroid_projector: Projector = ProjectorNoProjection(), *args, **kwargs):
 

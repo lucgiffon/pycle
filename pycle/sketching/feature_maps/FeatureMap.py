@@ -4,10 +4,11 @@ from typing import Callable, Literal, Union, Optional, NoReturn, Tuple
 import torch
 import numpy as np
 from pycle.sketching.feature_maps import _dico_nonlinearities_torch, _dico_normalization_rpf
-from pycle.utils import enc_dec_fct, only_quantification_fct
+from pycle.utils.encoding_decoding import enc_dec_fct, only_quantification_fct
 from pycle.utils.optim import IntermediateResultStorage
 
 
+# cleaning maybe make triple rademacher feature map
 class FeatureMap(ABC):
     """Abstract feature map class
     Template for a generic Feature Map. Useful to check if an object is an instance of FeatureMap."""
@@ -15,7 +16,8 @@ class FeatureMap(ABC):
     def __init__(self, f: Optional[Union[Literal["complexexponential", "universalquantization", "cosine", "none"], Callable]] = "complexexponential",
                  xi: Optional[torch.Tensor] = None, c_norm: Union[float, Literal["unit", "normalized"]] = 1.,
                  encoding_decoding: bool = False, quantification: bool = False, encoding_decoding_precision: int = 8,
-                 device: torch.device = torch.device("cpu"), dtype: torch.dtype = torch.float, save_outputs: bool = False):
+                 device: torch.device = torch.device("cpu"), dtype: torch.dtype = torch.float,
+                 save_outputs: bool = False):
         """
         Parameters
         ----------
@@ -48,6 +50,7 @@ class FeatureMap(ABC):
         self.d, self._m = self.init_shape()
 
         self.name = None
+        self.f = None
         self.update_activation(f)
 
         # 3) extract the dithering

@@ -5,7 +5,8 @@ import torch
 from enum import Enum
 
 from pycle.sketching.frequency_sampling import rebuild_Omega_from_sig_dir_R
-from pycle.utils import LinearFunctionEncDec, MultiSigmaARFrequencyMatrixLinApEncDec, is_number
+from pycle.utils import is_number
+from pycle.utils.torch_functions import MultiSigmaARFrequencyMatrixLinApEncDec, LinearFunctionEncDec
 
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 

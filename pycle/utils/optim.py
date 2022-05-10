@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 
 from pycle.utils import SingletonMeta
 
-
+# cleaning change name of this submodule
 class IntermediateResultStorage(metaclass=SingletonMeta):
     def __init__(self):
         self.dct_objective_values = defaultdict(list)

@@ -9,6 +9,7 @@ from pycle.sketching import FeatureMap
 from pycle.utils.optim import ObjectiveValuesStorage
 
 
+# cleaning make documentation and clean everything here
 class SolverTorch(Solver):
     """
     Adapt Solver base methods to torch.

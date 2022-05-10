@@ -1,17 +1,13 @@
 """
 Frequency sampling functions
 """
-import numbers
-
 import numpy as np
 from matplotlib import pyplot as plt
 import torch
-
-import pycle
-# from pycle.sketching import MatrixFeatureMap
 from pycle.utils import is_number
 
 
+# cleaning add module level documentation
 def drawDithering(m, bounds=None):
     """Draws m samples a <= x < b, with bounds=(a,b) (default: (0,2*pi))."""
     if bounds is None:

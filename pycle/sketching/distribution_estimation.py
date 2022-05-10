@@ -1,9 +1,9 @@
 from typing import Callable
-
-# cleaning check that these functions are compatible with the distribution estimator? and torchify if necessary.
 import torch
 
 
+# cleaning check that these functions are compatible with the distribution estimator? and torchify if necessary.
+# cleaning add module level documentation
 def mu_estimation_ones(lin_op_fct: Callable, in_dim: int) -> torch.float:
     """
     Estimate the mean coefficient of lin_op_fct by probing it with ones.

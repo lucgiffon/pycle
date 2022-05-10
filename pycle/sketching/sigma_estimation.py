@@ -10,9 +10,8 @@ from pycle.sketching import computeSketch
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 from pycle.sketching.frequency_sampling import drawFrequencies
 
+
 # cleaning check which are the useful functions and which are not
-
-
 def _fun_grad_fit_sigmas(p, R, z):
     """
     Function and gradient to solve the optimization problem

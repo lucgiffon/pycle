@@ -1,12 +1,13 @@
 import numpy as np
 
 from pycle.sketching import fourierSketchOfGaussian, fourier_sketch_of_gaussianS
-from pycle.utils import enc_dec_fct
+from pycle.utils.encoding_decoding import enc_dec_fct
 
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 import torch
 
 
+# cleaning make this work: see how the sketching operator is used... maybe ask leon again
 # schellekensvTODO find a better name
 class GMMFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(Omega^T*x + xi)."""

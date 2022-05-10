@@ -1,10 +1,11 @@
-from pycle.compressive_learning.torch.CLOMP import CLOMP
+from pycle.compressive_learning.CLOMP import CLOMP
 from pycle.sketching import FeatureMap
 from pycle.utils.projectors import Projector, ProjectorClip, ProjectorNoProjection
 import torch
 import numpy
 
 
+# cleaning see what is the point of this class and make test
 class CLOMP_DL(CLOMP):
     def __init__(self, phi: FeatureMap, dictionary: [torch.Tensor], centroid_projector: Projector = ProjectorNoProjection(), *args, **kwargs):
 

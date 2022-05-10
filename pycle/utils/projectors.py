@@ -1,8 +1,8 @@
 from abc import ABCMeta, abstractmethod
-
 import torch
 
 
+# cleaning check if these are useful
 class Projector(metaclass=ABCMeta):
     @abstractmethod
     def project(self, param):
@@ -25,7 +25,6 @@ class ProjectorClip(Projector):
 
         torch.minimum(param, self.upper_bound, out=param)
         torch.maximum(param, self.lower_bound, out=param)
-
 
 
 class ProjectorLessUnit2Norm(Projector):

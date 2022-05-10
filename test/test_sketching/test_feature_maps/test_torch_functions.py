@@ -1,4 +1,4 @@
-from pycle.utils import MultiSigmaARFrequencyMatrixLinApEncDec, LinearFunctionEncDec
+from pycle.utils.torch_functions import MultiSigmaARFrequencyMatrixLinApEncDec, LinearFunctionEncDec
 import torch
 import pytest
 

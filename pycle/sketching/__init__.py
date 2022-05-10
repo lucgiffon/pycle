@@ -454,7 +454,7 @@ def get_sketch_Omega_xi_from_aggregation(aggregated_sketch, aggregated_sigmas, d
         aggregated_xi = aggregated_xi[first_sketch_elm:last_sketch_elm]
         assert len(aggregated_sketch) == nb_directions
 
-    if use_torch:
+    if use_torch:  # cleaning check if torch is necessary
         needed_sigma = torch.from_numpy(needed_sigma) if not is_number(needed_sigma) else torch.Tensor(
             [needed_sigma])
         aggregated_sketch = torch.from_numpy(aggregated_sketch)

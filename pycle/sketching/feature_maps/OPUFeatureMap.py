@@ -1,17 +1,18 @@
-import numbers
 from typing import Callable, Literal, Union, Optional, Tuple, NoReturn
 
+import numpy as np
 import torch
+from fht import fht
+from lightonml import OPU
+from lightonml.internal.simulated_device import SimulatedOpuDevice
+from scipy.linalg import hadamard
 
 from pycle.sketching import FeatureMap
 from pycle.sketching.distribution_estimation import mu_estimation_ones, var_estimation_ones, var_estimation_randn, \
     var_estimation_any
-from lightonml import OPU
-from lightonml.internal.simulated_device import SimulatedOpuDevice
-import numpy as np
-from pycle.utils import enc_dec_fct, LinearFunctionEncDec, OPUFunctionEncDec, is_number
-from scipy.linalg import hadamard
-from fht import fht
+from pycle.utils import is_number
+from pycle.utils.torch_functions import LinearFunctionEncDec, OPUFunctionEncDec
+from pycle.utils.encoding_decoding import enc_dec_fct
 
 
 def calibrate_lin_op(fct_lin_op: Callable, dim_in: int, nb_iter: int = 1) -> np.ndarray:
@@ -89,7 +90,7 @@ class OPUDistributionEstimator:
         Parameters
         ----------
         opu:
-            The OPU object to perform the distributione stimation on.
+            The OPU object to perform the distribution estimation on.
         input_dim:
             The input dimension.
         compute_calibration:
@@ -120,7 +121,7 @@ class OPUDistributionEstimator:
 
         self.encoding_decoding_precision = encoding_decoding_precision
 
-    def OPU(self, x: np.ndarray) -> torch.Tensor:
+    def OPU(self, x: torch.Tensor) -> torch.Tensor:
         """
         A handler function allowing to call the OPU wrapped with encoding and decoding functions.
 
@@ -135,8 +136,7 @@ class OPUDistributionEstimator:
         """
         # cleaning make sure this function works as intended wrt numpy and torch
         # cleaning make a test
-        return torch.from_numpy(enc_dec_fct(self.opu.linear_transform, x,
-                                            precision_encoding=self.encoding_decoding_precision))
+        return enc_dec_fct(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision)
 
     def transform(self, x: np.ndarray, direct=False) -> np.ndarray:
         """

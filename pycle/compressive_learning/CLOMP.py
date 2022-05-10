@@ -10,6 +10,7 @@ from pycle.utils.optim import ObjectiveValuesStorage
 import numpy as np
 
 
+# cleaning check documentation and make it numpy like
 class CLOMP(SolverTorch):
     """
     Template for a compressive learning solver, using torch implementation, to solve the problem

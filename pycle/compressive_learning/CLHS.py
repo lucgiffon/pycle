@@ -9,6 +9,7 @@ from pycle.compressive_learning.SolverTorch import SolverTorch
 from pycle.sketching.feature_maps.GMMFeatureMap import GMMFeatureMap
 
 
+# cleaning see what is the point of this class and make test
 class CLHS(SolverTorch):
     """
     Stochastic gradient descent during optimization. Simplified solver: we keep only the essential parts of

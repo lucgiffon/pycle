@@ -4,7 +4,7 @@ from matplotlib.patches import Ellipse
 from scipy.stats import chi2
 
 
-def plotGMM(X=None,P=None,dims=(0,1),d=2,proportionInGMM = None):
+def plotGMM(X=None, P=None, dims=(0, 1), d=2, proportionInGMM=None):
     """
     Plots a Gaussian mixture model (and associated data) in 2 dimensions.
 
@@ -26,46 +26,44 @@ def plotGMM(X=None,P=None,dims=(0,1),d=2,proportionInGMM = None):
     # To finish
 
     if P is not None:
-        (w,mus,Sigmas) = P # Unpack
+        (w, mus, Sigmas) = P  # Unpack
         K = w.size
 
-
-    (w,mus,Sigmas) = P # Unpack
+    (w, mus, Sigmas) = P  # Unpack
     K = w.size
-    dim0,dim1=dims
+    dim0, dim1 = dims
     if proportionInGMM is None:
         # for 95, d = 2%
-        cst=2*np.sqrt(5.991)
+        cst = 2 * np.sqrt(5.991)
     else:
-        cst = 2*np.sqrt(chi2.isf(1-proportionInGMM, d)) # check https://www.visiondummy.com/2014/04/draw-error-ellipse-representing-covariance-matrix/
-    plt.figure(figsize=(5,5))
-    plt.scatter(X[:,dim0],X[:,dim1],s=1, alpha=0.15)
+        cst = 2 * np.sqrt(chi2.isf(1 - proportionInGMM,
+                                   d))  # check https://www.visiondummy.com/2014/04/draw-error-ellipse-representing-covariance-matrix/
+    plt.figure(figsize=(5, 5))
+    plt.scatter(X[:, dim0], X[:, dim1], s=1, alpha=0.15)
     ax = plt.gca()
 
     for k in range(K):
         mu = mus[k]
         # Compute eigenvalues
-        (lam,v) = np.linalg.eig(Sigmas[k][[dim0,dim1],:][:,[dim0,dim1]])
+        (lam, v) = np.linalg.eig(Sigmas[k][[dim0, dim1], :][:, [dim0, dim1]])
         # Sort
-        v_max = v[:,np.argmax(lam)]
+        v_max = v[:, np.argmax(lam)]
 
-        plt.scatter(mu[dim0],mu[dim1],s=200*w[k],c='r')
+        plt.scatter(mu[dim0], mu[dim1], s=200 * w[k], c='r')
 
-        wEll = cst*np.sqrt(lam.max())
-        hEll = cst*np.sqrt(lam.min())
+        wEll = cst * np.sqrt(lam.max())
+        hEll = cst * np.sqrt(lam.min())
 
-
-        with np.errstate(divide='ignore'): # ignore divide by zero warning
-            angle = np.arctan(v_max[1]/v_max[0])*180/(np.pi)
-        #if np.abs(v_max[0]) >= np.abs(v_max[1])*1e-9:
+        with np.errstate(divide='ignore'):  # ignore divide by zero warning
+            angle = np.arctan(v_max[1] / v_max[0]) * 180 / (np.pi)
+        # if np.abs(v_max[0]) >= np.abs(v_max[1])*1e-9:
         #    angle = np.arctan(v_max[1]/v_max[0])*180/(np.pi)
-        #else:
+        # else:
         #    angle = 0
 
-        ellipse = Ellipse(xy=mu, width=wEll, height=hEll, angle = angle,
-                                edgecolor='r', fc='None', lw=2)
+        ellipse = Ellipse(xy=mu, width=wEll, height=hEll, angle=angle,
+                          edgecolor='r', fc='None', lw=2)
         ax.add_patch(ellipse)
-
 
     plt.show()
 
