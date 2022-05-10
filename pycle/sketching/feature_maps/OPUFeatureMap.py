@@ -9,14 +9,12 @@ from pycle.sketching.distribution_estimation import mu_estimation_ones, var_esti
 from lightonml import OPU
 from lightonml.internal.simulated_device import SimulatedOpuDevice
 import numpy as np
-from pycle.sketching.frequency_sampling import sampleFromPDF, pdfAdaptedRadius
 from pycle.utils import enc_dec_fct, LinearFunctionEncDec, OPUFunctionEncDec, is_number
 from scipy.linalg import hadamard
 from fht import fht
 
-from pycle.utils.optim import IntermediateResultStorage
 
-def calibrate_lin_op(fct_lin_op: Callable, dim: int, nb_iter: int = 1) -> np.ndarray:
+def calibrate_lin_op(fct_lin_op: Callable, dim_in: int, nb_iter: int = 1) -> np.ndarray:
     """
     Perform calibration of a linear operator with input dimension dim. (Return the associated
 
@@ -24,21 +22,21 @@ def calibrate_lin_op(fct_lin_op: Callable, dim: int, nb_iter: int = 1) -> np.nda
     ----------
     fct_lin_op
         The linear operator function to call with one 2D np-array
-    dim
+    dim_in
         input dimension of linear operator
     nb_iter
         if the linear operator has centered noise, result will be the average of nb_iter runs
 
     Returns
     -------
-        The calibrated  linear oeprator.
+        The calibrated  linear oeprator (must be applied on the right like: x^T @ A).
     """
     # todo make torch compatible
-    first_pow_of_2_gt_d = 2 ** int(np.ceil(np.log2(dim)))
+    first_pow_of_2_gt_d = 2 ** int(np.ceil(np.log2(dim_in)))
     H = hadamard(first_pow_of_2_gt_d)
-    H_truncated_left = H[:dim, :dim]
+    H_truncated_left = H[:dim_in, :dim_in]
     # keep only the first dim rows to pretend fct_lin_op have been padded with zeros
-    H_truncated_right = H[:dim, dim:]
+    H_truncated_right = H[:dim_in, dim_in:]
     # the last cols of H need also to be transformed by fct_lin_op so that the output result has the right shape
     # for backward FHT.
 
@@ -53,7 +51,7 @@ def calibrate_lin_op(fct_lin_op: Callable, dim: int, nb_iter: int = 1) -> np.nda
             acc_B_truncated_right = np.array(
                 fct_lin_op(H_truncated_right.T > 0) - fct_lin_op(H_truncated_right.T < 0))
         else:
-            assert first_pow_of_2_gt_d == dim
+            assert first_pow_of_2_gt_d == dim_in
             acc_B_truncated_right = np.empty((0, acc_B_truncated_left.shape[1]))
 
         return acc_B_truncated_left, acc_B_truncated_right
@@ -67,7 +65,7 @@ def calibrate_lin_op(fct_lin_op: Callable, dim: int, nb_iter: int = 1) -> np.nda
         sqrt_d = np.sqrt(first_pow_of_2_gt_d)  # need to rescale the result because fht implements a scaled Hadamard matrix
         FHB = np.array([1. / first_pow_of_2_gt_d * fht(b) * sqrt_d for b in B.T]).T
         # FHB = H @ B / self.d
-        return FHB[:dim]
+        return FHB[:dim_in]
 
     FHB = make_one_iteration()
     i_iter = 1
@@ -76,6 +74,7 @@ def calibrate_lin_op(fct_lin_op: Callable, dim: int, nb_iter: int = 1) -> np.nda
         i_iter += 1
 
     return FHB / nb_iter
+
 
 # cleaning separate files for the classes? careful with circular imports
 class OPUDistributionEstimator:
