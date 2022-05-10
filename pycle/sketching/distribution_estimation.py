@@ -1,9 +1,13 @@
+"""
+This module contains function able to estimate the gaussian distribution parameters of the coefficient
+in a Gaussian matrix.
+These estimates are done by probing the corresponding linear function and never by looking at the coefficients directly.
+"""
+
 from typing import Callable
 import torch
 
 
-# cleaning check that these functions are compatible with the distribution estimator? and torchify if necessary.
-# cleaning add module level documentation
 def mu_estimation_ones(lin_op_fct: Callable, in_dim: int) -> torch.float:
     """
     Estimate the mean coefficient of lin_op_fct by probing it with ones.

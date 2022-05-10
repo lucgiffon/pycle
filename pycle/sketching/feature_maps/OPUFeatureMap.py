@@ -32,9 +32,10 @@ def calibrate_lin_op(fct_lin_op: Callable, dim_in: int, nb_iter: int = 1) -> np.
     -------
         The calibrated  linear oeprator (must be applied on the right like: x^T @ A).
     """
-    # todo make torch compatible
     first_pow_of_2_gt_d = 2 ** int(np.ceil(np.log2(dim_in)))
     H = hadamard(first_pow_of_2_gt_d)
+    # todo make torch compatible:
+    #  problem is that fct_lin_op must be able to take numpy arr as input which won't always be the case
     H_truncated_left = H[:dim_in, :dim_in]
     # keep only the first dim rows to pretend fct_lin_op have been padded with zeros
     H_truncated_right = H[:dim_in, dim_in:]
@@ -134,11 +135,9 @@ class OPUDistributionEstimator:
         -------
             The output of the OPU applied to x.
         """
-        # cleaning make sure this function works as intended wrt numpy and torch
-        # cleaning make a test
         return enc_dec_fct(self.opu.linear_transform, x, precision_encoding=self.encoding_decoding_precision)
 
-    def transform(self, x: np.ndarray, direct=False) -> np.ndarray:
+    def transform(self, x: torch.Tensor, direct=False) -> torch.Tensor:
         """
         A handler function to make the linear transformation of the OPU using the calibrated matrix or the real OPU.
 
@@ -153,8 +152,6 @@ class OPUDistributionEstimator:
         -------
             Returns the output of the OPU applied to the input.
         """
-        # cleaning clean everything to work only with torch
-
         assert 0 < x.ndim <= 2
         if self.use_calibration_transform:
             y = x @ self.FHB
@@ -162,7 +159,8 @@ class OPUDistributionEstimator:
             if direct:
                 y = self.opu.linear_transform(x)
             else:
-                if x.ndim == 1: x = x.reshape(1, -1)
+                if x.ndim == 1:
+                    x = x.reshape(1, -1)
                 y = self.OPU(x)
 
         return y
@@ -175,7 +173,8 @@ class OPUDistributionEstimator:
         -------
             The OPU transmission matrix.
         """
-        # calibrate_lin_op works with numpy arrays
+        # calibrate_lin_op works with numpy arrays,
+        # it means that self.opu.linear transform must always be able to take numpy arrays as input
         return torch.from_numpy(calibrate_lin_op(lambda x: self.opu.linear_transform(x), self.d,
                                                  nb_iter=self.nb_iter_calibration))
 
@@ -192,7 +191,6 @@ class OPUDistributionEstimator:
         -------
             The mean value of the implicit OPU transmission matrix.
         """
-        # cleaning clean everything to work only with torch
         if method == "ones":
             return mu_estimation_ones(lambda x: self.transform(x, direct=True), self.d)
         elif method == "mean":
@@ -203,8 +201,6 @@ class OPUDistributionEstimator:
         else:
             raise ValueError(f"Unknown method: {method}.")
 
-    # cleaning make sure all these functions work as expected wrt numpy arrays or torch.
-    # cleaning make a test for all these
     def var_estimation(self, method: Literal["var", "any", "randn", "ones"] = "var", n_iter: int = 1) -> torch.float:
         """
         Estimate the variance of the coefficients in the OPU transmission matrix.
