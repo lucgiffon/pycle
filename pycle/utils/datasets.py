@@ -334,6 +334,24 @@ def generatedataset_Ksparse(d,K,n,max_radius=1):
 
 
 def sample_ball(radius, npoints, ndim=200, center=None):
+    """
+    Return a dataset of `npoints` in `ndim` contained in a ball of maximum radius `radius`.
+
+    Parameters
+    ----------
+    radius:
+        The radius of the ball containing all the data points.
+    npoints:
+        The number of data points.
+    ndim:
+        The dimension of the data points.
+    center:
+        The bias to add to the centered data points
+
+    Returns
+    -------
+        The dataset in the ball.
+    """
     vec = np.random.randn(npoints, ndim)
     vec /= (np.linalg.norm(vec, axis=1).reshape(-1, 1))
     vec *= (np.random.uniform(0, radius, size=npoints).reshape(-1, 1) ** (1. / ndim))
