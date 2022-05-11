@@ -1,3 +1,8 @@
+"""
+This module contains functions and classes related to the use of the OPU to compute the random fourier features
+in the context of sketching.
+"""
+
 from typing import Callable, Literal, Union, Optional, Tuple, NoReturn
 
 import numpy as np
@@ -78,7 +83,6 @@ def calibrate_lin_op(fct_lin_op: Callable, dim_in: int, nb_iter: int = 1) -> np.
     return FHB / nb_iter
 
 
-# cleaning separate files for the classes? careful with circular imports
 class OPUDistributionEstimator:
     def __init__(self, opu: OPU, input_dim: int,
                  compute_calibration: bool = False, use_calibration_transform: bool = False,
@@ -230,7 +234,7 @@ class OPUDistributionEstimator:
             try:
                 return torch.var(self.FHB)
             except TypeError:  # FHB is None
-                raise ValueError(f"Method `var` only works with `compute_calibration` flag.")
+                raise ValueError(f"Method `var` only works with `compute_calibration` parameter of {self.__class__.__name__} set to True.")
         else:
             raise ValueError(f"Unknown method: {method}.")
 
@@ -242,9 +246,10 @@ class OPUFeatureMap(FeatureMap):
                  opu: OPU, SigFact: Union[torch.FloatTensor, torch.Tensor], R: torch.Tensor, dimension: int,
                  nb_iter_calibration: int = 1, nb_iter_linear_transformation: int = 1,
                  calibration_param_estimation: Optional[bool] = None, calibration_forward: bool = False,
-                 calibration_backward: bool = False, calibrate_always: bool = False,
-                 re_center_result: bool = False, device: torch.device = torch.device("cpu"), **kwargs):
+                 calibrate_always: bool = False,
+                 device: torch.device = torch.device("cpu"), **kwargs):
         """
+        Random Fourier Features feature map based on an OPU to perform the random transformation.
 
         Parameters
         ----------
@@ -266,12 +271,8 @@ class OPUFeatureMap(FeatureMap):
             Tells if calibration should be used to evaluate the parameters of the OPU transmission matrix.
         calibration_forward:
             Tells if calibration should be used for the feature map computation.
-        calibration_backward:
-            Tells if calibration should be used for the gradient of the feature map.
         calibrate_always:
             Tells if calibration should be done anyway.
-        re_center_result:
-            Tells if the transmission matrix mean should be used to recenter the results.
         device:
             The device on which to perform the tensor operations. torch.device("cpu") or torch.device("cuda:*").
         kwargs:
@@ -284,7 +285,7 @@ class OPUFeatureMap(FeatureMap):
             assert self.opu.max_n_features == self.dimension
 
         self.SigFact = SigFact.to(device)
-        self.bool_sigfact_a_matrix = (isinstance(self.SigFact, torch.Tensor) or isinstance(self.SigFact, np.ndarray)) and self.SigFact.ndim > 1
+        self.bool_sigfact_a_matrix = isinstance(self.SigFact, torch.Tensor) and self.SigFact.ndim > 1
 
         self._Omega = None
         self.R = R.to(device)
@@ -297,7 +298,7 @@ class OPUFeatureMap(FeatureMap):
         if is_number(self.SigFact):
             self.SigFact = torch.Tensor([self.SigFact]).to(self.device)
 
-        self.light_memory = (not (calibration_param_estimation or calibration_forward or calibration_backward)) and (not calibrate_always)
+        self.light_memory = (not (calibration_param_estimation or calibration_forward)) and (not calibrate_always)
         if calibration_param_estimation is None and not self.light_memory:
             calibration_param_estimation = True
         else:
@@ -305,17 +306,17 @@ class OPUFeatureMap(FeatureMap):
         self.nb_iter_calibration = nb_iter_calibration
         self.nb_iter_linear_transformation = nb_iter_linear_transformation
 
-        self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d, compute_calibration=(not self.light_memory),
+        self.distribution_estimator = OPUDistributionEstimator(self.opu, self.d,
+                                                               compute_calibration=(not self.light_memory),
                                                                use_calibration_transform=calibration_param_estimation,
                                                                nb_iter_calibration=self.nb_iter_calibration,
                                                                encoding_decoding_precision=self.encoding_decoding_precision,
                                                                device=self.device)
         self.calibration_param_estimation = calibration_param_estimation
-        self.switch_use_calibration_forward = calibration_forward  # if True, use the calibrated OPU (the implicit matrix of the OPU) for the forward multiplication
-        self.switch_use_calibration_backward = calibration_backward  # same, but for the gradient (backward) computation
+        self.switch_use_calibration_forward = calibration_forward
 
+        # mu_opu should be around zero
         self.mu_opu, self.std_opu, self.norm_scaling = self.get_distribution_opu()
-        self.re_center_result = re_center_result
 
     def get_distribution_opu(self) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
         """
@@ -325,10 +326,9 @@ class OPUFeatureMap(FeatureMap):
         -------
             mean, std, norm
         """
-        # cleaning make everything torch
         if self.calibration_param_estimation:
             mu = self.distribution_estimator.mu_estimation(method="mean").to(self.device)
-            std = np.sqrt(self.distribution_estimator.var_estimation(method="var")).to(self.device)
+            std = torch.sqrt(self.distribution_estimator.var_estimation(method="var")).to(self.device)
             # multiplied by 1/std because we want the norm of the matrix
             # whose coefficients are sampled in N(0,1)
             col_norm = torch.linalg.norm(self.distribution_estimator.FHB * 1./std, axis=0).to(self.device)
@@ -338,7 +338,7 @@ class OPUFeatureMap(FeatureMap):
             # todo choisir le n_iter dynamiquement et utiliser une autre methode que "ones"
             mu = torch.from_numpy(self.distribution_estimator.mu_estimation(method="ones")).to(self.device)
             std = torch.from_numpy(np.sqrt(self.distribution_estimator.var_estimation(method="ones"))).to(self.device)
-            col_norm = np.sqrt(self.d) * torch.ones(self.opu.n_components).to(self.device)
+            col_norm = torch.sqrt(self.d) * torch.ones(self.opu.n_components).to(self.device)
 
         return mu, std, col_norm
 
@@ -369,8 +369,6 @@ class OPUFeatureMap(FeatureMap):
         """
         return torch.promote_types(self.R.dtype, self.SigFact.dtype)
 
-    # cleaning are these functions necessary for the last stage of development?
-    #  -> maybe the OPU should always be used forward
     def set_use_calibration_forward(self, boolean: bool) -> NoReturn:
         """
         Method to set the toggle for calibration use for the feature map application.
@@ -383,20 +381,6 @@ class OPUFeatureMap(FeatureMap):
         if boolean is True and self.light_memory is True:
             raise ValueError("Can't switch calibration ON when light_memory is True")
         self.switch_use_calibration_forward = boolean
-
-    def set_use_calibration_backward(self, boolean: bool) -> NoReturn:
-        """
-        Method to set the toggle for calibration use for the derivative of the feature map.
-
-        Parameters
-        ----------
-        boolean:
-            If True, toggle ON.
-        """
-        # cleaning should always use calibration for the derivative, no?
-        if boolean is True and self.light_memory is True:
-            raise ValueError("Can't switch calibration ON when light_memory is True")
-        self.switch_use_calibration_backward = boolean
 
     def _OPU(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -443,10 +427,7 @@ class OPUFeatureMap(FeatureMap):
         """
         if self.light_memory is True:
             raise ValueError("The OPU implicit matrix is unknown when light_memory is True.")
-        if self.re_center_result:
-            return ((self.calibrated_matrix - self.mu_opu) * 1./self.std_opu) * sigma + mu
-        else:
-            return (self.calibrated_matrix * 1./self.std_opu) * sigma + mu
+        return (self.calibrated_matrix * 1./self.std_opu) * sigma + mu
 
     @property
     def calibrated_matrix(self) -> torch.Tensor:
@@ -506,12 +487,6 @@ class OPUFeatureMap(FeatureMap):
 
         y_dec = self._OPU(x)
 
-        # now center the coefficients of the matrix then scale the result
-        if self.re_center_result:
-            # cleaning test this condition
-            mu_x = self.mu_opu * torch.sum(x, dim=1)  # sum other all dims
-            y_dec = y_dec - mu_x.reshape(-1, 1)
-
         y_dec = y_dec * 1./self.std_opu
 
         y_dec = (y_dec * 1./self.norm_scaling).unsqueeze(-1) * self.R
@@ -533,30 +508,7 @@ class OPUFeatureMap(FeatureMap):
         if self._Omega is None:
             try:
                 self._Omega = self.SigFact @ self.directions_matrix() * self.R
-            except: # if SigFact is not a matrix
+            except:  # if SigFact is not a matrix
                 self._Omega = (self.SigFact * self.directions_matrix()).unsqueeze(-1) * self.R
                 self._Omega = torch.reshape(self._Omega, (-1, self.m))
         return self._Omega
-
-
-if __name__ == "__main__":
-    # cleaning this piece of code
-    opu = OPU(n_components=2, opu_device=SimulatedOpuDevice(),
-              max_n_features=2)
-    opu.fit1d(n_features=2)
-    # Phi = OPUFeatureMap("ComplexExponential", opu)
-    sample = np.random.rand(1, 2)
-    enc_dec_fct(opu.linear_transform, sample)
-    enc_dec_fct(opu.linear_transform, sample)
-
-    opudistestim = OPUDistributionEstimator(opu, 2)
-    opudistestim.mu_estimation("ones")
-    opudistestim.var_estimation("ones")
-    opudistestim.var_estimation("any")
-    opudistestim.var_estimation("randn")
-    opudistestim = OPUDistributionEstimator(opu, 2, use_calibration=True)
-    opudistestim.mu_estimation("ones")
-    opudistestim.var_estimation("ones")
-    opudistestim.var_estimation("any")
-    opudistestim.var_estimation("randn")
-    opudistestim.var_estimation("var")

@@ -1,14 +1,56 @@
+"""
+This module contains different torch functions to be used to compute the random projection with adapted folded gaussian
+distribution.
+"""
+
 import torch
 from lightonml.encoding.base import SeparatedBitPlanEncoder, SeparatedBitPlanDecoder
 from torch.autograd import Function
 
 
-# cleaning add documentation for what these functions do
-# cleaning clean these functions
 class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
+    """
+    This function is able to compute multiple random projection with different scaling factors sigma.
+
+    The base random matrix is a set of directions multiplied by a set of amplitudes (R).
+    For each different sigma, this random matrix is scaled by the corresponding sigma.
+
+    It is also possible to use as many set of amplitudes R as there are sigmas.
+
+    All the computation can be wrapped into encoding/decoding functions or the input can be quantified before
+    being transformed. These options, however, are here for experimental purpose and I don't see why they could be used
+    for production purposes. These encoding/decoding and quantification processes not being differentiable, the backward step
+    just ignores them.
+    """
 
     @staticmethod
-    def forward(ctx, input, SigFacts, directions, R, quantif=False, enc_dec=False, encoding_decoding_precision=8):
+    def forward(ctx, input: torch.Tensor, SigFacts: torch.Tensor,
+                directions: torch.Tensor, R: torch.Tensor,
+                quantif: bool = False, enc_dec: bool = False, encoding_decoding_precision: int = 8) -> torch.Tensor:
+        """
+
+        Parameters
+        ----------
+        ctx
+        input:
+            tensor to transform.
+        SigFacts:
+            1D tensor containing the list of sigmas.
+        directions:
+            2D tensor of the base directions.
+        R:
+            1D or 2D tensor containing the list of amplitudes for each direction.
+        quantif:
+            Tells to quantify the input before transformation (experimentation purposes).
+        enc_dec:
+            Tells to encode the input before transformation and decode after (experimentation purposes).
+        encoding_decoding_precision:
+            Tells the number of bits used to encode the input (precision is 1/2**precision)
+        Returns
+        -------
+            The input transformed
+
+        """
         assert not (quantif and enc_dec)
 
         if R.ndim == 1:
@@ -25,22 +67,17 @@ class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
 
         if quantif and not enc_dec:
             # in case only quantification of input is requiered (testing purposes):
-            # make quantification/dequantification directly
+            # make quantification/dequantification directly. It is a quantification onto
+            # one of the 2**precision possible values in the dynamic range.
             x_enc = decoder.transform(x_enc)
 
-        # if ever using the opu here: careful with the type of x_enc and y_dec
-
-        # y_dec = x_enc.to(weight.dtype).mm(weight)
         weight_dtype = torch.promote_types(torch.promote_types(SigFacts.dtype, directions.dtype), R.dtype)
         y_dec = x_enc.to(weight_dtype).mm(directions)
         # y_dec: (B, M)
         # R: (M, NR)
-        # how to multiply the transformed vector by R:
-        # torch.einsum("ij,jk->ijk", xtd, R) == xtd.unsqueeze(-1) * R
 
         y_dec = y_dec.unsqueeze(-1) * R
         y_dec = torch.einsum("ijk,h->ikhj", y_dec, SigFacts)
-        # y_dec = torch.einsum("ij,jkl->kil", SigFacts.unsqueeze(-1), y_dec.unsqueeze(0))
 
         y_dec = y_dec.reshape((y_dec.shape[0], directions.shape[1] * SigFacts.shape[0] * R.shape[-1]))
 
@@ -65,10 +102,35 @@ class MultiSigmaARFrequencyMatrixLinApEncDec(Function):
 
 
 class LinearFunctionEncDec(Function):
+    """
+    A simple linear transformation by a weight matrix but with encoding/decoding or input quantification capabilities.
+
+    These encoding/decoding and quantification options are for experimation purposes. Because they are not differentiable,
+    the backward step just ignore them.
+    """
 
     @staticmethod
-    # def forward(ctx, input, weight):
     def forward(ctx, input, weight, quantif=False, enc_dec=False, encoding_decoding_precision=8):
+        """
+
+        Parameters
+        ----------
+        ctx
+        input:
+            tensor to transform.
+        weight:
+            1D tensor containing the list of sigmas.
+        quantif:
+            Tells to quantify the input before transformation (experimentation purposes).
+        enc_dec:
+            Tells to encode the input before transformation and decode after (experimentation purposes).
+        encoding_decoding_precision:
+            Tells the number of bits used to encode the input (precision is 1/2**precision)
+        Returns
+        -------
+            The input transformed
+
+        """
         assert not (quantif and enc_dec)
 
         ctx.save_for_backward(input, weight)
@@ -98,7 +160,6 @@ class LinearFunctionEncDec(Function):
         input, weight = ctx.saved_tensors
 
         grad_input = grad_output.mm(weight.t())
-        # grad_weight = grad_output.t().mm(input)
 
         # first None is for the weights which have fixed values
         # two last None correspond to `quantif` and `enc_dec` arguments in forward pass
@@ -108,10 +169,27 @@ class LinearFunctionEncDec(Function):
 class OPUFunctionEncDec(Function):
 
     @staticmethod
-    # def forward(ctx, input, weight):
     def forward(ctx, input, opu_function, calibrated_opu, encoding_decoding_precision=8, nb_iter_linear_transformation=1):
-        from pycle.utils.optim import IntermediateResultStorage
-
+        """
+        Parameters
+        ----------
+        ctx
+        input:
+            tensor to transform.
+        opu_function:
+            The OPU function to call in the forward pass.
+        calibrated_opu:
+            Tells to quantify the input before transformation (experimentation purposes).
+        encoding_decoding_precision:
+            The OPU needs encoding before use.
+            Tells the number of bits used to encode the input (precision is 1/2**precision).
+        nb_iter_linear_transformation:
+            The number of OPU calls to use for averaging the output. This was intended to reduce
+            the noise of the OPU.
+        Returns
+        -------
+            The input transformed
+        """
         ctx.save_for_backward(input, calibrated_opu)
         encoder = SeparatedBitPlanEncoder(precision=encoding_decoding_precision)
         x_enc = encoder.fit_transform(input.data)
@@ -123,8 +201,6 @@ class OPUFunctionEncDec(Function):
             y_dec += opu_function(x_enc)
             i_repeat_opu += 1
         y_dec /= nb_iter_linear_transformation
-
-        # y_dec = x_enc.to(weight.dtype).mm(weight)
 
         # standard scenario: dequantification happens after the transformation
         y_dec = decoder.transform(y_dec)
@@ -138,8 +214,8 @@ class OPUFunctionEncDec(Function):
             raise NotImplementedError("Impossible to compute the gradient for the OPU transformation operation. "
                                       "Because no calibrated matrix was provided.")
         grad_input = grad_output.mm(calibrated_opu.t())
-        # grad_weight = grad_output.t().mm(input)
 
         # first None is for the weights which have fixed values
-        # 4 last None correspond to `quantif` and `enc_dec` and `save_outputs` and `nb_iter_linear_transformation` arguments in forward pass
+        # 4 last None correspond to `quantif` and `enc_dec`
+        # and `save_outputs` and `nb_iter_linear_transformation` arguments in forward pass
         return grad_input, None, None, None, None
