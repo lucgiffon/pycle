@@ -20,6 +20,14 @@ The code itself, located in the "pycle" folder, structured into 3 main files:
 Note that if you want to use the core code of `pycle` direcltly without downloading this entire repository, you can install it directly from PyPI by typing
 `pip install pycle`
 
+## Todo documentation:
+
+- Minimum working example of CLOMP (code with figure representing the result)
+- Examples of dataset with which CLOMP gives good results (dont forget to talk about normalization)
+- Explanation of the projectors and how to implement new ones
+- Explanation of the feature maps and how to implement new ones
+
+
 ## Citing this toolbox:
 If you publish research using this toolbox, please follow this link for to get citation references (e.g., to generate BibTeX export files)
 
