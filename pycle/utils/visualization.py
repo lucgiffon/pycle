@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Ellipse
 from scipy.stats import chi2
 
-
+# cleaning verify this or move to legacy
 def plotGMM(X=None, P=None, dims=(0, 1), d=2, proportionInGMM=None):
     """
     Plots a Gaussian mixture model (and associated data) in 2 dimensions.
