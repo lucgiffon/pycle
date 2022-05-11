@@ -1,6 +1,6 @@
 import numpy as np
 
-from pycle.sketching import fourierSketchOfGaussian, fourier_sketch_of_gaussianS
+from pycle.legacy.utils import fourierSketchOfGaussian, fourier_sketch_of_gaussianS
 from pycle.utils.encoding_decoding import enc_dec_fct
 
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap

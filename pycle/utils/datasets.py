@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.stats
 from scipy.sparse import diags
-from scipy.stats import multivariate_normal
+
 
 ############################
 # DATASET GENERATION TOOLS #
