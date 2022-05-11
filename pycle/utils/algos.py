@@ -4,7 +4,7 @@ import scipy.stats
 from pycle.utils import loglikelihood_GMM
 
 
-# cleaning test it?
+# cleaning test it? with a nice figure in the end? in a sandbox directory?
 def EM_GMM(X, K, max_iter=20, nRepetitions=1):
     """Usual Expectation-Maximization (EM) algorithm for fitting mixture of Gaussian models (GMM).
 
