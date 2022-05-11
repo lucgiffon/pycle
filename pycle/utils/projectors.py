@@ -2,20 +2,37 @@ from abc import ABCMeta, abstractmethod
 import torch
 
 
-# cleaning check if these are useful
 class Projector(metaclass=ABCMeta):
+    """
+    Base, asbtract, class for projectors which only need to implement the `projet` method.
+    """
     @abstractmethod
     def project(self, param):
         raise NotImplementedError
 
 
 class ProjectorNoProjection(Projector):
+    """
+    Dummy, place handler, projector class to do nothing.
+    """
     def project(self, param):
         pass
 
 
 class ProjectorClip(Projector):
+    """
+    Clip the input parameters to lower and upper bounds.
+    """
     def __init__(self, lower_bound, upper_bound):
+        """
+
+        Parameters
+        ----------
+        lower_bound:
+            The minimum acceptable value for the parameters.
+        upper_bound
+            The maximum acceptable value for the parameters.
+        """
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
 
@@ -28,6 +45,12 @@ class ProjectorClip(Projector):
 
 
 class ProjectorLessUnit2Norm(Projector):
+    """
+    Clip the input row vectors to norm 1:
+
+    the row vectors with norm greater than 1 are clipped to have norm equal to 1.
+    Other row vectors are left untouched.
+    """
     def project(self, param):
         norm = torch.norm(param, dim=-1)
         if len(param.shape) == 2:
@@ -40,6 +63,9 @@ class ProjectorLessUnit2Norm(Projector):
 
 
 class ProjectorExactUnit2Norm(Projector):
+    """
+    Normalize the row vectors to 1 (divide by their respective norm).
+    """
     def project(self, param):
         norm = torch.norm(param, dim=-1)
         torch.div(param, norm.unsqueeze(-1), out=param)
