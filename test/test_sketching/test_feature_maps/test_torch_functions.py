@@ -2,12 +2,13 @@ from pycle.utils.torch_functions import MultiSigmaARFrequencyMatrixLinApEncDec, 
 import torch
 import pytest
 
-from pycle.utils.optim import ObjectiveValuesStorage
+from pycle.utils.intermediate_storage import ObjectiveValuesStorage
 
 
 @pytest.fixture
 def dim():
     return 10
+
 
 def function_optim(loss, p_dim):
     x = torch.nn.Parameter(torch.randn((1, p_dim), requires_grad=True))

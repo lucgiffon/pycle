@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 
-from pycle.sketching.frequency_sampling import multi_scale_frequency_sampling, drawFrequencies, sampleFromPDF
+from pycle.sketching.frequency_sampling import drawFrequencies, sampleFromPDF
 
 
 def overproduce(dim, max_number_of_frequencies, overproduce_factor, strategy="MULTI_SCALE"):
@@ -14,8 +14,8 @@ def overproduce(dim, max_number_of_frequencies, overproduce_factor, strategy="MU
 
     if strategy == "MULTI_SCALE":
         Omega = multi_scale_frequency_sampling(dim, sketch_dim, -2, 0,
-                                       10, "arkm",
-                                       use_torch=True)
+                                               10, "arkm",
+                                               return_torch=True)
     elif strategy == "uniform":
         Omega = drawFrequencies_UniformRadius(dim, sketch_dim, 1e-2, 1e0, use_torch=True)
 
@@ -132,3 +132,55 @@ def drawFrequencies_diffOfGaussians(d, m, GMM_upper, GMM_lower=None, verbose=0):
     Om = phi * R
 
     return Om
+
+
+def multi_scale_frequency_sampling(dim, m, scale_min, scale_max, nb_scales, sampling_method, return_torch=False):
+    """
+    Sample frequencies at a range of scales between scale_min and scale_max.
+
+    Parameters
+    ----------
+    dim
+        Dimension of the frequencies
+    m
+        Number of frequencies
+    scale_min
+        The power of ten from which to start the logrange
+    scale_max
+        The power of ten to which to stop the logrange
+    nb_scales
+        The number of scales in the logrange.
+    sampling_method
+        The law with which to sample the frequencies
+    return_torch
+        Tells to return torch objects or not.
+
+    Returns
+    -------
+
+    """
+    if return_torch:
+        backend = torch
+    else:
+        backend = np
+    scales = np.logspace(scale_min, scale_max, num=nb_scales)
+    Omega = backend.zeros((dim, m))
+    size_each_scale = m // nb_scales
+    remaining_frequencies = m % nb_scales
+    index_frequency = 0
+    for sigma in scales:
+        # choose the number of frequencies to sample.
+        # if m is not dividable by nb_scales, there is a remaining to distribute amond the first frequencies sampled.
+        if remaining_frequencies > 0:
+            nb_frequencies_scale = size_each_scale + 1  # +1 to distribute the frequencies
+            remaining_frequencies -= 1
+        else:
+            nb_frequencies_scale = size_each_scale
+
+        frequencies_sigma = drawFrequencies(sampling_method, dim, nb_frequencies_scale, sigma * np.eye(dim), return_torch=return_torch)
+
+        next_index_frequency = index_frequency + nb_frequencies_scale
+        Omega[:, index_frequency:next_index_frequency] = frequencies_sigma
+        index_frequency = next_index_frequency
+
+    return Omega

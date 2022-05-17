@@ -1,16 +1,10 @@
-import pytest
 import numpy as np
+import pytest
 import torch
 
 import pycle.sketching.frequency_sampling
-
-from lightonml import OPU
-from lightonml.internal.simulated_device import SimulatedOpuDevice
-
-from pycle.sketching import get_sketch_Omega_xi_from_aggregation
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
-from pycle.sketching.feature_maps.OPUFeatureMap import calibrate_lin_op, OPUFeatureMap
-from pycle.utils.encoding_decoding import enc_dec_fct
+from pycle.sketching import get_sketch_Omega_xi_from_aggregation
 from pycle.utils.datasets import generatedataset_GMM
 
 

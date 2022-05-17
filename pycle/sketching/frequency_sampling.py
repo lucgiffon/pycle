@@ -1,15 +1,34 @@
 """
-Frequency sampling functions
+Frequency sampling functions.
+
+These functions allow to find a frequencies matrix that will be used in the random fourier features map
+for the sketching operator.
 """
 import numpy as np
-from matplotlib import pyplot as plt
 import torch
+
+from pycle.legacy.frequency_sampling import multi_scale_frequency_sampling
 from pycle.utils import is_number
 
 
-# cleaning add module level documentation
 def drawDithering(m, bounds=None):
-    """Draws m samples a <= x < b, with bounds=(a,b) (default: (0,2*pi))."""
+    """
+    Draws m samples a <= x < b, with bounds=(a,b) (default: (0,2*pi)).
+
+    The dithering vector can be used as the `xi` parameter of feature maps in order to deal with asymetry between
+    the sketching feature map and learning feature map.
+
+    Parameters
+    ----------
+    m:
+        The size of the dithering vector.
+    bounds:
+        The bounds of the uniform distribution where to sample the dithering.
+
+    Returns
+    -------
+        The vector of dithering.
+    """
     if bounds is None:
         (lowb, highb) = (0, 2 * np.pi)
     else:
@@ -17,20 +36,151 @@ def drawDithering(m, bounds=None):
     return np.random.uniform(low=lowb, high=highb, size=m)
 
 
-def drawFrequencies_Gaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None, keep_splitted=False):
-    """draws frequencies according to some sampling pattern"""
+def sampleFromPDF(pdf, x, nsamples=1, seed=None) -> np.ndarray:
+    """
+    pdf means  "probability density function".
+
+    This function uses the Inverse transform sampling method to generate samples from the pdf.
+
+    Note that this can be more general than just the adapted radius distribution
+
+    Parameters
+    ----------
+    pdf:
+        Vector containing the values of the pdf at x. eg: pdf[i] = pdf(x[i])
+    x:
+        Vector being the support of the pdf
+    nsamples:
+        Number of samples
+    seed:
+        Seed of the random generator.
+
+    References
+    ----------
+
+    see wikipedia: inverse transform sampling
+
+    Returns
+    -------
+        (nsamples, ) array of samples of the pdf.
+
+    """
+    pdf = pdf / np.sum(pdf)  # ensure pdf is normalized
+
+    cdf = np.cumsum(pdf)
+    assert np.isclose(cdf[-1], 1)
+    cdf[-1] = 1.
+
+    # the inverse cdf (implemented by the interp call below) applied on a uniform sample in 0, 1 gives a sample of the
+    # base probability function (see wikipedia: inverse transform sampling)
+    sampleCdf = np.random.RandomState(seed).uniform(0, 1, nsamples)
+    sampleX = np.interp(sampleCdf, xp=cdf, fp=x)
+
+    return sampleX
+
+
+def pdfAdaptedRadius(r: np.ndarray, KMeans=False) -> np.ndarray:
+    """
+    Probability Density Function of the Adapted Radius distribution used to sample the radius of the frequencies
+    in the sketching operator.
+
+    This pdf is defined up to a constant.
+
+    Parameters:
+    -----------
+    r:
+        Vector of points where to estimate the pdf of the Adapted Radius distribution.
+
+    References:
+    -----------
+
+    Cfr. https://arxiv.org/pdf/1606.02838.pdf, sec 3.3.1.
+
+    Returns:
+    --------
+        Vector of evalution of the pdf AR at r values.
+
+    """
+
+    if KMeans:
+        # Dont take the gradient according to sigma into account
+        return r * np.exp(-(r ** 2) / 2)
+    else:
+        return np.sqrt(r ** 2 + (r ** 4) / 4) * np.exp(-(r ** 2) / 2)
+
+
+def draw_radii(m: int, R_seeds, KMeans: bool) -> np.ndarray:
+    """
+    Sample the m-sized vectors of radii for each of the R_seeds.
+
+    Parameters
+    ----------
+    m:
+        size of the output array.
+    R_seeds:
+        Sequence of seeds to use for each vector
+    KMeans:
+        Tells if those radii will be used for Kmeans (true) or gaussian mixture estimation (false).
+
+
+    Returns
+    -------
+        (len(R_seeds), m) 2D np.ndarray of the radii for each seed.
+    """
+    r = np.linspace(0, 5, 2001)
+    lst_R = []
+    for R_seed in R_seeds:
+        # Sample the radii
+        lst_R.append(sampleFromPDF(pdfAdaptedRadius(r, KMeans), r, nsamples=m, seed=R_seed))
+    R = np.array(lst_R)
+    return R
+
+
+def drawFrequencies_Gaussian(d: int, m: int, Sigma=None, randn_mat_0_1=None, seed: int = None,
+                             keep_splitted: bool = False):
+    """
+    Draws frequencies according to a Gaussian distribution with variance 1/sigma**2
+
+    Parameters
+    ----------
+    d:
+        The dimension of the Gaussian
+    m:
+        The number of frequencies to sample
+    Sigma:
+        The variance of the Gaussian. Can be a number of a square np.ndarray
+    randn_mat_0_1:
+        Use a pre-sampled Gaussian matrix with coefficients sampled in N(0, 1)
+    seed:
+        Seed for random number generation.
+    keep_splitted:
+        Return the frequencies matrix in the form of a tuple (sigma, directions, radii) where the frequency matrix
+        equals: sigma @ (directions * radii)
+
+    References
+    ----------
+
+    Cfr. https://arxiv.org/pdf/1606.02838.pdf, sec 3.3.1.
+
+    Returns
+    -------
+        (d, m) np.ndarray the frequencies matrix if keep_splitted is false
+        tuple (sigma, directions, radii) otherwise.
+    """
 
     if Sigma is None:
         Sigma = np.identity(d)
 
     if keep_splitted:
         directions = randn_mat_0_1 or np.random.RandomState(seed).randn(d, m)
+        radii = np.linalg.norm(directions, axis=0)
+        directions /= radii
         if is_number(Sigma):
             Sigma = np.array([Sigma])
-        return np.linalg.inv(Sigma), directions, np.linalg.norm(directions, axis=1)
+        return np.linalg.inv(Sigma), directions, radii
     else:
         if randn_mat_0_1 is None:
-            Om = np.random.RandomState(seed).multivariate_normal(np.zeros(d), np.linalg.inv(Sigma), m).T  # inverse of sigma
+            Om = np.random.RandomState(seed).multivariate_normal(np.zeros(d), np.linalg.inv(Sigma), m).T
         else:
             assert randn_mat_0_1.shape == (d, m)
 
@@ -43,8 +193,40 @@ def drawFrequencies_Gaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None, ke
 
 
 def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=None, keep_splitted=False, R_seeds=None):
-    """draws frequencies according to some sampling pattern
-    omega = R*Sigma^{-1/2}*phi, for R from folded Gaussian with variance 1, phi uniform"""
+    """
+    Draws frequencies according to folded Gaussian distribution.
+
+    omega = R*Sigma^{-1/2}*phi, for R from folded Gaussian with variance 1, phi uniform on the unit sphere
+
+    Parameters
+    ----------
+    d:
+        The dimension of the Gaussian
+    m:
+        The number of frequencies to sample
+    Sigma:
+        The variance of the Gaussian. Can be a number of a square np.ndarray
+    randn_mat_0_1:
+        Use a pre-sampled Gaussian matrix with coefficients sampled in N(0, 1)
+    seed:
+        Seed for random number generation.
+    keep_splitted:
+        Return the frequencies matrix in the form of a tuple (sigma, directions, radii) where the frequency matrix
+        equals: sigma @ (directions * radii)
+    R_seeds:
+        Sequence of seeds to use for each vector
+
+    References
+    ----------
+
+    Cfr. https://arxiv.org/pdf/1606.02838.pdf, sec 3.3.1.
+
+    Returns
+    -------
+        (d, m) np.ndarray the frequencies matrix if keep_splitted is false
+        tuple (sigma, directions, radii) otherwise.
+    """
+
     if Sigma is None:
         Sigma = np.identity(d)
 
@@ -64,8 +246,8 @@ def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=No
     phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
 
     if is_number(Sigma):
-        SigFact = np.array([1./ np.sqrt(Sigma)])
-    elif (isinstance(Sigma, np.ndarray) and Sigma.ndim == 1):
+        SigFact = np.array([1. / np.sqrt(Sigma)])
+    elif isinstance(Sigma, np.ndarray) and Sigma.ndim == 1:
         SigFact = 1. / np.sqrt(Sigma)
     else:
         SigFact = np.linalg.inv(np.linalg.cholesky(Sigma))
@@ -80,43 +262,45 @@ def drawFrequencies_FoldedGaussian(d, m, Sigma=None, randn_mat_0_1=None, seed=No
         return Om
 
 
-def sampleFromPDF(pdf, x, nsamples=1, seed=None):
-    """x is a vector (the support of the pdf), pdf is the values of pdf eval at x"""
-    # Note that this can be more general than just the adapted radius distribution
+def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=None, seed=None, keep_splitted=False,
+                                  R_seeds=None):
+    """
+    Draws frequencies according to Adapted Radius distribution.
 
-    pdf = pdf / np.sum(pdf)  # ensure pdf is normalized
-
-    cdf = np.cumsum(pdf)
-
-    # necessary?
-    cdf[-1] = 1.
-
-    sampleCdf = np.random.RandomState(seed).uniform(0, 1, nsamples)
-
-    sampleX = np.interp(sampleCdf, cdf, x)
-
-    return sampleX
+    omega = R*Sigma^{-1/2}*phi, for R from adapted with variance 1, phi uniform on unit sphere
 
 
-def pdfAdaptedRadius(r, KMeans=False):
-    """up to a constant"""
-    if KMeans:
-        return r * np.exp(-(r ** 2) / 2)  # Dont take the gradient according to sigma into account
-    else:
-        return np.sqrt(r ** 2 + (r ** 4) / 4) * np.exp(-(r ** 2) / 2)
+    Parameters
+    ----------
+    d:
+        The dimension of the Gaussian
+    m:
+        The number of frequencies to sample
+    Sigma:
+        The variance of the Gaussian. Can be a number of a square np.ndarray
+    KMeans:
+        Tells if the frequencies are sampled for kmeans problem (True) or GMM estimation (False)
+    randn_mat_0_1:
+        Use a pre-sampled Gaussian matrix with coefficients sampled in N(0, 1)
+    seed:
+        Seed for random number generation.
+    keep_splitted:
+        Return the frequencies matrix in the form of a tuple (sigma, directions, radii) where the frequency matrix
+        equals: sigma @ (directions * radii)
+    R_seeds:
+        Sequence of seeds to use for each vector
 
-def draw_radii(m, R_seeds, KMeans):
-    r = np.linspace(0, 5, 2001)
-    lst_R = []
-    for R_seed in R_seeds:
-        # Sample the radii
-        lst_R.append(sampleFromPDF(pdfAdaptedRadius(r, KMeans), r, nsamples=m, seed=R_seed))
-    R = np.array(lst_R)
-    return R
+    References
+    ----------
 
-def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=None, seed=None, keep_splitted=False, R_seeds=None):
-    """draws frequencies according to some sampling pattern
-    omega = R*Sigma^{-1/2}*phi, for R from adapted with variance 1, phi uniform"""
+    Cfr. https://arxiv.org/pdf/1606.02838.pdf, sec 3.3.1.
+
+    Returns
+    -------
+        (d, m) np.ndarray the frequencies matrix if keep_splitted is false
+        tuple (sigma, directions, radii) otherwise.
+    """
+
     if Sigma is None:
         Sigma = np.identity(d)
 
@@ -132,8 +316,8 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
     phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
 
     if is_number(Sigma):
-        SigFact = np.array([1./ np.sqrt(Sigma)])
-    elif (isinstance(Sigma, np.ndarray) and Sigma.ndim == 1):
+        SigFact = np.array([1. / np.sqrt(Sigma)])
+    elif isinstance(Sigma, np.ndarray) and Sigma.ndim == 1:
         SigFact = 1. / np.sqrt(Sigma)
     else:
         SigFact = np.linalg.inv(np.linalg.cholesky(Sigma))
@@ -144,100 +328,8 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
         if SigFact.ndim == 2:
             Om = SigFact @ (phi * R)
         else:
-            Om = rebuild_Omega_from_sig_dir_R(SigFact, phi, R.T, math_module=np)
+            Om = rebuild_Omega_from_sigma_direction_R(SigFact, phi, R.T, math_module=np)
         return Om
-
-
-def drawFrequencies_UniformRadius(d, m, min_val, max_val, randn_mat_0_1=None, use_torch=False):
-    """draws frequencies according to some sampling pattern
-    omega = R*Sigma^{-1/2}*phi, for R from adapted with variance 1, phi uniform"""
-    from scipy.stats import loguniform
-
-    R = loguniform.rvs(min_val, max_val, size=m)
-
-    if randn_mat_0_1 is None:
-        phi = np.random.randn(d, m)
-    else:
-        phi = randn_mat_0_1
-
-    phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
-
-    Om = phi * R
-
-    # cleaning replace these use_torch with a parameter more explicit about the returned type
-    if use_torch:
-        return torch.from_numpy(Om)
-    else:
-        return Om
-
-
-def pdf_diffOfGaussians(r, GMM_upper=None, GMM_lower=None):
-    """Here, GMM is given in terms of SD and not variance"""
-    if isinstance(GMM_upper, tuple):
-        (weights_upper, sigmas_upper) = GMM_upper
-    elif GMM_upper is None:
-        weights_upper = np.array([])  # Empty array
-    else:
-        (weights_upper, sigmas_upper) = (np.array([1.]), np.array([GMM_upper]))
-
-    if isinstance(GMM_lower, tuple):
-        (weights_lower, sigmas_lower) = GMM_lower
-    elif GMM_lower is None:
-        weights_lower = np.array([])
-    else:
-        (weights_lower, sigmas_lower) = (np.array([1.]), np.array([GMM_lower]))
-
-    res = np.zeros(r.shape)
-    # Add
-    for k in range(weights_upper.size):
-        res += weights_upper[k] * np.exp(-0.5 * (r ** 2) / (sigmas_upper[k] ** 2))
-    # Substract
-    for k in range(weights_lower.size):
-        res -= weights_lower[k] * np.exp(-0.5 * (r ** 2) / (sigmas_lower[k] ** 2))
-
-    # Ensure pdf is positive
-    pdf_is_negative = res < 0
-    if any(pdf_is_negative):
-        print(res[:5])
-        # Print a warning if the negative pdf values are significant (not due to rounding errors)
-        tol = 1e-8
-        if np.max(np.abs(res[np.where(pdf_is_negative)[0]])) > tol:
-            print("WARNING: negative pdf values detected and replaced by zero, check the validity of your input")
-        # Correct the negative values
-        res[np.where(pdf_is_negative)[0]] = 0.
-
-    return res
-
-
-def drawFrequencies_diffOfGaussians(d, m, GMM_upper, GMM_lower=None, verbose=0):
-    """
-    draws frequencies according to some sampling pattern
-    omega = R*Sigma^{-1/2}*phi, schellekensvTODO, phi uniform
-    """
-
-    # reasonable sampling
-    n_Rs = 1001
-    if isinstance(GMM_upper, tuple):
-        R_max = 4 * np.max(GMM_upper[1])  # GMM_upper is (weights, cov)-type tuple
-    else:
-        R_max = 4 * GMM_upper
-    r = np.linspace(0, R_max, n_Rs)
-
-    if verbose > 0:
-        plt.plot(r, pdf_diffOfGaussians(r, GMM_upper, GMM_lower))
-        plt.xlabel('frequency norm r')
-        plt.ylabel('pdf(r)')
-        plt.show()
-
-    # sample from the diff of gaussians pdf
-    R = sampleFromPDF(pdf_diffOfGaussians(r, GMM_upper, GMM_lower), r, nsamples=m)
-
-    phi = np.random.randn(d, m)
-    phi = phi / np.linalg.norm(phi, axis=0)  # normalize -> randomly sampled from unit sphere
-
-    Om = phi * R
-
-    return Om
 
 
 def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1=None, seed=None, return_torch=False, keep_splitted=False, R_seeds=None):
@@ -282,13 +374,11 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
     else:
         raise ValueError("drawType not recognized")
 
-
     # Handle no input
     if Sigma is None:
         Sigma = np.identity(d)
     else:
         Sigma = Sigma
-
 
     # Handle
     if isinstance(Sigma, np.ndarray) or is_number(Sigma):
@@ -329,96 +419,43 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
 
     if return_torch:
         if keep_splitted:
-            return (torch.from_numpy(Omega[0]), torch.from_numpy(Omega[1]), torch.from_numpy(Omega[2]))
+            return torch.from_numpy(Omega[0]), torch.from_numpy(Omega[1]), torch.from_numpy(Omega[2])
         else:
             return torch.from_numpy(Omega)
     else:
         return Omega
 
 
-def multi_scale_frequency_sampling(dim, m, scale_min, scale_max, nb_scales, sampling_method, use_torch=False):
+def rebuild_Omega_from_sigma_direction_R(sig, dir, R, math_module=torch):
+    """
+    Return the reconstructed frequencies matrix obtained from:
+        - a (sequence of) sigmas
+        - a set of directions
+        - a (set of) set of radii
+
+    In the final matrix is constructed like:
+
+    frequencies = []
+    for R in set of radii vectors:
+        for sigma in set of sigmas:
+            frequencies.concat_to_the_end(frequencies(R, sigma))
+
+    Parameters
+    ----------
+    sig:
+        A sequence of sigmas. Shape: (S,)
+    dir:
+        A matrix of directions sampled on the unitsphere. Shape: (D, M)
+    R:
+        A set of radii. Shape: (M, R)
+    math_module:
+        backend module torch or numpy
+
+    Returns
+    -------
+        The reconstructed matrix of shape (D, M*S*R)
     """
 
-    :param dim:
-    :param m:
-    :param scale_min: The power of ten from which to start the logrange
-    :param scale_max: The power of ten to which to stop the logrange
-    :param nb_scales: The number of scales in the logrange.
-    :param sampling_method: The law with which to sample the frequencies
-    :param use_torch:
-    :return:
-    """
-    # cleaning replace these use_torch with a parameter more explicit about the returned type
-    if use_torch:
-        backend = torch
-    else:
-        backend = np
-    scales = np.logspace(scale_min, scale_max, num=nb_scales)
-    Omega = backend.zeros((dim, m))
-    size_each_scale = m // nb_scales
-    remaining_frequencies = m % nb_scales
-    index_frequency = 0
-    for sigma in scales:
-        # choose the number of frequencies to sample.
-        # if m is not dividable by nb_scales, there is a remaining to distribute amond the first frequencies sampled.
-        if remaining_frequencies > 0:
-            nb_frequencies_scale = size_each_scale + 1  # +1 to distribute the frequencies
-            remaining_frequencies -= 1
-        else:
-            nb_frequencies_scale = size_each_scale
-
-        frequencies_sigma = drawFrequencies(sampling_method, dim, nb_frequencies_scale, sigma * np.eye(dim), return_torch=use_torch)
-
-        next_index_frequency = index_frequency + nb_frequencies_scale
-        Omega[:, index_frequency:next_index_frequency] = frequencies_sigma
-        index_frequency = next_index_frequency
-
-    return Omega
-
-
-def overproduce(dim, max_number_of_frequencies, overproduce_factor, strategy="MULTI_SCALE"):
-    # cleaning add documentation
-    # For this simple example, assume we have a priori a rough idea of the size of the clusters
-    Sigma = 0.1 * np.eye(dim)
-    # Pick the dimension m: 5*K*d is usually (just) enough in clustering (here m = 50)
-    sketch_dim = overproduce_factor * max_number_of_frequencies
-
-    if strategy == "MULTI_SCALE":
-        Omega = multi_scale_frequency_sampling(dim, sketch_dim, -2, 0,
-                                       10, "arkm",
-                                       use_torch=True)
-    elif strategy == "uniform":
-        Omega = drawFrequencies_UniformRadius(dim, sketch_dim, 1e-2, 1e0, use_torch=True)
-
-    else:
-        Omega = drawFrequencies("FoldedGaussian", dim, sketch_dim, Sigma, return_torch=True)
-
-    xi = torch.rand(sketch_dim) * np.pi * 2
-    return Omega, xi
-
-
-def choose(base_sketch, max_nb_freq, strategy="in-boundaries", threshold=0.01):
-    # cleaning add documentation
-    abs_base_sketch = base_sketch.abs()
-    if strategy == "closest-to-mid":
-        sorted_indices = torch.argsort((abs_base_sketch - 0.5).abs())
-        return torch.sort(sorted_indices[:max_nb_freq])[0]
-    else:
-        indices_greater_than_min = threshold < abs_base_sketch
-        indices_lower_than_max = abs_base_sketch < 1-threshold
-        accepted_bool_indices = torch.logical_and(indices_lower_than_max, indices_greater_than_min)
-        accepted_indices = torch.arange(len(base_sketch))[accepted_bool_indices]
-        selected_indices = (torch.ones(len(accepted_indices)) / len(accepted_indices)).multinomial(num_samples=max_nb_freq, replacement=False)
-        indices_ok = accepted_indices[selected_indices]
-        return indices_ok
-
-
-def rebuild_Omega_from_sig_dir_R(sig, dir, R, math_module=torch):
     dr = math_module.einsum("ij,jk->ikj", dir, R)
     r = math_module.einsum("l,ikj->iklj", sig, dr)
     return r.reshape((dir.shape[0], -1))
-
-
-if __name__ == "__main__":
-    om = multi_scale_frequency_sampling(10, 20, -4, 0, 5, "arkm")
-    print(om.shape)

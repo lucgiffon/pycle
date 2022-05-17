@@ -1,6 +1,14 @@
 """
-funtions allows to estimate Sigma (some utils first, main function is "estimate_Sigma")
+These funtions allows to select Sigma.
+
+Sigma is the scale of the frequencies used to build the sketching operator.
+It is a critical hyper-parameter for compressive clustering.
+
+Beware: functions in this module work with numpy arrays.
 """
+import warnings
+from typing import NoReturn
+
 import numpy as np
 import scipy.optimize
 import torch
@@ -11,18 +19,31 @@ from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 from pycle.sketching.frequency_sampling import drawFrequencies
 
 
-# cleaning check which are the useful functions and which are not
-def _fun_grad_fit_sigmas(p, R, z):
+# cleaning make all of this torch (create separate module and assert torch version give same result than numpy version)
+# cleaning add utility function for the entropy based criterion
+
+
+def _fun_grad_fit_sigmas(p: np.ndarray, R: np.ndarray, z: np.ndarray):
     """
     Function and gradient to solve the optimization problem
         min_{w,sigs2} sum_{i = 1}^n ( z[i] - sum_{k=1}^K w[k]*exp(-R[i]^2*sig2[k]/2) )^2
-    Arguments:
+
+    Parameters:
+    -----------
         - p, a (2K,) numpy array obtained by stacking
-            - w : (K,) numpy array
-            - sigs2 : (K,) numpy array
-        - R: (n,) numpy array, data to fit (x label)
-        - z: (n,) numpy array, data to fit (y label)
+            - w : (K,) numpy array corresponding to the weights of the mixture
+            - sigs2 : (K,) numpy array the standard deviation of each Gaussian in the mixture
+        - R: (n,) numpy array, data to fit (x label) The norms of the frequencies
+        - z: (n,) numpy array, data to fit (y label) The corresponding sketch absolute value
+
+    References:
+    -----------
+
+    Cfr. https://arxiv.org/pdf/1606.02838.pdf, sec 3.3.3.
+
+
     Returns:
+    --------
         - The function evaluation
         - The gradient
     """
@@ -31,23 +52,79 @@ def _fun_grad_fit_sigmas(p, R, z):
     w = p[:K]
     sigs2 = p[K:]
     n = R.size
-    # Naive implementation, schellekensvTODO better?
+
     fun = 0
     grad = np.zeros(2 * K)
     for i in range(n):
+        # todo better than that naive implementation with the for loop
         fun += (z[i] - w @ np.exp(-(sigs2 * R[i] ** 2) / 2.)) ** 2
         grad[:K] += (z[i] - w @ np.exp(-(sigs2 * R[i] ** 2) / 2.)) * (- np.exp(-(sigs2 * R[i] ** 2) / 2.))  # grad of w
         grad[K:] += (z[i] - w @ np.exp(-(sigs2 * R[i] ** 2) / 2.)) * (- w * np.exp(-(sigs2 * R[i] ** 2) / 2.)) * (
                     -0.5 * R[i] ** 2)  # grad of sigma2
-    return (fun, grad)
+
+    return fun, grad
 
 
-def _callback_fit_sigmas(p):
+def _callback_fit_sigmas(p: np.ndarray) -> NoReturn:
+    """
+    Make the weights of the mixture of Gaussians (first half of p) sum to one, so that it is indeed a mixture.
+
+    Parameters
+    ----------
+    p
+        The parameters of the mixture (weights, sigmas)
+    """
     K = p.size // 2
     p[:K] /= np.sum(p[:K])
 
 
-def estimate_Sigma_from_sketch(z, Phi, K=1, c=20, mode='max', sigma2_bar=None, weights_bar=None, should_plot=False):
+def estimate_Sigma_from_sketch(z: np.ndarray, Phi: MatrixFeatureMap, K=1, c=20, mode='max', sigma2_bar=None,
+                               weights_bar=None, should_plot=False):
+    """
+    Estimate the right sigmas by fitting a mixture of Gaussians to the extrememums-by-bin coefficients in the sketch.
+
+    The procedure is the following:
+
+    - Sort the frequencies (Phi.Omega);
+    - Partition with respect to amplitude of the frequencies. This gives `c` bins.;
+    - Keep one value in each corresponding bin in the sketch being the `mode` value. (max or min)
+    - Fit a mixture of gaussian distributions to these values.
+    - Return the sigma squared (variance) of that gaussian.
+
+    All Gaussians in the mixture are centered.
+
+    Parameters
+    ----------
+    z:
+        The sketch obtained from `Phi`.
+    Phi:
+        Sketching operator. Necessary attributes are:
+        - Omega : the matrix of frequencies,
+        - c_norm: the sketch normalization constant
+        - m: the number of frequencies
+    K:
+        The number of gaussians parameterized by sigma in the mixture.
+    c:
+        Number of bins where to sample the data to fit to the exponential.
+    mode:
+        "min" or "max" to salect the sample representing each bin
+    sigma2_bar:
+        The initial sigmas. If None, it is sampled in uniform(0.3, 1.6, K).
+    weights_bar:
+        The weights of the mixture
+    should_plot
+        Tells to plot the result of the optimisation scheme.
+
+    References
+    ----------
+
+    Cfr. https://arxiv.org/pdf/1606.02838.pdf, sec 3.3.3.
+
+    Returns
+    -------
+        The array of each sigmas in the mixture.
+    """
+
     # Parse
     if mode == 'max':
         mode_criterion = np.argmax
@@ -57,9 +134,9 @@ def estimate_Sigma_from_sketch(z, Phi, K=1, c=20, mode='max', sigma2_bar=None, w
         raise ValueError("Unrecocgnized mode ({})".format(mode))
 
     # sort the freqs by norm
-    Rs = np.linalg.norm(Phi.Omega, axis=0)
-    i_sort = np.argsort(Rs)
-    Rs = Rs[i_sort]
+    frequencies_norm = np.linalg.norm(Phi.Omega.cpu().numpy(), axis=0)
+    i_sort = np.argsort(frequencies_norm)
+    frequencies_norm = frequencies_norm[i_sort]
     z_sort = z[i_sort] / Phi.c_norm  # sort and normalize individual entries to 1
 
     # Initialization
@@ -72,26 +149,30 @@ def estimate_Sigma_from_sketch(z, Phi, K=1, c=20, mode='max', sigma2_bar=None, w
         weights_bar = np.ones(K) / K
 
     # find the indices of the max of each block
-    jqs = np.empty(c)
+    indices_samples = np.empty(c)
     for ic in range(c):
         j_max = mode_criterion(np.abs(z_sort)[ic * s:(ic + 1) * s]) + ic * s
-        jqs[ic] = j_max
-    jqs = jqs.astype(int)
-    R_tofit = Rs[jqs]
-    z_tofit = np.abs(z_sort)[jqs]
+        indices_samples[ic] = j_max
+    indices_samples = indices_samples.astype(int)
+    R_tofit = frequencies_norm[indices_samples]
+    z_tofit = np.abs(z_sort)[indices_samples]
 
     # Set up the fitting opt. problem
-    f = lambda p: _fun_grad_fit_sigmas(p, R_tofit, z_tofit)  # cost
+    def f(_p):
+        return _fun_grad_fit_sigmas(_p, R_tofit, z_tofit)  # cost
 
     p0 = np.zeros(2 * K)  # initial point
-    p0[:K] = weights_bar  # w
+    p0[:K] = weights_bar  # w -> these are the weights of the gaussian mixture. Must sum to one.
     p0[K:] = sigma2_bar
 
     # Bounds of the optimization problem
     bounds = []
-    for k in range(K): bounds.append([1e-5, 1])  # bounds for the weigths
-    for k in range(K): bounds.append(
-        [5e-4 * sigma2_bar[k], 2e3 * sigma2_bar[k]])  # bounds for the sigmas -> cant cange too much
+    # bounds for the weigths
+    for k in range(K):
+        bounds.append([1e-5, 1])
+    # bounds for the sigmas -> cant change too much
+    for k in range(K):
+        bounds.append([5e-4 * sigma2_bar[k], 2e3 * sigma2_bar[k]])
 
     # Solve the sigma^2 optimization problem
     sol = scipy.optimize.minimize(f, p0, jac=True, bounds=bounds, callback=_callback_fit_sigmas)
@@ -102,11 +183,11 @@ def estimate_Sigma_from_sketch(z, Phi, K=1, c=20, mode='max', sigma2_bar=None, w
     # Plot if required
     if should_plot:
         plt.figure(figsize=(10, 5))
-        rfit = np.linspace(0, Rs.max(), 100)
+        rfit = np.linspace(0, frequencies_norm.max(), 100)
         zfit = np.zeros(rfit.shape)
         for k in range(K):
             zfit += weights_bar[k] * np.exp(-(sigma2_bar[k] * rfit ** 2) / 2.)
-        plt.plot(Rs, np.abs(z_sort), '.')
+        plt.plot(frequencies_norm, np.abs(z_sort), '.')
         plt.plot(R_tofit, z_tofit, '.')
         plt.plot(rfit, zfit)
         plt.xlabel('R')
@@ -116,13 +197,14 @@ def estimate_Sigma_from_sketch(z, Phi, K=1, c=20, mode='max', sigma2_bar=None, w
     return sigma2_bar
 
 
-def estimate_Sigma(dataset, m0, K=None, c=20, n0=None, drawFreq_type="AR", nIterations=5, mode='max', verbose=0):
+def estimate_Sigma(dataset: np.ndarray, m0, K=None, c=20, n0=None, drawFreq_type="AR", nIterations=5, mode='max',
+                   verbose=0, device="cpu"):
     """Automatically estimates the "Sigma" parameter(s) (the scale of data clusters) for generating the sketch operator.
 
     We assume here that Sigma = sigma2_bar * identity matrix.
     To estimate sigma2_bar, lightweight sketches of size m0 are generated from (a small subset of) the dataset
     with candidate values for sigma2_bar. Then, sigma2_bar is updated by fitting a Gaussian
-    to the absolute values of the obtained sketch. Cfr. https://arxiv.org/pdf/1606.02838.pdf, sec 3.3.3.
+    to the absolute values of the obtained sketch.
 
     Arguments:
         - dataset: (n,d) numpy array, the dataset X: n examples in dimension d
@@ -138,11 +220,16 @@ def estimate_Sigma(dataset, m0, K=None, c=20, n0=None, drawFreq_type="AR", nIter
         - mode: 'max' (default) or 'min', describe which sketch entries per block to fit
         - verbose: 0,1 or 2, amount of information to print (default: 0, no info printed). Useful for debugging.
 
+    References:
+    -----------
+
+    Cfr. https://arxiv.org/pdf/1606.02838.pdf, sec 3.3.3.
+
     Returns: If K = 1:
                 - Sigma: (d,d)-numpy array, the (diagonal) estimated covariance of the clusters in the dataset;
              If K > 1: a tuple (w,Sigma) representing the scale mixture model, where:
-                - w:     (K,)-numpy array, the weigths of the scale mixture (sum to 1)
                 - Sigma: (K,d,d)-numpy array, the dxd covariances in the scale mixture
+                (uniformity is assumed for mixture weights)
     """
 
     return_format_is_matrix = K is None
@@ -158,31 +245,33 @@ def estimate_Sigma(dataset, m0, K=None, c=20, n0=None, drawFreq_type="AR", nIter
         X = dataset
 
     # Check if we dont overfit the empirical Fourier measurements
-    if (m0 < (K * 2) * c):
-        print("WARNING: overfitting regime detected for frequency sampling fitting")
+    if m0 < (K * 2) * c:
+        warnings.warn("WARNING: overfitting regime detected for frequency sampling fitting")
 
     # Initialization
     # maxNorm = np.max(np.linalg.norm(X,axis=1))
     sigma2_bar = np.random.uniform(0.3, 1.6, K)
     weights_bar = np.ones(K) / K
 
+    X = torch.from_numpy(X).to(torch.device(device))
     # Actual algorithm
     for i in range(nIterations):
         # Draw frequencies according to current estimate
         sigma2_bar_matrix = np.outer(sigma2_bar, np.eye(d)).reshape(K, d, d)  # covariances in (K,d,d) format
-        Omega0 = drawFrequencies(drawFreq_type, d, m0, Sigma=(weights_bar, sigma2_bar_matrix))
+        Omega0 = drawFrequencies(drawFreq_type, d, m0, Sigma=(weights_bar, sigma2_bar_matrix), return_torch=True)
 
         # Compute unnormalized complex exponential sketch
-        Phi0 = MatrixFeatureMap("ComplexExponential", Omega0)
+        Phi0 = MatrixFeatureMap("complexexponential", Omega0, device=torch.device(device))
         z0 = computeSketch(X, Phi0)
 
         should_plot = verbose > 1 or (verbose > 0 and i >= nIterations - 1)
-        sigma2_bar = estimate_Sigma_from_sketch(z0, Phi0, K, c, mode, sigma2_bar, weights_bar, should_plot)
+        sigma2_bar = estimate_Sigma_from_sketch(z0.cpu().numpy(), Phi0,
+                                                K, c, mode, sigma2_bar, weights_bar, should_plot)
 
     if return_format_is_matrix:
         Sigma = sigma2_bar[0] * np.eye(d)
     else:
         sigma2_bar_matrix = np.outer(sigma2_bar, np.eye(d)).reshape(K, d, d)  # covariances in (K,d,d) format
-        Sigma = (weights_bar, sigma2_bar_matrix)
+        Sigma = sigma2_bar_matrix
 
     return Sigma

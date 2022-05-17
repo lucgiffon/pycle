@@ -5,7 +5,7 @@ import torch
 import numpy as np
 from pycle.sketching.feature_maps import _dico_nonlinearities_torch, _dico_normalization_rpf
 from pycle.utils.encoding_decoding import enc_dec_fct, only_quantification_fct
-from pycle.utils.optim import IntermediateResultStorage
+from pycle.utils.intermediate_storage import IntermediateResultStorage
 
 
 # cleaning maybe make triple rademacher feature map

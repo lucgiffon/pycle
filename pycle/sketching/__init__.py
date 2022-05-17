@@ -22,14 +22,14 @@ def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=100, disp
     where X is the dataset, Phi is the sketch feature map, w_i are weights assigned to the samples (typically 1/n).
 
     Arguments:
-        - dataset        : (n,d) numpy array, the dataset X: n examples in dimension d
+        - dataset        : (n,d) torch Tensor, the dataset X: n examples in dimension d
         - featureMap     : the feature map Phi, given as one of the following:
-            -- a function, z_x_i = featureMap(x_i), where x_i and z_x_i are (n,)- and (m,)-numpy arrays, respectively
+            -- a function, z_x_i = featureMap(x_i), where x_i and z_x_i are (n,)- and (m,)-torch tensors, respectively
             -- a FeatureMap instance (e.g., constructed as featureMap = SimpleFeatureMap("complexExponential",Omega) )
-        - datasetWeights : (n,) numpy array, optional weigths w_i in the sketch (default: None, corresponds to w_i = 1/n)
+        - datasetWeights : (n,) torch tensor, optional weigths w_i in the sketch (default: None, corresponds to w_i = 1/n)
 
     Returns:
-        - sketch : (m,) numpy array, the sketch as defined above
+        - sketch : (m,) torch tensor, the sketch as defined above
     """
     # TODOs:
     # - add possibility to specify classes and return one sketch per class
@@ -66,9 +66,34 @@ def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=100, disp
     return sketch
 
 
-def get_sketch_Omega_xi_from_aggregation(aggregated_sketch, aggregated_sigmas, directions, aggregated_R, aggregated_xi,
-                                         Omega, R_seeds, needed_sigma, needed_seed, keep_all_sigmas, use_torch):
+def get_sketch_Omega_xi_from_aggregation(aggregated_sketch: np.ndarray, aggregated_sigmas, directions,
+                                         aggregated_R, aggregated_xi,
+                                         Omega, R_seeds, needed_sigma, needed_seed, keep_all_sigmas, use_torch=True):
     """
+    Note that this function works with numpy arrays as input and not torch tensors.
+
+    From an aggregated sketch, get the sub-sketch of interest.
+
+    "Mutualized" sketching is sharing the matrix of directions between the computation of many sketches with
+    many scaling factors or many seeds for the amplitude sampling R.
+    The vector obtained at the outcome of the mutualized sketching is the "aggregated sketch".
+    One may want to retrieve the sketch corresponding to one particular scaling factor sigma or seed.
+    This function allows to do so.
+
+    The aggregated sketch is constructed in this order:
+
+    sketch = []
+    for R_seed in lst_R_seeds:
+        for sigma in lst_sigmas:
+            sub_sketch = sketching(seed, sigma)
+            sketch = sketch.concat_to_the_end(sub_sketch)
+
+    This means that the m-sized sketch corresponding to the i_th R_seed and the j_th sigma value is located at:
+
+    start = i * (m * len(lst_sigmas)) + j * m
+    end = start + m
+
+    i and j starts at 0.
 
     Parameters
     ----------
@@ -84,7 +109,7 @@ def get_sketch_Omega_xi_from_aggregation(aggregated_sketch, aggregated_sigmas, d
     aggregated_xi:
         The list of possible xi samples ordered in the same order than in the aggregated_sketch.
     Omega:
-
+        If Omega is provided (different than None), it means the aggregated sketch, Omega and xi must be returned as is.
     R_seeds:
         The list of seeds used to generate the different R ordered in the same order than in the aggregated_sketch.
     needed_sigma:
@@ -138,7 +163,7 @@ def get_sketch_Omega_xi_from_aggregation(aggregated_sketch, aggregated_sigmas, d
         aggregated_xi = aggregated_xi[first_sketch_elm:last_sketch_elm]
         assert len(aggregated_sketch) == nb_directions
 
-    if use_torch:  # cleaning check if torch is necessary
+    if use_torch:
         needed_sigma = torch.from_numpy(needed_sigma) if not is_number(needed_sigma) else torch.Tensor(
             [needed_sigma])
         aggregated_sketch = torch.from_numpy(aggregated_sketch)
@@ -148,12 +173,3 @@ def get_sketch_Omega_xi_from_aggregation(aggregated_sketch, aggregated_sigmas, d
         return aggregated_sketch, (needed_sigma, directions, aggregated_R), aggregated_xi
     else:
         return aggregated_sketch, (needed_sigma, directions, aggregated_R), aggregated_xi
-
-### TODOS FOR SKETCHING.PY
-
-# Short-term:
-#  - Add support of private sketching for the real variants of the considered maps
-#  - Add the square nonlinearity, for sketching for PCA for example
-
-# Long-term:
-# - Fast sketch computation

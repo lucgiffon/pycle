@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from enum import Enum
 
-from pycle.sketching.frequency_sampling import rebuild_Omega_from_sig_dir_R
+from pycle.sketching.frequency_sampling import rebuild_Omega_from_sigma_direction_R
 from pycle.utils import is_number
 from pycle.utils.torch_functions import MultiSigmaARFrequencyMatrixLinApEncDec, LinearFunctionEncDec
 
@@ -12,7 +12,7 @@ from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 
 
 # schellekensvTODO find a better name
-from pycle.utils.optim import IntermediateResultStorage
+from pycle.utils.intermediate_storage import IntermediateResultStorage
 
 
 class MatrixFeatureMap(FeatureMap):
@@ -78,7 +78,7 @@ class MatrixFeatureMap(FeatureMap):
             if self.bool_sigfact_a_matrix:
                 return self.SigFact @ self.directions * self.R
             elif not is_number(self.SigFact):
-                return rebuild_Omega_from_sig_dir_R(self.SigFact, self.directions, self.R)
+                return rebuild_Omega_from_sigma_direction_R(self.SigFact, self.directions, self.R)
             else:
                 return self.SigFact * self.directions * self.R
         else:
