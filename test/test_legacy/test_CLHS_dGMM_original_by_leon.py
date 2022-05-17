@@ -6,6 +6,8 @@ from pycle.utils.datasets import generatedataset_GMM
 import numpy as np
 import torch
 
+
+# cleaning might deserve removing
 @pytest.mark.skip(reason="Not usefull anymore")
 def test_fit_once():
     np.random.seed(20)  # easy
