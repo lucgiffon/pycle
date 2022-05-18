@@ -8,7 +8,6 @@ from pycle.utils.encoding_decoding import enc_dec_fct, only_quantification_fct
 from pycle.utils.intermediate_storage import IntermediateResultStorage
 
 
-# cleaning make triple rademacher feature map
 class FeatureMap(ABC):
     """
     Abstract feature map class

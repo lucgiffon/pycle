@@ -3,7 +3,8 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Ellipse
 from scipy.stats import chi2
 
-# cleaning verify this or move to legacy
+
+# cleaning add function to display sigma estimation here
 def plotGMM(X=None, P=None, dims=(0, 1), d=2, proportionInGMM=None):
     """
     Plots a Gaussian mixture model (and associated data) in 2 dimensions.
@@ -23,7 +24,7 @@ def plotGMM(X=None, P=None, dims=(0, 1), d=2, proportionInGMM=None):
     d: ambient dimension (used to compute the size of the contour)
     proportionInGMM: proportion of data to include in the GMM ellipses (default 95%)
     """
-    # To finish
+    # todo To finish
 
     if P is not None:
         (w, mus, Sigmas) = P  # Unpack
@@ -36,8 +37,9 @@ def plotGMM(X=None, P=None, dims=(0, 1), d=2, proportionInGMM=None):
         # for 95, d = 2%
         cst = 2 * np.sqrt(5.991)
     else:
+        # check https://www.visiondummy.com/2014/04/draw-error-ellipse-representing-covariance-matrix/
         cst = 2 * np.sqrt(chi2.isf(1 - proportionInGMM,
-                                   d))  # check https://www.visiondummy.com/2014/04/draw-error-ellipse-representing-covariance-matrix/
+                                   d))
     plt.figure(figsize=(5, 5))
     plt.scatter(X[:, dim0], X[:, dim1], s=1, alpha=0.15)
     ax = plt.gca()

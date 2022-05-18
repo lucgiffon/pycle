@@ -20,9 +20,6 @@ from pycle.sketching.frequency_sampling import drawFrequencies
 
 
 # cleaning make all of this torch (create separate module and assert torch version give same result than numpy version)
-# cleaning add utility function for the entropy based criterion
-
-
 def _fun_grad_fit_sigmas(p: np.ndarray, R: np.ndarray, z: np.ndarray):
     """
     Function and gradient to solve the optimization problem
@@ -56,7 +53,7 @@ def _fun_grad_fit_sigmas(p: np.ndarray, R: np.ndarray, z: np.ndarray):
     fun = 0
     grad = np.zeros(2 * K)
     for i in range(n):
-        # todo better than that naive implementation with the for loop
+        # todo something better than that naive implementation with the for loop
         fun += (z[i] - w @ np.exp(-(sigs2 * R[i] ** 2) / 2.)) ** 2
         grad[:K] += (z[i] - w @ np.exp(-(sigs2 * R[i] ** 2) / 2.)) * (- np.exp(-(sigs2 * R[i] ** 2) / 2.))  # grad of w
         grad[K:] += (z[i] - w @ np.exp(-(sigs2 * R[i] ** 2) / 2.)) * (- w * np.exp(-(sigs2 * R[i] ** 2) / 2.)) * (
