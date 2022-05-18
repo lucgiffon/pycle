@@ -5,10 +5,6 @@ import numpy as np
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 
 
-# cleaning make UML diagram of everything that is happening here
-# cleaning make documentation and clean everything here
-#  cleaning see if it makes sense to have two classes: Solver and SolverTorch
-# 0.1 Generic solver (stores a sketch and a solution, can run multiple trials of a learning method to specify)
 class Solver(metaclass=ABCMeta):
     """
     Template for a compressive learning solver, used to solve the problem

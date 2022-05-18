@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from loguru import logger
 import matplotlib.pyplot as plt
-from pycle.sketching.feature_maps import _universalQuantization, _universalQuantization_complex
+from pycle.sketching.feature_maps.non_linearities import _universalQuantization, _universalQuantization_complex
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 from pycle.utils.datasets import generatedataset_GMM
 from pycle.compressive_learning.CLOMP_CKM import CLOMP_CKM
@@ -99,7 +99,7 @@ def test_fit_once_adam(X, dim, nb_clust, bounds, Phi_emp):
     # Get the solution
     (theta, weights) = ckm_solver.current_sol
     centroids, sigma = theta[..., :dim], theta[..., -dim:]
-
+    # cleaning use functions for these plots
     plt.figure(figsize=(5, 5))
     plt.title("Compressively learned centroids")
     plt.scatter(X[:, 0], X[:, 1], s=1, alpha=0.15)
@@ -220,6 +220,7 @@ def test_fit_once_pdfo(X, dim, nb_clust, bounds, Phi_emp):
 
     logger.info("SSE: {}".format(SSE(X, theta)))
 
+
 def test_plot_cosine_universal_q(dim, Phi_emp_xi):
     t = torch.tensor(np.linspace(-4 * np.pi, 4 * np.pi, 100))
     Phi_emp_xi.update_activation("cosine")
@@ -248,7 +249,8 @@ def test_universal_quantization():
     def _universal_quantization_truth(x): return torch.sign(torch.cos(x)) + 1.j * torch.sign(torch.sin(x))
     f_t_uq_expected = _universal_quantization_truth(t)
     equality_complex = f_t_uq_obtained == f_t_uq_expected
-    assert (equality_complex).all()
+    assert equality_complex.all()
+
 
 def test_asymetric(X, dim, nb_clust, bounds, Phi_emp_xi):
     # Phi_gmm = GMMFeatureMap("None", Omega)
