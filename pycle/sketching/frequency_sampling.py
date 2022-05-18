@@ -6,8 +6,6 @@ for the sketching operator.
 """
 import numpy as np
 import torch
-
-from pycle.legacy.frequency_sampling import multi_scale_frequency_sampling
 from pycle.utils import is_number
 
 

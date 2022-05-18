@@ -1,26 +1,8 @@
 import numpy as np
 import torch
-from loguru import logger
 
 
 # cleaning add documentation for everything here
-def _universalQuantization(t, Delta=np.pi, centering=True):
-    _div = t / Delta
-    if (_div % 1 == 0).any():
-        logger.warning(f"Input exactly multiple of {Delta} can lead to unexpected result in _universalQuantization")
-    # t -= Delta/2
-    if centering:
-        # return ((t // Delta) % 2) * 2 - 1  # // stands for "int division
-        # return ((torch.round(_div) + 1) % 2) * 2 - 1  # // stands for "int division
-        return (torch.floor(_div - 0.5) % 2) * 2 - 1  # // stands for "int division
-    else:
-        return (torch.floor(_div - 0.5) % 2)  # centering=false => quantization is between 0 and +1
-
-
-def _universalQuantization_complex(t, Delta=np.pi, centering=True):
-    # cleaning test it
-    return _universalQuantization(t, Delta=Delta, centering=centering) + 1.j * _universalQuantization(
-        t - Delta/2, Delta=Delta, centering=centering)
 
 
 def _sawtoothWave(t, T=2 * np.pi, centering=True):
