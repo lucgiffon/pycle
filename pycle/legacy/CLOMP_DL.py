@@ -30,20 +30,20 @@ class CLOMP_DL(CLOMP):
     def loss_atom_correlation(self, theta):
         return super().loss_atom_correlation(theta) + self.regularize(theta)
 
-    def loss_global(self, alphas, all_thetas=None, all_atoms=None):
-        return super().loss_global(alphas, all_thetas, all_atoms) + self.regularize(all_thetas)
+    def loss_global(self, alphas, all_thetas=None, phi_thetas=None):
+        return super().loss_global(alphas, all_thetas, phi_thetas) + self.regularize(all_thetas)
 
-    def sketch_of_atoms(self, theta):
+    def sketch_of_mixture_components(self, theta):
         """
         Computes and returns A_Phi(P_theta_k) for one or several atoms P_theta_k.
         d is the dimension of atom, m is the dimension of sketch
         :param theta: tensor of size (d) or (K, d)
         :return: tensor of size (m) or (K, m)
         """
-        assert theta.size()[-1] == self.d_theta
+        assert theta.size()[-1] == self.thetas_dimension_D
         return self.phi(theta @ self.dictionary)
 
-    def set_bounds_atom(self, bounds):
+    def set_bounds_thetas(self, bounds):
         """
         Should set self.bounds_atom to a list of length d_atom of lower and upper bounds, i.e.,
             self.bounds_atom = [[lowerbound_1,upperbound_1], ..., [lowerbound_d_atom,upperbound_d_atom]]
@@ -54,28 +54,28 @@ class CLOMP_DL(CLOMP):
         self.bounds = bounds  # data bounds
         self.bounds_atom = bounds.T.tolist()
 
-    def randomly_initialize_several_atoms(self, nb_atoms):
+    def randomly_initialize_several_mixture_components(self, nb_mixture_components):
         """
         Uniform initialization of several centroids between the lower and upper bounds.
         :return: tensor
         """
         all_new_theta = (self.upper_bounds -
-                         self.lower_bounds) * torch.rand(nb_atoms, self.d_theta).to(self.device) + self.lower_bounds
+                         self.lower_bounds) * torch.rand(nb_mixture_components, self.thetas_dimension_D).to(self.device) + self.lower_bounds
         return all_new_theta
 
-    def projection_step(self, theta) -> None:
+    def projection_step(self, thetas) -> None:
         """
         Project a theta (or a set of thetas) on the constraint specifed by self.centroid_project of class `Projector`.
 
         The modification is made in place.
 
-        :param theta:
+        :param thetas:
         :return: None
         """
         if self.centroid_projector is not None:
             # todo peut etre faire une projection en plus pour ammener le résultat plus près du résultat voulu
             #  en terme de nombre de coefficients
-            self.centroid_projector.project(theta)
+            self.centroid_projector.project(thetas)
 
     def get_centroids(self, return_numpy=True) -> [torch.Tensor, numpy.ndarray]:
         """
@@ -85,6 +85,6 @@ class CLOMP_DL(CLOMP):
         :return: tensor or numpy array
         """
         if return_numpy:
-            return self.all_thetas.cpu().numpy()
-        return self.all_thetas
+            return self.thetas.cpu().numpy()
+        return self.thetas
 

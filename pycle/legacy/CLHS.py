@@ -20,7 +20,7 @@ class CLHS(SolverTorch):
     def __init__(self, phi, freq_batch_size,
                 gamma=0.98, step_size=1, *args, **kwargs):
 
-        super().__init__(phi=phi, D_theta=phi.d * 2, *args, **kwargs)
+        super().__init__(phi=phi, thetas_dimension_D=phi.d * 2, *args, **kwargs)
 
         # Optimization parameters
         self.freq_batch_size = freq_batch_size
@@ -35,7 +35,7 @@ class CLHS(SolverTorch):
     def projection_step(self, theta):
         raise NotImplementedError
 
-    def set_bounds_atom(self, bounds):
+    def set_bounds_thetas(self, bounds):
         self.bounds = None  # for compatibility
 
     def add_several_atoms(self, new_thetas):
@@ -45,7 +45,7 @@ class CLHS(SolverTorch):
         :return:
         """
         self.n_atoms += len(new_thetas)
-        self.all_thetas = torch.cat((self.all_thetas, new_thetas), dim=0)
+        self.thetas = torch.cat((self.thetas, new_thetas), dim=0)
 
     def remove_one_atom(self, ind_remove):
         """
@@ -54,20 +54,20 @@ class CLHS(SolverTorch):
         :return:
         """
         self.n_atoms -= 1
-        self.all_thetas = torch.cat((self.all_thetas[:ind_remove], self.all_thetas[ind_remove + 1:]), dim=0)
+        self.thetas = torch.cat((self.thetas[:ind_remove], self.thetas[ind_remove + 1:]), dim=0)
 
     def remove_all_atoms(self):
         self.n_atoms = 0
-        self.all_thetas = torch.empty(0, self.d_theta, dtype=self.real_dtype).to(self.device)
+        self.thetas = torch.empty(0, self.thetas_dimension_D, dtype=self.real_dtype).to(self.device)
 
     def minimize_cost_from_current_sol(self, prefix=""):
         # Preparing frequencies dataloader
-        dataset = TensorDataset(torch.transpose(self.phi.Omega, 0, 1), self.sketch)
+        dataset = TensorDataset(torch.transpose(self.phi.Omega, 0, 1), self.sketch_z)
         dataloader = DataLoader(dataset, batch_size=self.freq_batch_size)
 
         # Parameters, optimizer
         log_alphas = torch.log(self.alphas).requires_grad_()
-        all_thetas = self.all_thetas.requires_grad_()
+        all_thetas = self.thetas.requires_grad_()
         params = [log_alphas, all_thetas]
         # Adam optimizer
         optimizer = torch.optim.Adam(params, lr=self.lr_inner_optimizations, betas=(self.beta_1, self.beta_2))
@@ -101,12 +101,12 @@ class CLHS(SolverTorch):
             self.writer.close()
 
         self.alphas = torch.exp(log_alphas).detach()
-        self.all_thetas = all_thetas.detach()
+        self.thetas = all_thetas.detach()
 
     def fit_once(self, runs_dir=None):
-        n_iterations = int(np.ceil(np.log2(self.nb_mixtures)))  # log_2(K) iterations
+        n_iterations = int(np.ceil(np.log2(self.size_mixture_K)))  # log_2(K) iterations
         # new_theta = self.maximize_atom_correlation(self.sketch, log_dir=runs_dir)
-        new_theta = self.randomly_initialize_several_atoms(1).squeeze()
+        new_theta = self.randomly_initialize_several_mixture_components(1).squeeze()
         self.add_several_atoms(torch.unsqueeze(new_theta, 0))
         self.alphas = torch.ones(1, dtype=self.real_dtype).to(self.device)
 
@@ -116,25 +116,25 @@ class CLHS(SolverTorch):
             self.split_all_current_thetas_alphas()
             logger.debug("Fine-tuning...")
             self.minimize_cost_from_current_sol(prefix=str(i_iter))
-            self.update_current_sol_and_cost(sol=(self.all_thetas, self.alphas))
+            self.update_current_solution_and_cost(new_current_solution=(self.thetas, self.alphas))
 
         logger.debug("Final fine-tuning...")
         self.minimize_cost_from_current_sol(prefix='FINAL_FINE_TUNING')
-        self.projection_step(self.all_thetas)
+        self.projection_step(self.thetas)
         self.alphas /= torch.sum(self.alphas)
-        self.update_current_sol_and_cost(sol=(self.all_thetas, self.alphas))
+        self.update_current_solution_and_cost(new_current_solution=(self.thetas, self.alphas))
 
     def sketch_of_solution(self, solution=None):
         """
         Returns the sketch of the solution, A_Phi(P_theta) = sum_k alpha_k A_Phi(P_theta_k).
-        In: solution = (all_thetas, alphas)
+        In: solution = (thetas, alphas)
             phi = sk.ComplexExpFeatureMap
             one_by_one = compute one atom by one atom in case atom computation does not fit in GPU
         Out: sketch_of_solution: (m,)-tensor containing the sketch
         """
         if solution is None:
-            all_thetas, alphas = self.all_thetas, self.alphas
+            all_thetas, alphas = self.thetas, self.alphas
         else:
             all_thetas, alphas = solution
-        all_atoms = torch.transpose(self.sketch_of_atoms(all_thetas), 0, 1)
+        all_atoms = torch.transpose(self.sketch_of_mixture_components(all_thetas), 0, 1)
         return torch.matmul(all_atoms, alphas.to(self.comp_dtype))

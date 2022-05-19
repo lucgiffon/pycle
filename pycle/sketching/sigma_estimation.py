@@ -19,7 +19,7 @@ from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 from pycle.sketching.frequency_sampling import drawFrequencies
 
 
-# cleaning make all of this torch (create separate module and assert torch version give same result than numpy version)
+# todo make all of this torch (create separate module and assert torch version give same result than numpy version)
 def _fun_grad_fit_sigmas(p: np.ndarray, R: np.ndarray, z: np.ndarray):
     """
     Function and gradient to solve the optimization problem

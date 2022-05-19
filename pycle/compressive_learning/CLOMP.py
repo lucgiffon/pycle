@@ -14,21 +14,29 @@ import numpy as np
 
 class CLOMP(SolverTorch):
     """
-    Template for a compressive learning solver, using torch implementation, to solve the problem
-        min_(theta) || sketch_weight * z - A_Phi(P_theta) ||_2.
+    Implementation of the CLOMP algorithm  to fit the sketch of a mixture model to the sketch z of a distribution.
 
-    Some size of tensors to keep in mind:
-        - alphas: (n_atoms,)-tensor, weights of the mixture elements
-        - all_thetas:  (n_atoms,D)-tensor, all the found parameters in matrix form. Each parameter is a "center".
-        - all_atoms: (M,n_atoms)-tensor, the sketch of each theta (m is sketch size).
+    CLOMP is an instance of the class SolverTorch.
 
-    The "solution" is the pair alphas, all_thetas, that is: the weights of the mixture with their corresponding centers.
+    References
+    ----------
+    Keriven, N., Bourrier, A., Gribonval, R., & Pérez, P. (2018). Sketching for large-scale learning of mixture models.
+    Information and Inference: A Journal of the IMA, 7(3), 447-508.
+    https://arxiv.org/pdf/1606.02838.pdf
     """
+    # cleaning make dynamic reference to SOlverTorch rst
 
     LST_OPT_METHODS_TORCH = ["adam", "lbfgs"]
 
-    def __init__(self, *args,
-                 **kwargs):
+    def __init__(self, *args, **kwargs):
+        self.maxiter_inner_optimizations = None
+        self.tol_inner_optimizations = None
+        self.nb_iter_max_step_5 = None
+        self.nb_iter_max_step_1 = None
+        self.opt_method_step_1 = None
+        self.opt_method_step_34 = None
+        self.opt_method_step_5 = None
+        self.lr_inner_optimizations = None
 
         super().__init__(*args, **kwargs)
 
@@ -39,20 +47,11 @@ class CLOMP(SolverTorch):
         self.count_iter_torch_maximize_atom_correlation = 0
         self.count_iter_torch_minimize_cost_from_current_sol = 0
 
-        self.maxiter_inner_optimizations = None
-        self.tol_inner_optimizations = None
-        self.nb_iter_max_step_5 = None
-        self.nb_iter_max_step_1 = None
-        self.opt_method_step_1 = None
-        self.opt_method_step_34 = None
-        self.opt_method_step_5 = None
-        self.lr_inner_optimizations = None
-
-    def initialize_parameters_optimization(self) -> None:
+    def initialize_hyperparameters_optimization(self) -> None:
         """
-        Transform optimization parameters in dct_opt_method to actual attributes of the object.
+        Transform optimization parameters in dct_optim_method_hyperparameters to actual attributes of the object.
 
-        Default key values for the dct_opt_method dictionnary are:
+        Default key values for the dct_optim_method_hyperparameters dictionnary are:
 
         {
             "maxiter_inner_optimizations": 15000,  # Max number of iterations for all torch optimizations
@@ -66,53 +65,64 @@ class CLOMP(SolverTorch):
         }
 
         """
-        self.maxiter_inner_optimizations = self.dct_opt_method.get("maxiter_inner_optimizations", 15000)
-        self.tol_inner_optimizations = self.dct_opt_method.get("tol_inner_optimizations", 1e-9)
-        self.nb_iter_max_step_5 = self.dct_opt_method.get("nb_iter_max_step_5", 200)
-        self.nb_iter_max_step_1 = self.dct_opt_method.get("nb_iter_max_step_1", 200)
-        self.opt_method_step_1 = self.dct_opt_method.get("opt_method_step_1", "lbfgs")
-        self.opt_method_step_34 = self.dct_opt_method.get("opt_method_step_34", "nnls")
-        self.opt_method_step_5 = self.dct_opt_method.get("opt_method_step_5", "lbfgs")
-        self.lr_inner_optimizations = self.dct_opt_method.get("lr_inner_optimizations", 1)
-
+        self.maxiter_inner_optimizations = self.dct_optim_method_hyperparameters.get("maxiter_inner_optimizations", 15000)
+        self.tol_inner_optimizations = self.dct_optim_method_hyperparameters.get("tol_inner_optimizations", 1e-9)
+        self.nb_iter_max_step_5 = self.dct_optim_method_hyperparameters.get("nb_iter_max_step_5", 200)
+        self.nb_iter_max_step_1 = self.dct_optim_method_hyperparameters.get("nb_iter_max_step_1", 200)
+        self.opt_method_step_1 = self.dct_optim_method_hyperparameters.get("opt_method_step_1", "lbfgs")
+        self.opt_method_step_34 = self.dct_optim_method_hyperparameters.get("opt_method_step_34", "nnls")
+        self.opt_method_step_5 = self.dct_optim_method_hyperparameters.get("opt_method_step_5", "lbfgs")
+        self.lr_inner_optimizations = self.dct_optim_method_hyperparameters.get("lr_inner_optimizations", 1)
 
     @abstractmethod
-    def projection_step(self, theta):
-        raise NotImplementedError
-
-    def sketch_of_solution(self, alphas, all_thetas=None, all_atoms=None):
+    def projection_step(self, thetas):
         """
-        Returns the sketch of the solution, A_Phi(P_theta) = sum_k alpha_k A_Phi(P_theta_k).
+        Project mixture component parameters vector theta (or a set of thetas) on the constraint specifed
+        by self.centroid_project of class `Projector`.
+
+        The modification is made in place.
 
         Parameters
         ----------
-        alphas:
-            (n_atoms,) shaped tensor of the weights of the mixture in the solution.
-        all_thetas:
-            (n_atoms, D) shaped tensor containing the centers of the solution.
-        all_atoms
-            (M, n_atoms) shaped tensor of each center sketched. If None, then the sketch will be computed from alphas and thetas.
+        thetas
+            (D,) or (current_size_mixture, D)-shaped tensor containing the parameters vector to project.
+        """
+        raise NotImplementedError
+
+    def sketch_of_solution(self, alphas, thetas=None, phi_thetas=None):
+        """
+        Returns the sketch of the solution, A_Phi(thetas, alphas) = sum_k^K {alpha_k *phi_theta_k}.
+
+        Parameters
+        ----------
+        alphas
+            (current_size_mixture,) shaped tensor of the weights of the mixture in the solution.
+        thetas
+            (current_size_mixture, D) shaped tensor containing the component parameters of the solution.
+        phi_thetas
+            (M, current_size_mixture) shaped tensor of each component sketched. If None, then the sketch will be computed
+            from alphas and thetas.
 
         Returns
         -------
             (M,)-shaped tensor containing the sketch of the mixture
         """
-        assert all_thetas is not None or all_atoms is not None
+        assert thetas is not None or phi_thetas is not None
 
-        if all_atoms is None:
-            all_atoms = torch.transpose(self.sketch_of_atoms(all_thetas), 0, 1)
-        return torch.matmul(all_atoms, alphas.to(self.comp_dtype))
+        if phi_thetas is None:
+            phi_thetas = torch.transpose(self.sketch_of_mixture_components(thetas), 0, 1)
+        return torch.matmul(phi_thetas, alphas.to(self.comp_dtype))
 
     def add_atom(self, new_theta) -> NoReturn:
         """
-        Adding a new theta (new center) and the corresponding new atom to the object.
+        Adding a new theta and the corresponding new phi_theta to the CLOMP object.
 
-        This will be used in each iteration when the new atom has been found (end of step 1 of the algorithm).
+        This will be used in each iteration when the new theta has been found (end of step 1 of the algorithm).
 
         Parameters
         ----------
         new_theta:
-            (D, )- shaped tensor containing a new center to add to the solution.
+            (D, )- shaped tensor containing a new mixture component to add to the solution.
 
         References
         ----------
@@ -121,21 +131,21 @@ class CLOMP(SolverTorch):
         https://arxiv.org/pdf/1606.02838.pdf
 
         """
-        self.n_atoms += 1
-        self.all_thetas = torch.cat((self.all_thetas, torch.unsqueeze(new_theta, 0)), dim=0)
-        sketch_atom = self.sketch_of_atoms(new_theta)
-        self.all_atoms = torch.cat((self.all_atoms, torch.unsqueeze(sketch_atom, 1)), dim=1)
+        self.current_size_mixture += 1
+        self.thetas = torch.cat((self.thetas, torch.unsqueeze(new_theta, 0)), dim=0)
+        sketch_atom = self.sketch_of_mixture_components(new_theta)
+        self.phi_thetas = torch.cat((self.phi_thetas, torch.unsqueeze(sketch_atom, 1)), dim=1)
 
-    def remove_one_atom(self, index_to_remove) -> NoReturn:
+    def remove_one_component(self, index_to_remove) -> NoReturn:
         """
-        Remove a theta (a center) and the corresponding atom.
+        Remove a theta and the corresponding phi_theta.
 
-        Removing an atom should happen during step 3 of the algorithm.
+        Removing a component should happen during step 3 of the algorithm.
 
         Parameters
         ----------
         index_to_remove:
-            The index of the atom/center to remove. The one with the smallest coefficient in the mixture.
+            The index of the component to remove. The one with the smallest coefficient in the mixture.
 
         References
         ----------
@@ -143,10 +153,10 @@ class CLOMP(SolverTorch):
         Information and Inference: A Journal of the IMA, 7(3), 447-508.
         https://arxiv.org/pdf/1606.02838.pdf
         """
-        self.n_atoms -= 1
-        self.all_thetas = torch.cat((self.all_thetas[:index_to_remove], self.all_thetas[index_to_remove+1:]), dim=0)
-        self.all_atoms = torch.cat((self.all_atoms[:, :index_to_remove], self.all_atoms[:, index_to_remove + 1:]),
-                                   dim=1)
+        self.current_size_mixture -= 1
+        self.thetas = torch.cat((self.thetas[:index_to_remove], self.thetas[index_to_remove+1:]), dim=0)
+        self.phi_thetas = torch.cat((self.phi_thetas[:, :index_to_remove], self.phi_thetas[:, index_to_remove + 1:]),
+                                    dim=1)
 
     def loss_atom_correlation(self, theta):
         """
@@ -169,11 +179,11 @@ class CLOMP(SolverTorch):
         -------
             The value of the objective function evaluated at theta.
         """
-        sketch_of_atom = self.sketch_of_atoms(theta)
+        sketch_of_atom = self.sketch_of_mixture_components(theta)
         norm_atom = torch.norm(sketch_of_atom)
         # Trick to avoid division by zero (doesn't change anything because everything will be zero)
-        if norm_atom.item() < self.minimum_atom_norm:
-            norm_atom = torch.tensor(self.minimum_atom_norm).to(self.device)
+        if norm_atom.item() < self.minimum_phi_theta_norm:
+            norm_atom = torch.tensor(self.minimum_phi_theta_norm).to(self.device)
 
         # note the "minus 1" that transforms the problem into a minimization problem
         result = -1. / norm_atom * torch.real(torch.vdot(sketch_of_atom, self.residual))
@@ -181,9 +191,10 @@ class CLOMP(SolverTorch):
             ObjectiveValuesStorage().add(float(result), "loss_atom_correlation")
         return result
 
-    def find_optimal_weights(self, normalize_atoms=False, prefix="") -> torch.Tensor:
+    def find_optimal_weights(self, normalize_phi_thetas=False, prefix="") -> torch.Tensor:
         """
-        Returns the optimal wheights for the input atoms by solving the Non-Negative Least Square problem.
+        Returns the optimal wheights for the current mixture components 
+        by solving the Non-Negative Least Square problem.
 
         This correspond to the third and fourth subproblem of the CLOMPR algorithm.
 
@@ -191,7 +202,7 @@ class CLOMP(SolverTorch):
 
         Parameters
         ----------
-        normalize_atoms
+        normalize_phi_thetas
             Tells to normalize the atoms before fitting the weights. This is usefull to recover weight illustrating the
             importance of each atom in the mixture.
         prefix
@@ -208,34 +219,34 @@ class CLOMP(SolverTorch):
             (k,) shaped tensor of the weights of the least square solution
         """
 
-        init_alphas = torch.zeros(self.n_atoms, device=self.device)
+        init_alphas = torch.zeros(self.current_size_mixture, device=self.device)
 
-        all_atoms = self.all_atoms
+        all_atoms = self.phi_thetas
 
         if self.opt_method_step_34 == "nnls":
-            return self._find_optimal_weights_nnls(all_atoms, normalize_atoms=normalize_atoms)
+            return self._find_optimal_weights_nnls(all_atoms, normalize_phi_thetas=normalize_phi_thetas)
         elif self.opt_method_step_34 in self.LST_OPT_METHODS_TORCH:
-            return self._find_optimal_weights_torch(init_alphas, all_atoms, prefix, normalize_atoms=normalize_atoms)
+            return self._find_optimal_weights_torch(init_alphas, all_atoms, prefix, normalize_phi_thetas=normalize_phi_thetas)
         else:
             raise ValueError(f"Unkown optimization method: {self.opt_method_step_34}")
 
-    def _find_optimal_weights_nnls(self, all_atoms, normalize_atoms=False) -> torch.Tensor:
+    def _find_optimal_weights_nnls(self, phi_thetas, normalize_phi_thetas=False) -> torch.Tensor:
         """
-        Returns the optimal wheights for the input atoms by solving the Non-Negative Least Square problem.
+        Returns the optimal weights for the input phi_thetas by solving the Non-Negative Least Square problem.
 
         This correspond to the third and fourth subproblem of the CLOMPR algorithm.
 
         This function uses scipy.optimize.nnls procedure to solve the problem. This means that
         the input tensor and the residual have to be cast to numpy object, hence inducing some latency
-        if the tensor were stored on GPU.
+        if the tensors were stored on GPU.
 
         Parameters
         ----------
-        all_atoms
-            (M, n_atoms)-shaped tensor containing the sketch of all centers in the solution.
-        normalize_atoms
-            Tells to normalize the atoms before fitting the weights. This is usefull to recover weight illustrating the
-            importance of each atom in the mixture.
+        phi_thetas
+            (M, current_size_mixture)-shaped tensor containing the sketch of all components in the mixture.
+        normalize_phi_thetas
+            Tells to normalize the sketch of the components before fitting the weights.
+            This is usefull to recover the weights illustrating the importance of each component in the mixture.
 
         References
         ----------
@@ -249,22 +260,22 @@ class CLOMP(SolverTorch):
             (k,) shaped tensor of the weights of the least square solution
         """
         # scipy.optimize.nnls uses numpy arrays as input
-        all_atoms = all_atoms.cpu().numpy()
+        phi_thetas = phi_thetas.cpu().numpy()
 
         # Stack real and imaginary parts if necessary
-        if np.any(np.iscomplex(all_atoms)):  # True if complex sketch output
-            _A = np.r_[all_atoms.real, all_atoms.imag]
+        if np.any(np.iscomplex(phi_thetas)):  # True if complex sketch output
+            _A = np.r_[phi_thetas.real, phi_thetas.imag]
             _z = np.r_[self.sketch_reweighted.real.cpu().numpy(), self.sketch_reweighted.imag.cpu().numpy()]
         else:
-            _A = all_atoms
+            _A = phi_thetas
             _z = self.sketch_reweighted.cpu().numpy()
 
-        if normalize_atoms:
-            norms = np.linalg.norm(all_atoms, axis=0)
-            norm_too_small = np.where(norms < self.minimum_atom_norm)[0]
+        if normalize_phi_thetas:
+            norms = np.linalg.norm(phi_thetas, axis=0)
+            norm_too_small = np.where(norms < self.minimum_phi_theta_norm)[0]
             if norm_too_small.size > 0:  # Avoid division by zero
-                logger.debug(f'norm of some atoms is too small (min. {norms.min()}), changed to {self.minimum_atom_norm}.')
-                norms[norm_too_small] = self.minimum_atom_norm
+                logger.debug(f'norm of some atoms is too small (min. {norms.min()}), changed to {self.minimum_phi_theta_norm}.')
+                norms[norm_too_small] = self.minimum_phi_theta_norm
             _A = _A / norms
 
         # Use non-negative least squares to find optimal weights
@@ -272,9 +283,9 @@ class CLOMP(SolverTorch):
 
         return torch.from_numpy(_alpha).to(self.device)
 
-    def _find_optimal_weights_torch(self, init_alphas, all_atoms, prefix, normalize_atoms=False) -> torch.Tensor:
+    def _find_optimal_weights_torch(self, init_alphas, phi_thetas, prefix, normalize_phi_thetas=False) -> torch.Tensor:
         """
-        Returns the optimal wheights for the input atoms by solving the Non-Negative Least Square problem.
+        Returns the optimal wheights for the input phi_thetas by solving the Non-Negative Least Square problem.
 
         This correspond to the third and fourth subproblem of the CLOMPR algorithm.
 
@@ -283,14 +294,14 @@ class CLOMP(SolverTorch):
         Parameters
         ----------
         init_alphas
-            (n_atoms,)-tensor corresponding to the initial weights used for the optimization.
-        all_atoms
-            (M, n_atoms)-shaped tensor containing the sketch of all centers in the solution.
+            (current_size_mixture,)-tensor corresponding to the initial weights used for the optimization.
+        phi_thetas
+            (M, current_size_mixture)-shaped tensor containing the sketch of all components in the solution.
         prefix
             Prefix the identifier of the list of objective values, if they are stored.
-        normalize_atoms
-            Tells to normalize the atoms before fitting the weights. This is usefull to recover weight illustrating the
-            importance of each atom in the mixture.
+        normalize_phi_thetas
+            Tells to normalize the phi_thetas before fitting the weights.
+            This is usefull to recover weight illustrating the importance of each component in the mixture.
 
         References
         ----------
@@ -302,10 +313,10 @@ class CLOMP(SolverTorch):
         -------
             (k,) shaped tensor of the weights of the least square solution
         """
-        if normalize_atoms:
-            all_atoms = f.normalize(self.all_atoms, dim=1, eps=self.minimum_atom_norm)
+        if normalize_phi_thetas:
+            phi_thetas = f.normalize(self.phi_thetas, dim=1, eps=self.minimum_phi_theta_norm)
         else:
-            all_atoms = self.all_atoms
+            phi_thetas = self.phi_thetas
 
         log_alphas = torch.nn.Parameter(init_alphas, requires_grad=True)
         optimizer = self._initialize_optimizer(self.opt_method_step_34, [log_alphas])
@@ -313,7 +324,7 @@ class CLOMP(SolverTorch):
         def closure():
             optimizer.zero_grad()
 
-            loss = self.loss_global(all_atoms=all_atoms, alphas=torch.exp(log_alphas).to(self.real_dtype))
+            loss = self.loss_global(phi_thetas=phi_thetas, alphas=torch.exp(log_alphas).to(self.real_dtype))
 
             if self.store_objective_values:
                 ObjectiveValuesStorage().add(float(loss), "{}/find_optimal_weights".format(prefix))
@@ -349,30 +360,30 @@ class CLOMP(SolverTorch):
 
         return normalized_alphas.detach()
 
-    def loss_global(self, alphas, all_thetas=None, all_atoms=None):
+    def loss_global(self, alphas, all_thetas=None, phi_thetas=None):
         """
         Objective function of the global optimization problem: fitting the moments to the sketch of the mixture.
 
         Parameters
         ----------
-        alphas:
-            (n_atoms,) shaped tensor of the weights of the mixture in the solution.
-        all_thetas:
-            (n_atoms, D) shaped tensor containing the centers of the solution.
-        all_atoms
-            (M, n_atoms) shaped tensor of each center sketched. If None, then the sketch will be computed from alphas
+        alphas
+            (current_size_mixture,) shaped tensor of the weights of the mixture in the solution.
+        all_thetas
+            (current_size_mixture, D) shaped tensor containing the centers of the solution.
+        phi_thetas
+            (M, current_size_mixture) shaped tensor of each center sketched. If None, then the sketch will be computed from alphas
             and thetas.
 
         Returns
         -------
             The value of the objective evaluated at the provided parameters.
         """
-        assert all_thetas is not None or all_atoms is not None, "Thetas and Atoms must not be both None"
-        sketch_solution = self.sketch_of_solution(alphas, all_thetas=all_thetas, all_atoms=all_atoms)
+        assert all_thetas is not None or phi_thetas is not None, "Thetas and Atoms must not be both None"
+        sketch_solution = self.sketch_of_solution(alphas, thetas=all_thetas, phi_thetas=phi_thetas)
         loss = torch.linalg.norm(self.sketch_reweighted - sketch_solution) ** 2
         return loss
 
-    def _stack_sol(self, alpha: np.ndarray = None, Theta: np.ndarray = None) -> np.ndarray:
+    def _stack_sol(self, alphas: np.ndarray = None, thetas: np.ndarray = None) -> np.ndarray:
         """
         Stacks *all* the atoms and their weights into one vector.
 
@@ -382,20 +393,20 @@ class CLOMP(SolverTorch):
 
         Parameters
         ----------
-        alpha:
-            (n_atoms,) shaped ndarray of the weights of the mixture in the solution.
-        Theta:
-            (n_atoms, D) shaped ndarray containing the centers of the solution.
+        alphas:
+            (current_size_mixture,) shaped ndarray of the weights of the mixture in the solution.
+        thetas:
+            (current_size_mixture, D) shaped ndarray containing the centers of the solution.
 
         Returns
         -------
 
-        (n_atoms + (n_atoms*D), ) shaped ndarray of alls alphas and Theta flattened and stacked together.
+        (current_size_mixture + (current_size_mixture*D), ) shaped ndarray of alls alphas and Theta flattened and stacked together.
         """
-        if (Theta is not None) and (alpha is not None):
-            _Theta, _alpha = Theta, alpha
+        if (thetas is not None) and (alphas is not None):
+            _Theta, _alpha = thetas, alphas
         else:
-            _Theta, _alpha = self.all_thetas, self.alphas
+            _Theta, _alpha = self.thetas, self.alphas
 
         return np.r_[_Theta.reshape(-1), _alpha]
 
@@ -410,25 +421,27 @@ class CLOMP(SolverTorch):
         Parameters
         ----------
         p
-            (n_atoms + (n_atoms*D), ) shaped ndarray of alls alphas and Theta flattened and stacked together.
+            (current_size_mixture + (current_size_mixture*D), ) shaped ndarray of alls alphas and thetas
+            flattened and stacked together.
 
         Returns
         -------
-            (alpha, Theta) tuple:
-                - alpha: (n_atoms,) shaped ndarray of the weights of the mixture in the solution.
-                - Theta: (n_atoms, D) shaped ndarray containing the centers of the solution.
+            (alphas, thetas) tuple:
+                - alphas: (current_size_mixture,) shaped ndarray of the weights of the mixture in the solution.
+                - thetas: (current_size_mixture, D) shaped ndarray containing the parameters of the solution components.
         """
-        assert p.shape[-1] == self.n_atoms * (self.d_theta + 1)
+        assert p.shape[-1] == self.current_size_mixture * (self.thetas_dimension_D + 1)
         if p.ndim == 1 or p.shape[0] == 1:
             p = p.squeeze()
-            Theta = p[:self.d_theta * self.n_atoms].reshape(self.n_atoms, self.d_theta)
-            alpha = p[-self.n_atoms:].reshape(self.n_atoms)
+            thetas = p[:self.thetas_dimension_D * self.current_size_mixture].reshape(self.current_size_mixture, self.thetas_dimension_D)
+            alphas = p[-self.current_size_mixture:].reshape(self.current_size_mixture)
         else:
             # todo fix?
             raise NotImplementedError(f"Impossible to destack p of shape {p.shape}.")
-            # Theta = p[:, :self.d_theta * self.n_atoms].reshape(-1, self.n_atoms, self.d_theta)
-            # alpha = p[:, -self.n_atoms:].reshape(-1, self.n_atoms)
-        return alpha, Theta
+            # thetas = p[:, :self.d_theta * self.current_size_mixture].reshape(-1, self.current_size_mixture,
+            # self.d_theta)
+            # alphas = p[:, -self.current_size_mixture:].reshape(-1, self.current_size_mixture)
+        return alphas, thetas
 
     def minimize_cost_from_current_sol(self, prefix="") -> NoReturn:
         """
@@ -444,12 +457,12 @@ class CLOMP(SolverTorch):
             Prefix the identifier of the list of objective values, if they are stored.
         """
         # Parameters, optimizer
-        all_thetas = self.all_thetas
+        all_thetas = self.thetas
 
         if self.opt_method_step_5 == "pdfo":
 
             # log_alphas = torch.log(self.alphas)
-            # return self._minimize_cost_from_current_sol_torch(log_alphas, all_thetas, prefix)
+            # return self._minimize_cost_from_current_sol_torch(log_alphas, thetas, prefix)
             return self._minimize_cost_from_current_sol_pdfo(self.alphas, all_thetas, prefix)
         elif self.opt_method_step_5 in self.LST_OPT_METHODS_TORCH:
             log_alphas = torch.log(self.alphas)
@@ -457,7 +470,7 @@ class CLOMP(SolverTorch):
         else:
             raise ValueError(f"Unkown optimization method: {self.opt_method_step_5}")
 
-    def _minimize_cost_from_current_sol_pdfo(self, all_alphas, all_thetas, prefix):
+    def _minimize_cost_from_current_sol_pdfo(self, alphas, thetas, prefix):
         """
         Minimise the global cost by tuning the whole solution (weights and centers).
 
@@ -471,10 +484,10 @@ class CLOMP(SolverTorch):
 
         Parameters
         ----------
-        all_alphas:
-            (n_atoms,) shaped tensor of the weights of the mixture in the solution.
-        all_thetas:
-            (n_atoms, D) shaped tensor containing the centers of the solution.
+        alphas:
+            (current_size_mixture,) shaped tensor of the weights of the mixture in the solution.
+        thetas:
+            (current_size_mixture, D) shaped tensor containing the parameters of the solution components.
         prefix
             Prefix the identifier of the list of objective values, if they are stored.
 
@@ -491,8 +504,8 @@ class CLOMP(SolverTorch):
                 ObjectiveValuesStorage().add(float(result), f"minimize_cost_from_current_sol_pdfo/{prefix}")
             return result
 
-        stacked_x_init = self._stack_sol(alpha=all_alphas.cpu().numpy(), Theta=all_thetas.cpu().numpy())
-        bounds_Theta_alpha = self.bounds_atom * self.n_atoms + [[self.weight_lower_bound, self.weight_upper_bound]] * self.n_atoms
+        stacked_x_init = self._stack_sol(alphas=alphas.cpu().numpy(), thetas=thetas.cpu().numpy())
+        bounds_Theta_alpha = self.bounds_atom * self.current_size_mixture + [[self.weight_lower_bound, self.weight_upper_bound]] * self.current_size_mixture
         # fct_fun_grad = self.get_global_cost
         fct_fun_grad = wrapped_loss_global
         sol = pdfo(fct_fun_grad,
@@ -505,10 +518,10 @@ class CLOMP(SolverTorch):
 
         (_alphas, _all_thetas) = self._destack_sol(sol.x)
 
-        self.all_thetas = torch.Tensor(_all_thetas).to(self.real_dtype).to(self.device)
+        self.thetas = torch.Tensor(_all_thetas).to(self.real_dtype).to(self.device)
         self.alphas = torch.Tensor(_alphas).to(self.real_dtype).to(self.device)
 
-    def _minimize_cost_from_current_sol_torch(self, log_alphas, all_thetas, prefix) -> NoReturn:
+    def _minimize_cost_from_current_sol_torch(self, log_alphas, thetas, prefix) -> NoReturn:
         """
         Minimise the global cost by tuning the whole solution (weights and centers).
 
@@ -521,24 +534,24 @@ class CLOMP(SolverTorch):
         Parameters
         ----------
         log_alphas:
-            (n_atoms,) shaped tensor of the logs of the weights of the mixture in the solution. We take the log
+            (current_size_mixture,) shaped tensor of the logs of the weights of the mixture in the solution. We take the log
             because it allows to constraint the weights to be positive (by taking the exp)
-        all_thetas:
-            (n_atoms, D) shaped tensor containing the centers of the solution.
+        thetas:
+            (current_size_mixture, D) shaped tensor containing the parameters of the solution components.
         prefix
             Prefix the identifier of the list of objective values, if they are stored.
         """
         # Parameters, optimizer
         log_alphas = log_alphas.requires_grad_()
-        all_thetas = all_thetas.requires_grad_()
-        params = [log_alphas, all_thetas]
+        thetas = thetas.requires_grad_()
+        params = [log_alphas, thetas]
 
         optimizer = self._initialize_optimizer(self.opt_method_step_5, params)
 
         def closure():
             optimizer.zero_grad()
 
-            loss = self.loss_global(all_thetas=all_thetas, alphas=torch.exp(log_alphas).to(self.real_dtype))
+            loss = self.loss_global(all_thetas=thetas, alphas=torch.exp(log_alphas).to(self.real_dtype))
 
             if self.tensorboard:
                 self.writer.add_scalar(self.path_template_tensorboard_writer.format('step5'), loss.item(), iteration)
@@ -558,7 +571,7 @@ class CLOMP(SolverTorch):
 
             # Projection step
             with torch.no_grad():
-                self.projection_step(all_thetas)
+                self.projection_step(thetas)
 
             # Tracking loss
             if iteration != 0:
@@ -573,7 +586,7 @@ class CLOMP(SolverTorch):
             self.writer.flush()
             self.writer.close()
 
-        self.all_thetas = all_thetas.detach().to(self.device)
+        self.thetas = thetas.detach().to(self.device)
         self.alphas = torch.exp(log_alphas).detach().to(self.device)
 
     def do_step_4_5(self, prefix=""):
@@ -594,7 +607,7 @@ class CLOMP(SolverTorch):
         self.minimize_cost_from_current_sol(prefix=prefix)
         logger.debug(f'Time for step 5: {time.time() - since}')
         # The atoms have changed: we must re-compute their sketches matrix
-        self.update_current_sol_and_cost(sol=(self.all_thetas, self.alphas))
+        self.update_current_solution_and_cost(new_current_solution=(self.thetas, self.alphas))
 
     def final_fine_tuning(self) -> NoReturn:
         """
@@ -604,9 +617,9 @@ class CLOMP(SolverTorch):
         """
         logger.info(f'Final fine-tuning...')
         self.minimize_cost_from_current_sol(prefix="final")
-        # self.projection_step(self.all_thetas) # this is useless given the projection was made in the last method
-        logger.debug(torch.norm(self.all_thetas[:, :self.phi.d], dim=1))
-        self.update_current_sol_and_cost(sol=(self.all_thetas, self.alphas))
+        # self.projection_step(self.thetas) # this is useless given the projection was made in the last method
+        logger.debug(torch.norm(self.thetas[:, :self.phi.d], dim=1))
+        self.update_current_solution_and_cost(new_current_solution=(self.thetas, self.alphas))
 
     def _initialize_optimizer(self, opt_method: Literal["adam", "lbfgs"], params: list):
         """
@@ -635,7 +648,7 @@ class CLOMP(SolverTorch):
 
     def maximize_atom_correlation(self, prefix=""):
         """
-        Step 1 in CLOMP-R algorithm. Find the center giving the most correlated atom to the residual.
+        Step 1 in CLOMP-R algorithm. Find the theta giving the most correlated atom to the residual.
 
         Optimization can use pdfo or torch.
 
@@ -648,7 +661,7 @@ class CLOMP(SolverTorch):
         -------
             (D,)-shaped tensor corresponding to the new center.
         """
-        new_theta = self.randomly_initialize_several_atoms(1).squeeze()
+        new_theta = self.randomly_initialize_several_mixture_components(1).squeeze()
 
         if self.opt_method_step_1 == "pdfo":
             return self._maximize_atom_correlation_pdfo(new_theta)
@@ -660,7 +673,7 @@ class CLOMP(SolverTorch):
 
     def _maximize_atom_correlation_pdfo(self, new_theta: torch.Tensor) -> torch.Tensor:
         """
-        Step 1 in CLOMP-R algorithm. Find the center giving the most correlated atom to the residual.
+        Step 1 in CLOMP-R algorithm. Find the theta giving the most correlated atom to the residual.
 
         This method uses pdfo subroutine for derivative free optimization which involves conversion of parameters
         to numpy.ndarray.
@@ -668,7 +681,7 @@ class CLOMP(SolverTorch):
         Parameters
         ----------
         new_theta
-            (D,)-shaped tensor corresponding to the initial value for the cluster center.
+            (D,)-shaped tensor corresponding to the initial value for the mixture component parameter.
 
         References
         ----------
@@ -676,7 +689,7 @@ class CLOMP(SolverTorch):
 
         Returns
         -------
-            (D,)-shaped tensor corresponding to the new center.
+            (D,)-shaped tensor corresponding to the parameter of the new component.
         """
         # assert self.phi.device == torch.device("cpu")
         new_theta = new_theta.cpu().numpy()
@@ -763,7 +776,7 @@ class CLOMP(SolverTorch):
         https://arxiv.org/pdf/1606.02838.pdf
         """
         # todo utiliser plutot une interface de type fit/transform
-        n_iterations = 2 * self.nb_mixtures
+        n_iterations = 2 * self.size_mixture_K
 
         for i_iter in range(n_iterations):
             logger.debug(f'Iteration {i_iter + 1} / {n_iterations}')
@@ -776,14 +789,14 @@ class CLOMP(SolverTorch):
             self.add_atom(new_theta)
 
             # Step 3: if necessary, hard-threshold to enforce sparsity
-            if self.n_atoms > self.nb_mixtures:
+            if self.current_size_mixture > self.size_mixture_K:
                 since = time.time()
                 # atoms must be normalized so that the weights in beta reflect their importance. See Reference.
-                beta = self.find_optimal_weights(normalize_atoms=True, prefix=f"{i_iter}a")
+                beta = self.find_optimal_weights(normalize_phi_thetas=True, prefix=f"{i_iter}a")
                 index_to_remove = torch.argmin(beta).to(torch.long)
-                self.remove_one_atom(index_to_remove)
+                self.remove_one_component(index_to_remove)
                 logger.debug(f'Time for step 3: {time.time() - since}')
-                if index_to_remove == self.nb_mixtures:
+                if index_to_remove == self.size_mixture_K:
                     logger.debug(f"Removed atom is the last one added. Solution is not updated.")
                     continue
 
@@ -793,5 +806,5 @@ class CLOMP(SolverTorch):
         # Final fine-tuning with increased optimization accuracy
         self.final_fine_tuning()
         self.alphas /= torch.sum(self.alphas)
-        self.update_current_sol_and_cost(sol=(self.all_thetas, self.alphas))
+        self.update_current_solution_and_cost(new_current_solution=(self.thetas, self.alphas))
 

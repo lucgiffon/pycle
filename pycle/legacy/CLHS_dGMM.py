@@ -34,11 +34,11 @@ class CLHS_dGMM(CLHS):
 
     def randomly_initialize_several_atoms(self, nb_atoms): # todo remplacer cette fonction par "initialize one"
         """
-        Define how to initialize a number nb_atoms of new atoms.
+        Define how to initialize a number nb_mixture_components of new atoms.
         :param nb_atoms: int
         :return: torch tensor for new atoms
         """
-        # all_new_mu = (self.upper_data - self.lower_data) * torch.rand(nb_atoms, self.freq_matrix.d).to(self.device) + self.lower_data
+        # all_new_mu = (self.upper_data - self.lower_data) * torch.rand(nb_mixture_components, self.freq_matrix.d).to(self.device) + self.lower_data
         all_new_mu = self.random_atom.repeat(nb_atoms, 1)
         all_new_sigma = (1.5 - 0.5) * torch.rand(nb_atoms, self.phi.d, device=self.device) + 0.5
         all_new_sigma *= self.sigma2_bar
@@ -49,9 +49,9 @@ class CLHS_dGMM(CLHS):
         """
         Always compute sketch of several atoms.
         Implements Equation 15 of Keriven et al: Sketching for large scale learning of Mixture Models.
-        :param thetas: tensor size (n_atoms, d_theta)
+        :param thetas: tensor size (current_size_mixture, d_theta)
         :param freq_matrix: DenseFrequencyMatrix
-        :return: tensor size (n_atoms, nb_freq)
+        :return: tensor size (current_size_mixture, nb_freq)
         """
         # todo this is the code of a feature map
         # assert isinstance(freq_matrix, DenseFrequencyMatrix)
@@ -67,7 +67,7 @@ class CLHS_dGMM(CLHS):
         return self.phi(thetas)
 
     def split_all_current_thetas_alphas(self):
-        all_mus, all_sigmas = self.all_thetas[:, :self.phi.d], self.all_thetas[:, -self.phi.d:]
+        all_mus, all_sigmas = self.thetas[:, :self.phi.d], self.thetas[:, -self.phi.d:]
         print(torch.max(all_sigmas, dim=1)[0])
         all_i_max_var = torch.argmax(all_sigmas, dim=1).to(torch.long)
         print(f"Splitting directions: {all_i_max_var}")
@@ -99,8 +99,8 @@ class CLHS_dGMM(CLHS):
         :return:
         """
         weights = self.alphas
-        mus = self.all_thetas[:, :self.phi.d]
-        sigmas = self.all_thetas[:, -self.phi.d:]
+        mus = self.thetas[:, :self.phi.d]
+        sigmas = self.thetas[:, -self.phi.d:]
         sigmas_mat = torch.diag_embed(sigmas)
         if return_numpy:
             return weights.cpu().detach().numpy(), mus.cpu().detach().numpy(), sigmas_mat.cpu().detach().numpy()

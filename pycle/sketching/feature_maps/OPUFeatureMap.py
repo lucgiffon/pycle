@@ -242,7 +242,7 @@ class OPUDistributionEstimator:
 class OPUFeatureMap(FeatureMap):
     """Feature map the type Phi(x) = c_norm*f(OPU(x) + xi)."""
 
-    def __init__(self, f: Optional[Union[Literal["complexexponential", "universalquantization", "cosine"], Callable]],
+    def __init__(self, f: Optional[Union[Literal["complexexponential", "universalquantization", "cosine", "none"], Callable]],
                  opu: OPU, SigFact: Union[torch.FloatTensor, torch.Tensor], R: torch.Tensor, dimension: int,
                  nb_iter_calibration: int = 1, nb_iter_linear_transformation: int = 1,
                  calibration_param_estimation: Optional[bool] = None, calibration_forward: bool = False,

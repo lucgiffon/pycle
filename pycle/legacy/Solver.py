@@ -92,8 +92,8 @@ class Solver(metaclass=ABCMeta):
     def sketch_of_atoms(self, thetas):
         """
         Always compute sketch of several atoms.
-        :param thetas: tensor size (n_atoms, d_theta)
-        :return: tensor size (n_atoms, nb_freq)
+        :param thetas: tensor size (current_size_mixture, d_theta)
+        :return: tensor size (current_size_mixture, nb_freq)
         """
         raise NotImplementedError
 
