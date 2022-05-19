@@ -1,4 +1,4 @@
-from typing import Any, NoReturn, Literal
+from typing import NoReturn, Literal
 
 import time
 from abc import abstractmethod
@@ -12,7 +12,6 @@ from pycle.utils.intermediate_storage import ObjectiveValuesStorage
 import numpy as np
 
 
-# cleaning check documentation and make it numpy like
 class CLOMP(SolverTorch):
     """
     Template for a compressive learning solver, using torch implementation, to solve the problem
