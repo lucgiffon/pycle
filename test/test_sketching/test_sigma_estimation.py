@@ -13,5 +13,5 @@ def test_estimate_Sigma():
     m0 = 200    # use a pre-sketch of size 100
     n0 = n//50  # observe 2% of the dataset to estimata Sigma
 
-    Sigma = estimate_Sigma(X, m0, c=10, n0=n0, verbose=1)
+    Sigma = estimate_Sigma(X, m0, c=10, n0=n0, verbose=2)
     print("Estimated sigma2_bar: ", Sigma[0][0])

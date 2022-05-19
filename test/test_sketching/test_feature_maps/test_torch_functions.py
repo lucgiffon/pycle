@@ -11,26 +11,26 @@ def dim():
 
 
 def function_optim(loss, p_dim):
-    x = torch.nn.Parameter(torch.randn((1, p_dim), requires_grad=True))
+    for j in range(7):
+        x = torch.nn.Parameter(torch.randn((1, p_dim), requires_grad=True))
 
-    optim = torch.optim.Adam([x], lr=0.1)
-    for i in range(100):
-        optim.zero_grad()
-        loss_res = loss(x)
-        ObjectiveValuesStorage().add(float(loss_res), "loss")
-        loss_res.backward()
-        optim.step()
+        optim = torch.optim.Adam([x], lr=0.1)
+        for i in range(100):
+            optim.zero_grad()
+            loss_res = loss(x)
+            ObjectiveValuesStorage().add(float(loss_res), f"loss_{j}")
+            loss_res.backward()
+            optim.step()
 
-    print(loss(x))
-    ObjectiveValuesStorage().show()
+        print(loss(x))
+    ObjectiveValuesStorage().show(title="Torch simple optimisation with Adam")
     ObjectiveValuesStorage().clear()
 
 
 def test_LinearFunctionEncDec(dim):
     target = torch.unsqueeze(torch.randn(dim, requires_grad=False), 0)
     w = torch.eye(dim, requires_grad=False)
-    def loss(x):
-        return (LinearFunctionEncDec.apply(x, w, False, False) - target).pow(2).sum()
+    def loss(x): return (LinearFunctionEncDec.apply(x, w, False, False) - target).pow(2).sum()
     function_optim(loss, dim)
 
 

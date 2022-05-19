@@ -55,7 +55,7 @@ def test_fit_once():
     ckm_solver.fit_once()
 
     # Get the solution
-    (weights, theta) = ckm_solver.current_sol
+    (weights, theta) = ckm_solver.current_solution
     centroids, sigma = theta[..., :dim], theta[..., -dim:]
 
     plt.figure(figsize=(5, 5))

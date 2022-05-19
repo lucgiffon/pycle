@@ -75,6 +75,40 @@ def _callback_fit_sigmas(p: np.ndarray) -> NoReturn:
     p[:K] /= np.sum(p[:K])
 
 
+def plot_sigma_estimation(z_sorted, frequencies_norm_sorted, z_tofit, R_tofit, number_of_gaussians_K, weights_of_gaussians, sigma_of_gaussians):
+    """
+    Plot the graph of the current step of sigma estimation.
+
+    Parameters
+    ----------
+    z_sorted
+        Sketch coefficients sorted by frequencies norm.
+    frequencies_norm_sorted
+        Frequencies norm sorted.
+    z_tofit
+        Only the extremum z coefficients in each bin.
+    R_tofit
+        The frequencies norm corresponding the z_tofit.
+    number_of_gaussians_K
+        The number of components in the mixture.
+    weights_of_gaussians
+        The weight of each component in the mixture.
+    sigma_of_gaussians
+        The parameter of the gaussian (otherwise centered) in the mixture.
+    """
+    plt.figure(figsize=(10, 5))
+    rfit = np.linspace(0, frequencies_norm_sorted.max(), 100)
+    zfit = np.zeros(rfit.shape)
+    for k in range(number_of_gaussians_K):
+        zfit += weights_of_gaussians[k] * np.exp(-(sigma_of_gaussians[k] * rfit ** 2) / 2.)
+    plt.plot(frequencies_norm_sorted, np.abs(z_sorted), '.')
+    plt.plot(R_tofit, z_tofit, '.')
+    plt.plot(rfit, zfit)
+    plt.xlabel('R')
+    plt.ylabel('|z|')
+    plt.show()
+
+
 def estimate_Sigma_from_sketch(z: np.ndarray, Phi: MatrixFeatureMap, K=1, c=20, mode='max', sigma2_bar=None,
                                weights_bar=None, should_plot=False):
     """
@@ -179,17 +213,15 @@ def estimate_Sigma_from_sketch(z: np.ndarray, Phi: MatrixFeatureMap, K=1, c=20, 
 
     # Plot if required
     if should_plot:
-        plt.figure(figsize=(10, 5))
-        rfit = np.linspace(0, frequencies_norm.max(), 100)
-        zfit = np.zeros(rfit.shape)
-        for k in range(K):
-            zfit += weights_bar[k] * np.exp(-(sigma2_bar[k] * rfit ** 2) / 2.)
-        plt.plot(frequencies_norm, np.abs(z_sort), '.')
-        plt.plot(R_tofit, z_tofit, '.')
-        plt.plot(rfit, zfit)
-        plt.xlabel('R')
-        plt.ylabel('|z|')
-        plt.show()
+        plot_sigma_estimation(
+            z_sorted=z_sort,
+            frequencies_norm_sorted=frequencies_norm,
+            z_tofit=z_tofit,
+            R_tofit=R_tofit,
+            number_of_gaussians_K=K,
+            weights_of_gaussians=weights_bar,
+            sigma_of_gaussians=sigma2_bar
+        )
 
     return sigma2_bar
 
@@ -215,7 +247,8 @@ def estimate_Sigma(dataset: np.ndarray, m0, K=None, c=20, n0=None, drawFreq_type
             -- "adaptedRadius"  or "AR" : Adapted Radius heuristic
         - nIterations: int (default 5), the maximum number of iteration (typically stable after 2 iterations)
         - mode: 'max' (default) or 'min', describe which sketch entries per block to fit
-        - verbose: 0,1 or 2, amount of information to print (default: 0, no info printed). Useful for debugging.
+        - verbose: 0,1 or 2. Number of plots of the sigma estimation process.
+            0: no plot; 1: only last plot; 2: all the plots.
 
     References:
     -----------

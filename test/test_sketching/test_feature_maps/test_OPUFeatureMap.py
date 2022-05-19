@@ -87,9 +87,7 @@ def test_calibration_OPUFeatureMap(my_dim):
                         opu=opu,
                         calibration_param_estimation=True,
                         calibration_forward=False,
-                        calibration_backward=False,
                         calibrate_always=True,
-                        re_center_result=False,
                         nb_iter_linear_transformation=1,
                         nb_iter_calibration=1
                         )
@@ -148,9 +146,7 @@ def test_OPUFeatureMap_multi_sigma(my_dim):
                                     opu=opu,
                                     calibration_param_estimation=True,
                                     calibration_forward=True,
-                                    calibration_backward=True,
                                     calibrate_always=True,
-                                    re_center_result=False,
                                 )
             # directions = OFM.directions_matrix()
             # lst_omega[1] = directions

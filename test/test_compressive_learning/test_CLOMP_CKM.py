@@ -7,6 +7,7 @@ from pycle.sketching.feature_maps.non_linearities import _universalQuantization,
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 from pycle.utils.datasets import generatedataset_GMM
 from pycle.compressive_learning.CLOMP_CKM import CLOMP_CKM
+from pycle.utils.metrics import SSE
 
 from pycle.sketching.frequency_sampling import drawFrequencies
 
@@ -17,9 +18,11 @@ import pycle.sketching
 def dim():
     return 2
 
+
 @pytest.fixture
 def nb_clust():
     return 4
+
 
 @pytest.fixture
 def X(dim, nb_clust):
@@ -32,11 +35,13 @@ def X(dim, nb_clust):
 
     return X
 
+
 @pytest.fixture
 def bounds(dim):
     # Bounds on the dataset, necessary for compressive k-means
     bounds = torch.tensor([-np.ones(dim), np.ones(dim)])  # We assumed the data is normalized between -1 and 1
     return bounds
+
 
 @pytest.fixture
 def Phi_emp(nb_clust, dim):
@@ -52,6 +57,7 @@ def Phi_emp(nb_clust, dim):
     Phi_emp = MatrixFeatureMap("complexexponential", Omega, device=torch.device("cpu"))
     return Phi_emp
 
+
 @pytest.fixture
 def Phi_emp_xi(nb_clust, dim):
     # For this simple example, assume we have a priori a rough idea of the size of the clusters
@@ -66,11 +72,22 @@ def Phi_emp_xi(nb_clust, dim):
     Phi_emp = MatrixFeatureMap("complexexponential", Omega, c_norm="unit", xi=torch.rand(sketch_dim) * np.pi * 2, device=torch.device("cpu"))
     return Phi_emp
 
+
 def test_neg_floor_div_torch():
     neg_val = -4
     expected_result = neg_val // 3
     torch_result = torch.Tensor([neg_val]) // 3
     assert (expected_result == torch_result) == False
+
+
+def simple_plot_clustering(X, centroids, weights):
+    plt.figure(figsize=(5, 5))
+    plt.title("Compressively learned centroids")
+    plt.scatter(X[:, 0], X[:, 1], s=1, alpha=0.15)
+    plt.scatter(centroids[:, 0], centroids[:, 1], s=1000 * weights)
+    plt.legend(["Data", "Centroids"])
+    plt.show()
+
 
 def test_fit_once_adam(X, dim, nb_clust, bounds, Phi_emp):
 
@@ -91,24 +108,15 @@ def test_fit_once_adam(X, dim, nb_clust, bounds, Phi_emp):
         "opt_method_step_5": "adam",
     }
 
-    ckm_solver = CLOMP_CKM(phi=Phi_emp, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_opt_method=dct_adam)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_optim_method_hyperparameters=dct_adam)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
 
     # Get the solution
-    (theta, weights) = ckm_solver.current_sol
+    (theta, weights) = ckm_solver.current_solution
     centroids, sigma = theta[..., :dim], theta[..., -dim:]
-    # cleaning use functions for these plots
-    plt.figure(figsize=(5, 5))
-    plt.title("Compressively learned centroids")
-    plt.scatter(X[:, 0], X[:, 1], s=1, alpha=0.15)
-    plt.scatter(centroids[:, 0], centroids[:, 1], s=1000 * weights)
-    plt.legend(["Data", "Centroids"])
-    plt.show()
-
-    from pycle.utils.metrics import SSE
-
+    simple_plot_clustering(X, centroids, weights)
     logger.info("SSE: {}".format(SSE(X, centroids)))
 
 
@@ -127,23 +135,17 @@ def test_fit_once_bfgs(X, dim, nb_clust, bounds, Phi_emp):
         "opt_method_step_34": "nnls",
         "opt_method_step_5": "lbfgs",
     }
-    ckm_solver = CLOMP_CKM(phi=Phi_emp, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_opt_method=dct_bfgs)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_optim_method_hyperparameters=dct_bfgs)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
 
     # Get the solution
-    (theta, weights) = ckm_solver.current_sol
+    (theta, weights) = ckm_solver.current_solution
     centroids, sigma = theta[..., :dim], theta[..., -dim:]
 
-    plt.figure(figsize=(5, 5))
-    plt.title("Compressively learned centroids")
-    plt.scatter(X[:, 0], X[:, 1], s=1, alpha=0.15)
-    plt.scatter(centroids[:, 0], centroids[:, 1], s=1000 * weights)
-    plt.legend(["Data", "Centroids"])
-    plt.show()
+    simple_plot_clustering(X, centroids, weights)
 
-    from pycle.utils.metrics import SSE
 
     logger.info("SSE: {}".format(SSE(X, centroids)))
 
@@ -163,24 +165,16 @@ def test_fit_once_bfgs_xi(X, dim, nb_clust, bounds, Phi_emp_xi):
         "opt_method_step_34": "nnls",
         "opt_method_step_5": "lbfgs",
     }
-    ckm_solver = CLOMP_CKM(phi=Phi_emp_xi, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_opt_method=dct_bfgs)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp_xi, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_optim_method_hyperparameters=dct_bfgs)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
 
     # Get the solution
-    (theta, weights) = ckm_solver.current_sol
+    (theta, weights) = ckm_solver.current_solution
     centroids, sigma = theta[..., :dim], theta[..., -dim:]
 
-    plt.figure(figsize=(5, 5))
-    plt.title("Compressively learned centroids")
-    plt.scatter(X[:, 0], X[:, 1], s=1, alpha=0.15)
-    plt.scatter(centroids[:, 0], centroids[:, 1], s=1000 * weights)
-    plt.legend(["Data", "Centroids"])
-    plt.show()
-
-    from pycle.utils.metrics import SSE
-
+    simple_plot_clustering(X, centroids, weights)
     logger.info("SSE: {}".format(SSE(X, centroids)))
 
 
@@ -201,22 +195,15 @@ def test_fit_once_pdfo(X, dim, nb_clust, bounds, Phi_emp):
         "opt_method_step_34": "nnls",
         "opt_method_step_5": "pdfo",
     }
-    ckm_solver = CLOMP_CKM(phi=Phi_emp, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_opt_method=dct_pdfo)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_optim_method_hyperparameters=dct_pdfo)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
 
     # Get the solution
-    (theta, weights) = ckm_solver.current_sol
+    (theta, weights) = ckm_solver.current_solution
 
-    plt.figure(figsize=(5, 5))
-    plt.title("Compressively learned centroids")
-    plt.scatter(X[:, 0], X[:, 1], s=1, alpha=0.15)
-    plt.scatter(theta[:, 0], theta[:, 1], s=1000 * weights)
-    plt.legend(["Data", "Centroids"])
-    plt.show()
-
-    from pycle.utils.metrics import SSE
+    simple_plot_clustering(X, theta, weights)
 
     logger.info("SSE: {}".format(SSE(X, theta)))
 
@@ -268,22 +255,15 @@ def test_asymetric(X, dim, nb_clust, bounds, Phi_emp_xi):
         "opt_method_step_34": "nnls",
         "opt_method_step_5": "lbfgs",
     }
-    ckm_solver = CLOMP_CKM(phi=Phi_emp_xi, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_opt_method=dct_bfgs)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp_xi, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_optim_method_hyperparameters=dct_bfgs)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
 
     # Get the solution
-    (theta, weights) = ckm_solver.current_sol
+    (theta, weights) = ckm_solver.current_solution
     centroids, sigma = theta[..., :dim], theta[..., -dim:]
 
-    plt.figure(figsize=(5, 5))
-    plt.title("Compressively learned centroids")
-    plt.scatter(X[:, 0], X[:, 1], s=1, alpha=0.15)
-    plt.scatter(centroids[:, 0], centroids[:, 1], s=1000 * weights)
-    plt.legend(["Data", "Centroids"])
-    plt.show()
-
-    from pycle.utils.metrics import SSE
+    simple_plot_clustering(X, centroids, weights)
 
     logger.info("SSE: {}".format(SSE(X, centroids)))

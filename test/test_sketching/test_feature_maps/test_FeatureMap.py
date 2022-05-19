@@ -55,13 +55,13 @@ def test_overproduce_and_choose(dim, nb_clust, bounds, X):
         "opt_method_step_5": "adam",
     }
 
-    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, dct_opt_method=dct_adam)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, dct_optim_method_hyperparameters=dct_adam)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
 
     # Get the solution
-    (theta, weights) = ckm_solver.current_sol
+    (theta, weights) = ckm_solver.current_solution
     centroids, sigma = theta[..., :dim], theta[..., -dim:]
 
     plt.figure(figsize=(5, 5))

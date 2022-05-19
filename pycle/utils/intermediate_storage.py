@@ -4,14 +4,14 @@ This module contains util classes for storing intermediate results and access it
 This is useful if one want to store, for instance, the intermediate step of an algorithm without having to
 return it explicitely.
 """
-
 from collections import defaultdict
 from typing import NoReturn, Any
 
 import numpy as np
-from matplotlib import pyplot as plt
+from plotly.subplots import make_subplots
 
 from pycle.utils import SingletonMeta
+import plotly.graph_objects as go
 
 
 class IntermediateResultStorage(metaclass=SingletonMeta):
@@ -120,23 +120,40 @@ class ObjectiveValuesStorage(IntermediateResultStorage):
     def load_objective_values(self, path_input_file):
         self.load_items(path_input_file)
 
-    def show(self):
+    def show(self, title="") -> NoReturn:
         """
         Show all the stored objective values in a Figure of many subplots
         in which each subplot correspond to one objective value.
+
+        Parameters
+        ----------
+        title
+            The main title of the figure.
         """
-        fig, tpl_axs = plt.subplots(nrows=1, ncols=len(self.dct_objective_values))
+        max_number_of_columns = 3
+        height_of_each_subplot = 400
+        width_of_each_subplot = 600
+
+        number_of_plots = len(self.dct_objective_values)
+        number_of_rows = int(np.ceil(number_of_plots / max_number_of_columns))
+        fig = make_subplots(rows=number_of_rows, cols=max_number_of_columns,
+                            subplot_titles=list(self.dct_objective_values.keys()),
+                            horizontal_spacing=0.05, vertical_spacing=0.05)
 
         for idx_ax, (name_trace, lst_obj_values) in enumerate(self.dct_objective_values.items()):
             iter_ids = np.arange(len(lst_obj_values))
             objective_values = np.array(lst_obj_values)
-            try:
-                tpl_axs[idx_ax].plot(iter_ids, objective_values)
-                tpl_axs[idx_ax].set_title(name_trace)
-            except TypeError:
-                assert len(self.dct_objective_values) == 1
-                tpl_axs.plot(iter_ids, objective_values)
-                tpl_axs.set_title(name_trace)
+            row_indice = int(idx_ax // max_number_of_columns + 1)
+            col_indice = idx_ax % max_number_of_columns + 1
+            fig.add_trace(
+                go.Scatter(x=iter_ids, y=objective_values),
+                row=row_indice, col=col_indice
+            )
 
-        plt.show()
+        fig.update_layout(height=height_of_each_subplot * number_of_rows,
+                          width=width_of_each_subplot * max_number_of_columns,
+                          margin=dict(l=5, r=5, t=100, b=5),
+                          title_text=f"Objective values by iteration: {title}",
+                          showlegend=False)
+        fig.show()
 
