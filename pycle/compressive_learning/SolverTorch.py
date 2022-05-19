@@ -8,10 +8,6 @@ from abc import ABCMeta, abstractmethod
 from pycle.sketching import FeatureMap
 
 
-# cleaning make documentation and clean everything here
-# cleaning make UML diagram of everything that is happening here
-# 0.1 Generic solver (stores a sketch and a solution,
-# can run multiple trials of a learning method to specify)
 class SolverTorch(metaclass=ABCMeta):
     """
     Template for a compressive learning, mixture model estimation solver.
@@ -54,8 +50,6 @@ class SolverTorch(metaclass=ABCMeta):
             to each coefficient of the sketch.
         """
         # Attributes related to the optimization method used
-        # cleaning verify that this dictionary usage is clean and well documented:
-        #  the user must find what are the possible keys
         self.dct_opt_method = dct_opt_method or dict()  # todo utiliser le dicitonnaire d'optim
         self.initialize_parameters_optimization()
 
@@ -110,26 +104,21 @@ class SolverTorch(metaclass=ABCMeta):
 
         self.minimum_atom_norm = 1e-15 * np.sqrt(self.d_theta)
 
+    @abstractmethod
     def initialize_parameters_optimization(self) -> None:
         """
         Transform optimization parameters in dct_opt_method to actual attributes of the object.
-        Further tests could be done here, as the adequation between the optimization method used and the parameters provided.
-        :return:
         """
-        # cleaning this function should not be aware of what happens in child classes
-        self.maxiter_inner_optimizations = self.dct_opt_method.get("maxiter_inner_optimizations", 15000)
-        self.tol_inner_optimizations = self.dct_opt_method.get("tol_inner_optimizations", 1e-9)
-        self.lr_inner_optimizations = self.dct_opt_method.get("lr_inner_optimizations", 1)
-        self.beta_1 = self.dct_opt_method.get("beta_1", 0.9)
-        self.beta_2 = self.dct_opt_method.get("beta_2", 0.99)
-        self.nb_iter_max_step_5 = self.dct_opt_method.get("nb_iter_max_step_5", 200)
-        self.nb_iter_max_step_1 = self.dct_opt_method.get("nb_iter_max_step_1", 200)
-
-        self.opt_method_step_1 = self.dct_opt_method.get("opt_method_step_1", "lbfgs")
-        self.opt_method_step_34 = self.dct_opt_method.get("opt_method_step_34", "nnls")
-        self.opt_method_step_5 = self.dct_opt_method.get("opt_method_step_5", "lbfgs")
-
-        self.lambda_l1 = self.dct_opt_method.get("lambda_l1", 0)
+        # # CLOMP and CLHS legacy class
+        # self.lr_inner_optimizations = self.dct_opt_method.get("lr_inner_optimizations", 1)
+        #
+        # # CLOMP_DL legacy class
+        # self.lambda_l1 = self.dct_opt_method.get("lambda_l1", 0)
+        #
+        # # CLHS legacy class
+        # self.beta_1 = self.dct_opt_method.get("beta_1", 0.9)
+        # self.beta_2 = self.dct_opt_method.get("beta_2", 0.99)
+        raise NotImplementedError
 
     def update_current_sol_and_cost(self, sol=None) -> NoReturn:
         """

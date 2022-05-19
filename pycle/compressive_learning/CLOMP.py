@@ -39,18 +39,46 @@ class CLOMP(SolverTorch):
         self.count_iter_torch_maximize_atom_correlation = 0
         self.count_iter_torch_minimize_cost_from_current_sol = 0
 
-    # Abstract methods
-    # ===============
-    # Methods that have to be instantiated by child classes
+        self.maxiter_inner_optimizations = None
+        self.tol_inner_optimizations = None
+        self.nb_iter_max_step_5 = None
+        self.nb_iter_max_step_1 = None
+        self.opt_method_step_1 = None
+        self.opt_method_step_34 = None
+        self.opt_method_step_5 = None
+        self.lr_inner_optimizations = None
+
+    def initialize_parameters_optimization(self) -> None:
+        """
+        Transform optimization parameters in dct_opt_method to actual attributes of the object.
+
+        Default key values for the dct_opt_method dictionnary are:
+
+        {
+            "maxiter_inner_optimizations": 15000,  # Max number of iterations for all torch optimizations
+            "tol_inner_optimizations": 1e-9,  # Change tolerance before stopping iterating in all torch optimizations
+            "nb_iter_max_step_5": 200, # Max number of iterations for PDFO in step 5 (global finetuning)
+            "nb_iter_max_step_1": 200, # Max number of iterations for PDFO in step 1 (find new cluster center)
+            "opt_method_step_1": "lbfgs", # Default optimization algorithm for step 1 (find new cluster center)
+            "opt_method_step_34": "nnls", # Default optimization algorithm for step 3 and 4 (find best mixture weights)
+            "opt_method_step_5": "lbfgs", # Default optimization algorithm for step 5 (global finetuning)
+            "lr_inner_optimizations": 1  # Start learning rate for torch optimizations with Adam.
+        }
+
+        """
+        self.maxiter_inner_optimizations = self.dct_opt_method.get("maxiter_inner_optimizations", 15000)
+        self.tol_inner_optimizations = self.dct_opt_method.get("tol_inner_optimizations", 1e-9)
+        self.nb_iter_max_step_5 = self.dct_opt_method.get("nb_iter_max_step_5", 200)
+        self.nb_iter_max_step_1 = self.dct_opt_method.get("nb_iter_max_step_1", 200)
+        self.opt_method_step_1 = self.dct_opt_method.get("opt_method_step_1", "lbfgs")
+        self.opt_method_step_34 = self.dct_opt_method.get("opt_method_step_34", "nnls")
+        self.opt_method_step_5 = self.dct_opt_method.get("opt_method_step_5", "lbfgs")
+        self.lr_inner_optimizations = self.dct_opt_method.get("lr_inner_optimizations", 1)
+
 
     @abstractmethod
     def projection_step(self, theta):
         raise NotImplementedError
-
-    # Generic methods
-    # ===============
-    # Methods that are general for all instances of this class
-    # Instantiation of methods of parent class
 
     def sketch_of_solution(self, alphas, all_thetas=None, all_atoms=None):
         """

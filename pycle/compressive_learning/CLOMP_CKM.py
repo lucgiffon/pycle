@@ -10,7 +10,6 @@ import numpy
 # cleaning use standardized naming for cluster centers and atoms
 #  think well what each solver is looking for.
 #  define the notions of: cluster centers/theta/centroids/atoms/all_thetas/Theta/mixture component
-# cleaning make clean documentation for this class
 class CLOMP_CKM(CLOMP):
     """
     Instanciate a CLOMP solver specific of compressive kmeans.
