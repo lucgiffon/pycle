@@ -20,7 +20,7 @@ class CLHS(SolverTorch):
     def __init__(self, phi, freq_batch_size,
                 gamma=0.98, step_size=1, *args, **kwargs):
 
-        super().__init__(phi=phi, d_theta=phi.d*2, *args, **kwargs)
+        super().__init__(phi=phi, D_theta=phi.d * 2, *args, **kwargs)
 
         # Optimization parameters
         self.freq_batch_size = freq_batch_size

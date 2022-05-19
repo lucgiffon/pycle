@@ -149,7 +149,7 @@ class CLOMP(SolverTorch):
 
         # note the "minus 1" that transforms the problem into a minimization problem
         result = -1. / norm_atom * torch.real(torch.vdot(sketch_of_atom, self.residual))
-        if self.show_curves:
+        if self.store_objective_values:
             ObjectiveValuesStorage().add(float(result), "loss_atom_correlation")
         return result
 
@@ -287,7 +287,7 @@ class CLOMP(SolverTorch):
 
             loss = self.loss_global(all_atoms=all_atoms, alphas=torch.exp(log_alphas).to(self.real_dtype))
 
-            if self.show_curves:
+            if self.store_objective_values:
                 ObjectiveValuesStorage().add(float(loss), "{}/find_optimal_weights".format(prefix))
             if self.tensorboard:
                 self.writer.add_scalar(self.path_template_tensorboard_writer.format('step3-4'), loss.item(), i)
@@ -459,7 +459,7 @@ class CLOMP(SolverTorch):
             # the global loss doesn't take stacked parameters as input so it must be destacked first
             (_alpha, _Theta) = self._destack_sol(stacked_x)
             result = float(self.loss_global(all_thetas=torch.from_numpy(_Theta), alphas=torch.from_numpy(_alpha)))
-            if self.show_curves:
+            if self.store_objective_values:
                 ObjectiveValuesStorage().add(float(result), f"minimize_cost_from_current_sol_pdfo/{prefix}")
             return result
 
@@ -514,7 +514,7 @@ class CLOMP(SolverTorch):
 
             if self.tensorboard:
                 self.writer.add_scalar(self.path_template_tensorboard_writer.format('step5'), loss.item(), iteration)
-            if self.show_curves:
+            if self.store_objective_values:
                 ObjectiveValuesStorage().add(float(loss), f"{prefix}/minimize_cost_from_current_sol")
 
             loss.backward()
@@ -691,7 +691,7 @@ class CLOMP(SolverTorch):
             optimizer.zero_grad()
             loss = self.loss_atom_correlation(params[0])
 
-            if self.show_curves:
+            if self.store_objective_values:
                 ObjectiveValuesStorage().add(float(loss), "{}/maximize_atom_correlation".format(prefix))
             if self.tensorboard:
                 self.writer.add_scalar(self.path_template_tensorboard_writer.format("step1/{}".format(prefix)),

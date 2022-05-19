@@ -91,7 +91,7 @@ def test_fit_once_adam(X, dim, nb_clust, bounds, Phi_emp):
         "opt_method_step_5": "adam",
     }
 
-    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, dct_opt_method=dct_adam)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_opt_method=dct_adam)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
@@ -127,7 +127,7 @@ def test_fit_once_bfgs(X, dim, nb_clust, bounds, Phi_emp):
         "opt_method_step_34": "nnls",
         "opt_method_step_5": "lbfgs",
     }
-    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, dct_opt_method=dct_bfgs)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_opt_method=dct_bfgs)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
@@ -163,7 +163,7 @@ def test_fit_once_bfgs_xi(X, dim, nb_clust, bounds, Phi_emp_xi):
         "opt_method_step_34": "nnls",
         "opt_method_step_5": "lbfgs",
     }
-    ckm_solver = CLOMP_CKM(phi=Phi_emp_xi, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, dct_opt_method=dct_bfgs)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp_xi, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_opt_method=dct_bfgs)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
@@ -201,7 +201,7 @@ def test_fit_once_pdfo(X, dim, nb_clust, bounds, Phi_emp):
         "opt_method_step_34": "nnls",
         "opt_method_step_5": "pdfo",
     }
-    ckm_solver = CLOMP_CKM(phi=Phi_emp, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, dct_opt_method=dct_pdfo)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_opt_method=dct_pdfo)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()
@@ -268,7 +268,7 @@ def test_asymetric(X, dim, nb_clust, bounds, Phi_emp_xi):
         "opt_method_step_34": "nnls",
         "opt_method_step_5": "lbfgs",
     }
-    ckm_solver = CLOMP_CKM(phi=Phi_emp_xi, nb_mixtures=nb_clust, bounds=bounds, sketch=z, show_curves=False, dct_opt_method=dct_bfgs)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp_xi, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_opt_method=dct_bfgs)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()

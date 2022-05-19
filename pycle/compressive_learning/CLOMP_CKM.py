@@ -9,7 +9,7 @@ import numpy
 
 # cleaning use standardized naming for cluster centers and atoms
 #  think well what each solver is looking for.
-#  define the notions of: cluster centers/theta/centroids/atoms/all_thetas/Theta
+#  define the notions of: cluster centers/theta/centroids/atoms/all_thetas/Theta/mixture component
 # cleaning make clean documentation for this class
 class CLOMP_CKM(CLOMP):
     """
@@ -32,7 +32,7 @@ class CLOMP_CKM(CLOMP):
         self.lower_bounds = None
         self.upper_bounds = None
 
-        super().__init__(phi, d_theta=phi.d, *args, **kwargs)
+        super().__init__(phi, D_theta=phi.d, *args, **kwargs)
 
         assert isinstance(centroid_projector, Projector)
         self.centroid_projector = centroid_projector
@@ -45,7 +45,7 @@ class CLOMP_CKM(CLOMP):
         """
         Computes and returns A_Phi(theta_k) for each cluster center in theta.
 
-        D is the dimension of atom, M is the dimension of a sketch.
+        D is the dimension of cluster center, M is the dimension of a sketch.
 
         Parameters
         ----------
@@ -54,7 +54,8 @@ class CLOMP_CKM(CLOMP):
 
         Returns
         -------
-            (M,) or (n_atoms, M)-shaped tensor constaining the M-dimensional feature maps of the cluster centers.
+            (M,) or (n_atoms, M)-shaped tensor constaining the M-dimensional feature maps of the cluster centers,
+            e.g. the atoms.
         """
         assert theta.size()[-1] == self.d_theta
         return self.phi(theta)
@@ -69,7 +70,7 @@ class CLOMP_CKM(CLOMP):
         Parameters
         ----------
         bounds
-            (2, D)- shaped tensor containing the low bounds in position 0 and upper bounds in position 1.
+            (2, D)- shaped tensor containing the lower bounds in position 0 and upper bounds in position 1.
         """
         assert len(bounds) == 2
         self.lower_bounds = bounds[0].to(self.real_dtype).to(self.device)
