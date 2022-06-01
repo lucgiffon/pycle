@@ -1,6 +1,8 @@
 """
-This module contains different torch functions to be used to compute the random projection with adapted folded gaussian
-distribution.
+This module contains several torch functions with the derivative implemented at hand.
+
+This is particularly useful when Encoding/Decoding happens on the input/output of the torch function,
+for instance with the :class:`pycle.sketching.feature_maps.OPUFeatureMap` class.
 """
 
 import torch

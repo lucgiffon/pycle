@@ -1,8 +1,19 @@
 # The pycle toolbox
-Pycle stands for PYthon Compressive LEarning; it is a toolbox of methods to perform compressive learning (also known as sketched learning), where the training set is not used directly but first heavily compressed; this allows to learn from large-scale datasets with drastically reduced computational resources.
+Pycle stands for PYthon Compressive LEarning; it is a toolbox of methods to perform compressive learning (also known as sketched learning), where the training set is not used directly but first heavily compressed. This learning paradigm allows:
+    
+- to learn from (very) large-scale datasets with drastically reduced computational resources;
+- to learn on an untrusted machine without disclosing confidential data.
 
-Pycle is now stable (version `1.2`), but *still under development*, so don't hesitate to report bugs or other difficulties encountered with the toolbox.
+## Installation instruction
 
+To work with this repository, you must:
+
+- create a clean python environment; 
+- install torch by following [these instructions](https://pytorch.org/get-started/locally/) according to your local configuration;
+- clone this repository;
+- go to the root folder and type:
+
+    pip install -r requirements.txt
 
 ## Contents of this repo:
 For documentation:
@@ -23,14 +34,13 @@ Note that if you want to use the core code of `pycle` direcltly without download
 ## Todo documentation:
 
 ### Major
-- Show how to compute many sketches at once and get the sketch of interest back.
-- Examples of dataset with which CLOMP gives good results (dont forget to talk about normalization)
-- Explanation of the feature maps and how to implement new ones
-- Explanation of the frequencies sampling methods
-- Explanation for the CLOMP decoders
 - Make sure installation is working from github
+- add useful datasets to evaluate compressive learning (kddcup, breast-cancer, covtype) (dont forget to talk about normalization) (using.rst?)
+- Explanation of the feature maps and how to implement new ones + make an example of custom feature map (using.rst?)
+- Explanation of the frequencies sampling methods -> notebook presenting the methods (using.rst?)
+- Explanation for the CLOMP decoders + make an example of custom solver (using.rst?)
 
-
+  
 ### Minor
 - UML diagram of the classes
 - Quick demo video: overview of the code and possibilities (who is the target? what is the purpose?)
@@ -40,8 +50,10 @@ Note that if you want to use the core code of `pycle` direcltly without download
 - Make sure vincent is ok with hosting the project on his github and giving me the maintainer right
 - pip installable
 - Check the demos
-- differential privacy -> fix existing notebook
+- differential privacy -> fix existing notebook (add functional tests)
 - find coherence in numpy / torch dependence in functions
+- add "sep" method for sigma estimation (add functional tests)
+- Maybe add emphasis somewhere on the OPU (feature maps? in using.rst)
 
 ### TODOS FOR SKETCHING.PY
 
