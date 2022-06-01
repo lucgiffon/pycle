@@ -17,7 +17,6 @@ To work with this repository, you must:
 pip install -r requirements.txt
 ```
 
-
 ## Contents of this repo:
 For documentation:
 * A "Guide" folder with semi-detailed introductory guide to this toolbox.
