@@ -44,13 +44,13 @@ def sampleFromPDF(pdf, x, nsamples=1, seed=None) -> np.ndarray:
 
     Parameters
     ----------
-    pdf:
+    pdf
         Vector containing the values of the pdf at x. eg: pdf[i] = pdf(x[i])
-    x:
+    x
         Vector being the support of the pdf
-    nsamples:
+    nsamples
         Number of samples
-    seed:
+    seed
         Seed of the random generator.
 
     References
@@ -84,18 +84,18 @@ def pdfAdaptedRadius(r: np.ndarray, KMeans=False) -> np.ndarray:
 
     This pdf is defined up to a constant.
 
-    Parameters:
-    -----------
-    r:
+    Parameters
+    ----------
+    r
         Vector of points where to estimate the pdf of the Adapted Radius distribution.
 
-    References:
-    -----------
+    References
+    ----------
 
     Cfr. https://arxiv.org/pdf/1606.02838.pdf, sec 3.3.1.
 
-    Returns:
-    --------
+    Returns
+    -------
         Vector of evalution of the pdf AR at r values.
 
     """
@@ -330,34 +330,53 @@ def drawFrequencies_AdaptedRadius(d, m, Sigma=None, KMeans=False, randn_mat_0_1=
         return Om
 
 
-def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1=None, seed=None, return_torch=False, keep_splitted=False, R_seeds=None):
+def drawFrequencies(drawType: str, d: int, m: int, Sigma=None, nb_cat_per_dim=None, randn_mat_0_1: np.ndarray = None,
+                    seed: int = None, return_torch: bool = True, keep_splitted=False, R_seeds=None):
     """Draw the 'frequencies' or projection matrix Omega for sketching.
 
-    Arguments:
-        - drawType: a string indicating the sampling pattern (Lambda) to use, one of the following:
-            -- "gaussian"       or "G"  : Gaussian sampling > Lambda = N(0,Sigma^{-1})
-            -- "foldedGaussian" or "FG" : Folded Gaussian sampling (i.e., the radius is Gaussian)
-            -- "adaptedRadius"  or "AR" : Adapted Radius heuristic
-        - d: int, dimension of the data to sketch
-        - m: int, number of 'frequencies' to draw (the target sketch dimension)
-        - Sigma: is either:
-            -- (d,d)-numpy array, the covariance of the data (note that we typically use Sigma^{-1} in the frequency domain).
-            -- a tuple (w,cov) describing a scale mixture of Gaussians where,
-                -- w:  (K,)-numpy array, the weights of the scale mixture
-                -- cov: (K,d,d)-numpy array, the K different covariances in the mixture
-            -- None: same as Sigma = identity matrix (belongs to (d,d)-numpy array case)
-                 If Sigma is None (default), we assume that data was normalized s.t. Sigma = identity.
-            -- A number greater than zero: it will be treated like the identity times this number.
-            -- A np.ndarray of numbers greater than zero: it will be treated like the concatenation of as many identities times these numbers.
-        - nb_cat_per_dim: (d,)-array of ints, the number of categories per dimension for integer data,
-                    if its i-th entry = 0 (resp. > 0), dimension i is assumed to be continuous (resp. int.).
-                    By default all entries are assumed to be continuous. Frequencies for int data is drawn as follows:
-                    1. Chose one dimension among the categorical ones, set Omega along all others to zero
-                    2. For the chosen dimension with C categories, we draw its component omega ~ U({0,...,C-1}) * 2*pi/C
-        - randn_mat_0_1: np.ndarray, a random matrix with gaussian 0, 1 entries that is used as core for producing the frequencies.
-
-    Returns:
-        - Omega: (d,m)-numpy array containing the 'frequency' projection matrix
+    Arguments
+    ---------
+        drawType:
+            a string indicating the sampling pattern (Lambda) to use, one of the following:
+                - "gaussian"       or "G"  : Gaussian sampling > Lambda = N(0,Sigma^{-1})
+                - "foldedGaussian" or "FG" : Folded Gaussian sampling (i.e., the radius is Gaussian)
+                - "adaptedRadius"  or "AR" : Adapted Radius heuristic
+        d:
+            dimension of the data to sketch
+        m:
+            number of 'frequencies' to draw (the target sketch dimension)
+        Sigma:
+            is either:
+                - (D,D)-numpy array, the covariance of the data (note that we typically use Sigma^{-1} in the frequency domain).
+                - a tuple (w,cov) describing a scale mixture of Gaussians where,
+                    -- w:  (K,)-numpy array, the weights of the scale mixture
+                    -- cov: (K,D,D)-numpy array, the K different covariances in the mixture
+                - None: same as Sigma = identity matrix (belongs to (D,D)-numpy array case) \
+                If Sigma is None (default), we assume that data was normalized s.t. Sigma = identity.
+                - A number greater than zero: it will be treated like the identity times this number.
+                - A np.ndarray of numbers greater than zero: it will be treated like the concatenation of as many identities times these numbers.
+        nb_cat_per_dim:
+            (D,)-array of ints, the number of categories per dimension for integer data, \
+            if its i-th entry = 0 (resp. > 0), dimension i is assumed to be continuous (resp. int.). \
+            By default all entries are assumed to be continuous. Frequencies for int data is drawn as follows:
+                  1. Chose one dimension among the categorical ones, set Omega along all others to zero
+                  2. For the chosen dimension with C categories, we draw its component omega ~ U({0,...,C-1}) * 2*pi/C
+        randn_mat_0_1:
+            a random matrix with gaussian 0, 1 entries that is used as core for producing the frequencies.
+        seed:
+            Integer value used as seed for the random number generator therein.
+        return_torch:
+            Tells to return the frequencies in the form of torch Tensor.
+        keep_splitted
+            Tells to return the frequencies matrix as a tuple (sigma, amplitudes, directions) \
+            where sigma * amplitudes * directions = frequencies
+        R_seeds
+            Tells the random number generator to use for each sampling of the amplitudes. If None, takes the same value
+            as the `seed` paramter.
+    Returns
+    -------
+        Omega
+            (D, M)-numpy array containing the 'frequency' projection matrix
     """
     # Parse drawType input
     if drawType.lower() in ["drawfrequencies_gaussian", "gaussian", "g"]:
@@ -375,6 +394,8 @@ def drawFrequencies(drawType, d, m, Sigma=None, nb_cat_per_dim=None, randn_mat_0
     # Handle no input
     if Sigma is None:
         Sigma = np.identity(d)
+    elif isinstance(Sigma, torch.Tensor):
+        Sigma = Sigma.cpu().numpy()
     else:
         Sigma = Sigma
 
@@ -431,12 +452,12 @@ def rebuild_Omega_from_sigma_direction_R(sig, dir, R, math_module=torch):
         - a set of directions
         - a (set of) set of radii
 
-    In the final matrix is constructed like:
+    In the final matrix is constructed like::
 
-    frequencies = []
-    for R in set of radii vectors:
-        for sigma in set of sigmas:
-            frequencies.concat_to_the_end(frequencies(R, sigma))
+        frequencies = []
+        for R in set of radii vectors:
+            for sigma in set of sigmas:
+                frequencies.concat_to_the_end(frequencies(R, sigma))
 
     Parameters
     ----------

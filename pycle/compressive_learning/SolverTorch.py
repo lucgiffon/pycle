@@ -1,3 +1,7 @@
+"""
+Contains the SolverTorch class for mixture estimation.
+"""
+
 from typing import NoReturn
 
 import torch
@@ -35,6 +39,8 @@ class SolverTorch(metaclass=ABCMeta):
                  tensorboard: bool = False, path_template_tensorboard_writer="CLOMP/{}/loss/",
                  dct_optim_method_hyperparameters: [None, dict] = None, sketch_weight=1.):
         """
+        Constructor.
+
         Parameters
         ----------
         phi

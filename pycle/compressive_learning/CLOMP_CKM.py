@@ -1,3 +1,6 @@
+"""
+Contains the CLOMP_CKM class to solve the compressive kmeans problem.
+"""
 from typing import NoReturn
 
 from pycle.compressive_learning.CLOMP import CLOMP
@@ -15,8 +18,8 @@ class CLOMP_CKM(CLOMP):
     representing one mixture component.
 
     The definitions are specialized, more precise, less abstract, now:
-    - The sketched component k of the mixture model is denoted phi_theta_k.
-        It is the feature map applied to a centroid.
+
+    - The sketched component k of the mixture model is denoted phi_theta_k. It is the feature map applied to a centroid.
     - The parameters of the component k of the mixture model is denoted theta_k. It is a centroid.
     - The dimension of each parameter vector is D. It is the dimension of the underlying data.
     - The size of the mixture is K, the number of components. It is also the number of centroids/clusters.

@@ -1,3 +1,7 @@
+"""
+Module containing the core FeatureMap class.
+"""
+
 from abc import ABC, abstractmethod
 from typing import Callable, Literal, Union, Optional, NoReturn, Tuple
 
@@ -20,6 +24,8 @@ class FeatureMap(ABC):
                  device: torch.device = torch.device("cpu"), dtype: torch.dtype = torch.float,
                  save_outputs: bool = False):
         """
+        Constructor.
+
         Parameters
         ----------
         f:
@@ -31,14 +37,16 @@ class FeatureMap(ABC):
             Normalization factor for the feature map. Default: no normalization.
         encoding_decoding:
             Encode the input with `SeparatedBitPlans` before the feature map.
-            Then decode the output accordingly.
+            Then decode the output accordingly. This is necessary for the :py:class:`OPUFeatureMap` child class with the OPU
+            only taking binary input. This is useful for experimental purposes when dealing with other child classes.
         quantification:
-            Quantify the input as if it was encoded decoded.
+            Quantify the input as if it was encoded decoded. This is useful if one wants to simulate the quantification
+            noise of encoding_decoding.
         encoding_decoding_precision:
             Maximum precision for the quantification and encoding_decoding parameters.
             Default: max possible precision.
         device:
-            The device on which to perform the tensor operations. torch.device("cpu") or torch.device("cuda:*").
+            The device on which to perform the tensor operations. torch.device("cpu") or torch.device("cuda:\*").
         dtype:
             The type of the tensor operations.
         save_outputs:

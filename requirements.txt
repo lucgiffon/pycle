@@ -2,3 +2,9 @@
 
 pdfo
 lightonml
+sphinx_rtd_theme
+nbsphinx
+numpy
+scipy
+matplotlib
+loguru

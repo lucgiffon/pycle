@@ -6,12 +6,11 @@ class SingletonMeta(type):
     """
     Implements Singleton design pattern.
 
-    Use like:
+    Use like::
 
-    ```
-    class MyClass(meta=SingletonMeta):
-        ...
-    ```
+        class MyClass(meta=SingletonMeta):
+            ...
+
     """
 
     _instances = {}

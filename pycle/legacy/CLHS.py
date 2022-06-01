@@ -6,7 +6,7 @@ from loguru import logger
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import TensorDataset, DataLoader
 from pycle.compressive_learning.SolverTorch import SolverTorch
-from pycle.sketching.feature_maps.GMMFeatureMap import GMMFeatureMap
+from pycle.legacy.GMMFeatureMap import GMMFeatureMap
 
 
 # cleaning see what is the point of this class and make test

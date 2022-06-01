@@ -1,6 +1,8 @@
 """
-Sketching functions
+Sketching functions and modules.
 """
+from typing import Callable, Union, Any, Optional
+
 import sys
 
 import numpy as np
@@ -10,26 +12,44 @@ from loguru import logger
 
 from pycle.sketching.feature_maps.FeatureMap import FeatureMap
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
+from pycle.sketching.frequency_sampling import drawFrequencies
 from pycle.utils import is_number
 
 
-def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=100, display=True):
+def computeSketch(dataset: torch.Tensor, featureMap: Union[Callable, FeatureMap], datasetWeights: torch.Tensor = None,
+                  batch_size: int = 100, verbose: bool = True) -> torch.Tensor:
     """
     Computes the sketch of a dataset given a generic feature map.
 
-    More precisely, evaluates
-        z = sum_{x_i in X} w_i * Phi(x_i)
-    where X is the dataset, Phi is the sketch feature map, w_i are weights assigned to the samples (typically 1/n).
+    More precisely, evaluates:
 
-    Arguments:
-        - dataset        : (n,d) torch Tensor, the dataset X: n examples in dimension d
-        - featureMap     : the feature map Phi, given as one of the following:
-            -- a function, z_x_i = featureMap(x_i), where x_i and z_x_i are (n,)- and (m,)-torch tensors, respectively
-            -- a FeatureMap instance (e.g., constructed as featureMap = SimpleFeatureMap("complexExponential",Omega) )
-        - datasetWeights : (n,) torch tensor, optional weigths w_i in the sketch (default: None, corresponds to w_i = 1/n)
+    .. math::
+        z = \\frac{1}{N} \\sum_{i=1}^{N} \\phi(\\bm{x}_i) * w_i
 
-    Returns:
-        - sketch : (m,) torch tensor, the sketch as defined above
+    where :math:`X` is the dataset, :math:`\\phi` is the sketch feature map, :math:`w_i` are weights assigned to the
+    samples (typically 1/N).
+
+    Arguments
+    ---------
+    dataset
+        (N, D)-shaped torch Tensor, the dataset X: N examples in dimension D
+    featureMap
+        The feature map Phi, given as one of the following:
+
+        - a function: taking a (D,)- and returning (M,)- shaped torch Tensors
+        - a :class:`pycle.sketching.feature_maps.FeatureMap.FeatureMap` instance\
+        (example: :class:`pycle.sketching.feature_maps.MatrixFeatureMap.MatrixFeatureMap`)
+    datasetWeights
+        (N,) torch tensor, optional weigths w_i in the sketch (default: None, corresponds to w_i = 1/N)
+    batch_size:
+        The sketch is computed by chunks of size ``batch_size``.
+    verbose:
+        If True, logs the current batch number every 100 batches.
+
+    Returns
+    -------
+    (M,)-shaped torch.Tensor
+        The sketch of the dataset by the featureMap.
     """
     # TODOs:
     # - add possibility to specify classes and return one sketch per class
@@ -57,7 +77,7 @@ def computeSketch(dataset, featureMap, datasetWeights=None, batch_size=100, disp
 
     if datasetWeights is None:
         for b in range(nb_batches):
-            if b % 100 == 0 and display:
+            if b % 100 == 0 and verbose:
                 logger.info(f"Sketching batch: {b+1}/{nb_batches}")
             sketch = sketch + featureMap(dataset[b * batch_size:(b + 1) * batch_size]).sum(**sum_arg)
         sketch /= n
@@ -80,18 +100,18 @@ def get_sketch_Omega_xi_from_aggregation(aggregated_sketch: np.ndarray, aggregat
     One may want to retrieve the sketch corresponding to one particular scaling factor sigma or seed.
     This function allows to do so.
 
-    The aggregated sketch is constructed in this order:
+    The aggregated sketch is constructed in this order::
 
-    sketch = []
-    for R_seed in lst_R_seeds:
-        for sigma in lst_sigmas:
-            sub_sketch = sketching(seed, sigma)
-            sketch = sketch.concat_to_the_end(sub_sketch)
+        sketch = []
+        for R_seed in lst_R_seeds:
+            for sigma in lst_sigmas:
+                sub_sketch = sketching(seed, sigma)
+                sketch = sketch.concat_to_the_end(sub_sketch)
 
-    This means that the m-sized sketch corresponding to the i_th R_seed and the j_th sigma value is located at:
+    This means that the m-sized sketch corresponding to the i_th R_seed and the j_th sigma value is located at::
 
-    start = i * (m * len(lst_sigmas)) + j * m
-    end = start + m
+        start = i * (m * len(lst_sigmas)) + j * m
+        end = start + m
 
     i and j starts at 0.
 
@@ -117,9 +137,11 @@ def get_sketch_Omega_xi_from_aggregation(aggregated_sketch: np.ndarray, aggregat
     needed_seed:
         The desired seed. Should be in the list of seeds.
     keep_all_sigmas:
-        Tells to keep all the sigmas.
+        Tells to keep all the sigmas so the returned sketch will be an aggregation of the sketches obtained with
+        the different sigmas.
     use_torch
         Return the result as torch.Tensors instead of a numpy.ndarrays.
+
     Returns
     -------
 
@@ -173,3 +195,84 @@ def get_sketch_Omega_xi_from_aggregation(aggregated_sketch: np.ndarray, aggregat
         return aggregated_sketch, (needed_sigma, directions, aggregated_R), aggregated_xi
     else:
         return aggregated_sketch, (needed_sigma, directions, aggregated_R), aggregated_xi
+
+
+def pick_sketch_by_indice_in_aggregated_sketch(aggregated_sketch: np.ndarray, index_needed_sigma: int, sketch_size: int,
+                                               indice_R_seed: Optional[int] = None,
+                                               number_R_seeds: Optional[int] = None) -> np.ndarray:
+    """
+    From a mutualized sketch, get the sub-sketch of interest.
+
+    "Mutualized" sketching is sharing the matrix of directions between the computation of many sketches with
+    many scaling factors or many seeds for the amplitude sampling R.
+    The vector obtained at the outcome of the mutualized sketching is the "aggregated sketch".
+    One may want to retrieve the sketch corresponding to one particular scaling factor sigma or seed.
+    This function allows to do so.
+
+    The aggregated sketch is constructed in this order::
+
+        sketch = []
+        for sigma in lst_sigmas:
+            sub_sketch = sketching(seed, sigma)
+            sketch = sketch.concat_to_the_end(sub_sketch)
+
+    This means that the m-sized sketch corresponding to the i_th R_seed and the j_th sigma value is located at::
+
+        start = i * (m * len(lst_sigmas)) + j * m
+        end = start + m
+
+    i and j starts at 0.
+
+    Parameters
+    ----------
+    aggregated_sketch
+        The sketch obtained from the "mutualized" sketching operator. The "end-to-end" concatenation of the sketch
+        obtained with the various sigmas and seeds.
+    index_needed_sigma
+        The desired indice in the list of sigmas. It is the position of the sketch in the aggregated sketch.
+    sketch_size
+        The size of a single sub-sketch in the mutualized sketch.
+    indice_R_seed
+        The indice of the sampling of R if there is more than one.
+    number_R_seeds
+        The number of sampling of R.
+
+    Notes
+    -----
+    - `indice_R_seed` and `number_R_seeds` must both be set or None
+    - This function works with numpy arrays as input/output and not torch tensors.
+
+    Returns
+    -------
+        The subsketch of interest
+    """
+
+    mutualized_sketch_size = len(aggregated_sketch)
+
+    # first choose the boundaries of the sketch for a given seed (if seed is a concern)
+    assert (indice_R_seed is not None and number_R_seeds is not None) or (indice_R_seed is None and number_R_seeds is None), \
+        "None or both indice_R_seed and number_R_seeds parameters must be provided"
+    if number_R_seeds is not None:
+        # Select the part of the saved sketch corresponding to the wanted seed
+        size_sketch_by_R = mutualized_sketch_size // number_R_seeds
+        assert mutualized_sketch_size == number_R_seeds * size_sketch_by_R
+        first_sketch_elm_for_R = size_sketch_by_R * indice_R_seed
+        last_sketch_elm_for_R = size_sketch_by_R * (indice_R_seed + 1)
+    else:
+        first_sketch_elm_for_R = 0
+        last_sketch_elm_for_R = mutualized_sketch_size
+
+    # update sketch and everything for the rest of the computatation
+    aggregated_sketch = aggregated_sketch[first_sketch_elm_for_R:last_sketch_elm_for_R]
+
+    first_sketch_elm = index_needed_sigma * sketch_size
+    last_sketch_elm = first_sketch_elm + sketch_size
+
+    aggregated_sketch = aggregated_sketch[first_sketch_elm:last_sketch_elm]
+
+    assert len(aggregated_sketch) == sketch_size
+
+    return aggregated_sketch
+
+
+

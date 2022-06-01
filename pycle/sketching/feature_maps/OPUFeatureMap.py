@@ -22,7 +22,14 @@ from pycle.utils.encoding_decoding import enc_dec_fct
 
 def calibrate_lin_op(fct_lin_op: Callable, dim_in: int, nb_iter: int = 1) -> np.ndarray:
     """
-    Perform calibration of a linear operator with input dimension dim. (Return the associated
+    Perform calibration of a linear operator with input dimension dim.
+
+    This works by applying the linear operator the the Hadamard matrix then solving all the linear equations
+    to recover the corresponding columns of the linear operator.
+
+    Notes
+    -----
+    - The `fct_lin_op` parameter must take row vectors as input.
 
     Parameters
     ----------
@@ -35,7 +42,8 @@ def calibrate_lin_op(fct_lin_op: Callable, dim_in: int, nb_iter: int = 1) -> np.
 
     Returns
     -------
-        The calibrated  linear oeprator (must be applied on the right like: x^T @ A).
+    np.ndarray
+        The matrix corresponding to the calibrated linear operator.
     """
     first_pow_of_2_gt_d = 2 ** int(np.ceil(np.log2(dim_in)))
     H = hadamard(first_pow_of_2_gt_d)
@@ -274,7 +282,7 @@ class OPUFeatureMap(FeatureMap):
         calibrate_always:
             Tells if calibration should be done anyway.
         device:
-            The device on which to perform the tensor operations. torch.device("cpu") or torch.device("cuda:*").
+            The device on which to perform the tensor operations. torch.device("cpu") or torch.device("cuda:\*").
         kwargs:
             Other key word arguments for FeatureMap object.
         """

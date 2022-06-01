@@ -1,3 +1,7 @@
+"""
+This module contains evaluation metrics.
+"""
+
 import numpy as np
 import scipy.spatial
 import scipy.stats

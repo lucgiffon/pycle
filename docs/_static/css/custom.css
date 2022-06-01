@@ -1,0 +1,32 @@
+/*:root {*/
+/*  --sidebar-size: 500px;*/
+/*}*/
+
+/*.wy-nav-side {*/
+/*    width: var(--sidebar-size);*/
+/*}*/
+/*.wy-side-scroll {*/
+/*    width: var(--sidebar-size);*/
+/*}*/
+/*.wy-side-nav-search {*/
+/*    width: var(--sidebar-size);*/
+/*}*/
+/*.wy-menu-vertical {*/
+/*    width: var(--sidebar-size);*/
+/*}*/
+
+/*div.bodywrapper {*/
+/*    margin: 0 0 0 var(--sidebar-size);*/
+/*}*/
+
+/*div.sphinxsidebar {*/
+/*    width: var(--sidebar-size);*/
+/*}*/
+
+/*!*div.document {*!*/
+/*!*    width: 1600px;*!*/
+/*!*}*!*/
+
+/*.method {*/
+/*    margin-top: 25px;*/
+/*}*/

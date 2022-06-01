@@ -1,3 +1,7 @@
+"""
+This module contains data simulation and loading functions.
+"""
+
 import numpy as np
 import scipy.stats
 from scipy.sparse import diags
@@ -7,7 +11,8 @@ from scipy.sparse import diags
 # DATASET GENERATION TOOLS #
 ############################
 
-def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, normalize=None, grid_aligned=True, seed=None, no_covariances=False, **generation_params):
+def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, normalize=None, grid_aligned=True,
+                        seed=None, no_covariances=False, return_torch=True, **generation_params):
     """
     Generate a synthetic dataset according to a Gaussian Mixture Model distribution.
 
@@ -28,8 +33,6 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
             - 'l_2-unit-ball': the dataset is scaled in the l_2 unit ball (i.e., all l_2 norms are <= 1)
             - 'l_inf-unit-ball': the dataset is projected in the l_inf unit ball (i.e., all entries are <= 1)
     grid_aligned: bool (default = True), if True the covariances of the GMM modes are diagonal
-
-
 
     Returns
     -------
@@ -170,7 +173,7 @@ def generatedataset_GMM(d, K, n, output_required='dataset', balanced=True, norma
     return out
 
 
-def generateCirclesDataset(K,n,normalize):
+def generateCirclesDataset(K, n, normalize):
     """
     Generate a synthetic 2-D dataset comprising concentric circles/shells.
 
@@ -241,7 +244,7 @@ def generateCirclesDataset(K,n,normalize):
     return X
 
 
-def generateSpiralDataset(n,normalize=None,return_density=False):
+def generateSpiralDataset(n, normalize=None, return_density=False):
     """
     Generate a synthetic 2-D dataset made of a spiral.
 
@@ -305,7 +308,7 @@ def generateSpiralDataset(n,normalize=None,return_density=False):
     return X
 
 
-def generatedataset_Ksparse(d,K,n,max_radius=1):
+def generatedataset_Ksparse(d, K, n, max_radius=1):
     """
     Generate a synthetic dataset of K-sparse vectors in dimension d, with l_2 norm <= max_radius.
 

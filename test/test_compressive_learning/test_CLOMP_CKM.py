@@ -12,6 +12,7 @@ from pycle.utils.metrics import SSE
 from pycle.sketching.frequency_sampling import drawFrequencies
 
 import pycle.sketching
+from pycle.utils.vizualization import simple_plot_clustering
 
 
 @pytest.fixture
@@ -78,15 +79,6 @@ def test_neg_floor_div_torch():
     expected_result = neg_val // 3
     torch_result = torch.Tensor([neg_val]) // 3
     assert (expected_result == torch_result) == False
-
-
-def simple_plot_clustering(X, centroids, weights):
-    plt.figure(figsize=(5, 5))
-    plt.title("Compressively learned centroids")
-    plt.scatter(X[:, 0], X[:, 1], s=1, alpha=0.15)
-    plt.scatter(centroids[:, 0], centroids[:, 1], s=1000 * weights)
-    plt.legend(["Data", "Centroids"])
-    plt.show()
 
 
 def test_fit_once_adam(X, dim, nb_clust, bounds, Phi_emp):

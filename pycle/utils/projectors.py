@@ -1,11 +1,33 @@
 """
 This module contains projector functions.
 
-These projector function are used in CLOMP_CKM, at the end of each iteration,
+These projector function are used in :class:`CLOMP_CKM`, at the end of each iteration,
 to let the parameters satisify some constraints. For instance, if the parameters
 are wanted to have norm = 1, there is a projector just to do that.
 
-Any custom projector can be implemented from the `Projector` base abstract class.
+Any custom projector can be implemented from the :class:`Projector` base abstract class.
+
+They are used with the :class:`CLOMP_CKM` like::
+
+    from pycle.utils.projectors import ProjectorClip
+
+    my_proj = ProjectorClip(torch.tensor(-1), torch.tensor(-1))
+    CLOMP_CKM(phi=Phi, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, projector=my_proj)
+
+To build a custom projector, create a class that inherits from the :class:`Projector` class and override the
+`project` method tomake inplace modification of the parameters in the optimization. For example::
+
+    class ProjectorClip(Projector):
+
+        def __init__(self, lower_bound: torch.Tensor, upper_bound: torch.Tensor):
+            self.lower_bound = lower_bound
+            self.upper_bound = upper_bound
+
+        def project(self, param):
+            torch.minimum(param, self.upper_bound, out=param)  # modifications are made in place
+            torch.maximum(param, self.lower_bound, out=param)
+
+
 """
 
 from abc import ABCMeta, abstractmethod
@@ -16,7 +38,7 @@ import torch
 
 class Projector(metaclass=ABCMeta):
     """
-    Base, asbtract, class for projectors which only need to implement the `projet` method.
+    Base, asbtract, class for projectors which only need to implement the :meth:`project` method.
     """
     @abstractmethod
     def project(self, param) -> NoReturn:
@@ -48,7 +70,7 @@ class ProjectorClip(Projector):
     """
     Clip the input parameters to lower and upper bounds.
     """
-    def __init__(self, lower_bound, upper_bound):
+    def __init__(self, lower_bound: torch.Tensor, upper_bound: torch.Tensor):
         """
 
         Parameters

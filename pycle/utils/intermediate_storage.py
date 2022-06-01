@@ -24,12 +24,11 @@ class IntermediateResultStorage(metaclass=SingletonMeta):
     This class implements the Singleton Design pattern. It means that all instances of this class refer to the
     same object.
 
-    Example:
-        ```
+    Example::
+
         for i in range(n):
             intermediate_result = np.random.randn(d)
             IntermediateResultStorage().add(intermediate_result, "random_sample")
-        ```
 
     """
     def __init__(self):
@@ -107,6 +106,18 @@ class IntermediateResultStorage(metaclass=SingletonMeta):
 class ObjectiveValuesStorage(IntermediateResultStorage):
     """
     This class is just a proxy for the IntermediateResultStorage dedicated for storing objective function values.
+
+    Example::
+
+        for i in range(n):
+            objective_value = 1/i
+            objective_value_2 = 1/i**2
+
+            ObjectiveValuesStorage().add(objective_value, "objective")
+            ObjectiveValuesStorage().add(objective_value, "objective2")
+
+        ObjectiveValuesStorage().show(title="Objective values")
+
     """
     def get_objective_values(self, list_name):
         return self[list_name]

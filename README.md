@@ -22,11 +22,40 @@ Note that if you want to use the core code of `pycle` direcltly without download
 
 ## Todo documentation:
 
-- Minimum working example of CLOMP (code with figure representing the result)
+### Major
+- Show how to compute many sketches at once and get the sketch of interest back.
 - Examples of dataset with which CLOMP gives good results (dont forget to talk about normalization)
-- Explanation of the projectors and how to implement new ones
 - Explanation of the feature maps and how to implement new ones
+- Explanation of the frequencies sampling methods
+- Explanation for the CLOMP decoders
+- Make sure installation is working from github
 
+
+### Minor
+- UML diagram of the classes
+- Quick demo video: overview of the code and possibilities (who is the target? what is the purpose?)
+- Explanation of the projectors and how to implement new ones
+- add Command to generate the doc in readme
+- set the docs online
+- Make sure vincent is ok with hosting the project on his github and giving me the maintainer right
+- pip installable
+- Check the demos
+- differential privacy -> fix existing notebook
+- find coherence in numpy / torch dependence in functions
+
+### TODOS FOR SKETCHING.PY
+
+Short-term:
+- Add utility function for the entropy based criterion
+- Add support for GMM: test + exemple
+- Add support for triple rademacher sketching op: test + exemple
+- Add support for asymmetric feature map (rpf): test + exemple
+- Add support of private sketching for the real variants of the considered maps
+- Add the square nonlinearity, for sketching for PCA for example
+- See with Titouan if the abstraction level of Solver is enough for his code.
+
+Long-term:
+- Fast sketch computation
 
 ## Citing this toolbox:
 If you publish research using this toolbox, please follow this link for to get citation references (e.g., to generate BibTeX export files)

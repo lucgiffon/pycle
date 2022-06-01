@@ -1,3 +1,6 @@
+"""
+Contains the CLOMP class for mixture estimation using CLOMP algorithm.
+"""
 from typing import NoReturn, Literal
 
 import time
@@ -14,7 +17,7 @@ import numpy as np
 
 class CLOMP(SolverTorch):
     """
-    Implementation of the CLOMP algorithm  to fit the sketch of a mixture model to the sketch z of a distribution.
+    Implementation of the CLOMP algorithm to fit the sketch of a mixture model to the sketch z of a distribution.
 
     CLOMP is an instance of the class SolverTorch.
 
@@ -51,18 +54,18 @@ class CLOMP(SolverTorch):
         """
         Transform optimization parameters in dct_optim_method_hyperparameters to actual attributes of the object.
 
-        Default key values for the dct_optim_method_hyperparameters dictionnary are:
+        Default key values for the dct_optim_method_hyperparameters dictionnary are::
 
-        {
-            "maxiter_inner_optimizations": 15000,  # Max number of iterations for all torch optimizations
-            "tol_inner_optimizations": 1e-9,  # Change tolerance before stopping iterating in all torch optimizations
-            "nb_iter_max_step_5": 200, # Max number of iterations for PDFO in step 5 (global finetuning)
-            "nb_iter_max_step_1": 200, # Max number of iterations for PDFO in step 1 (find new cluster center)
-            "opt_method_step_1": "lbfgs", # Default optimization algorithm for step 1 (find new cluster center)
-            "opt_method_step_34": "nnls", # Default optimization algorithm for step 3 and 4 (find best mixture weights)
-            "opt_method_step_5": "lbfgs", # Default optimization algorithm for step 5 (global finetuning)
-            "lr_inner_optimizations": 1  # Start learning rate for torch optimizations with Adam.
-        }
+            {
+                "maxiter_inner_optimizations": 15000,  # Max number of iterations for all torch optimizations
+                "tol_inner_optimizations": 1e-9,  # Change tolerance before stopping iterating in all torch optimizations
+                "nb_iter_max_step_5": 200, # Max number of iterations for PDFO in step 5 (global finetuning)
+                "nb_iter_max_step_1": 200, # Max number of iterations for PDFO in step 1 (find new cluster center)
+                "opt_method_step_1": "lbfgs", # Default optimization algorithm for step 1 (find new cluster center)
+                "opt_method_step_34": "nnls", # Default optimization algorithm for step 3 and 4 (find best mixture weights)
+                "opt_method_step_5": "lbfgs", # Default optimization algorithm for step 5 (global finetuning)
+                "lr_inner_optimizations": 1  # Start learning rate for torch optimizations with Adam.
+            }
 
         """
         self.maxiter_inner_optimizations = self.dct_optim_method_hyperparameters.get("maxiter_inner_optimizations", 15000)
@@ -91,7 +94,7 @@ class CLOMP(SolverTorch):
 
     def sketch_of_solution(self, alphas, thetas=None, phi_thetas=None):
         """
-        Returns the sketch of the solution, A_Phi(thetas, alphas) = sum_k^K {alpha_k *phi_theta_k}.
+        Returns the sketch of the solution, A_Phi(thetas, alphas) = sum_k^K {alpha_k \* phi_theta_k}.
 
         Parameters
         ----------

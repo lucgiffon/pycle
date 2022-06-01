@@ -1,5 +1,5 @@
 """
-These funtions allows to select Sigma.
+These functions allow to select Sigma.
 
 Sigma is the scale of the frequencies used to build the sketching operator.
 It is a critical hyper-parameter for compressive clustering.
@@ -7,14 +7,15 @@ It is a critical hyper-parameter for compressive clustering.
 Beware: functions in this module work with numpy arrays.
 """
 import warnings
-from typing import NoReturn
+from typing import NoReturn, Literal
+from scipy.stats import entropy
 
 import numpy as np
 import scipy.optimize
 import torch
 from matplotlib import pyplot as plt
 
-from pycle.sketching import computeSketch
+from pycle.sketching import computeSketch, pick_sketch_by_indice_in_aggregated_sketch
 from pycle.sketching.feature_maps.MatrixFeatureMap import MatrixFeatureMap
 from pycle.sketching.frequency_sampling import drawFrequencies
 
@@ -213,6 +214,7 @@ def estimate_Sigma_from_sketch(z: np.ndarray, Phi: MatrixFeatureMap, K=1, c=20, 
 
     # Plot if required
     if should_plot:
+        # todo show them all on the same figure with many subplots
         plot_sigma_estimation(
             z_sorted=z_sort,
             frequencies_norm_sorted=frequencies_norm,
@@ -226,8 +228,9 @@ def estimate_Sigma_from_sketch(z: np.ndarray, Phi: MatrixFeatureMap, K=1, c=20, 
     return sigma2_bar
 
 
-def estimate_Sigma(dataset: np.ndarray, m0, K=None, c=20, n0=None, drawFreq_type="AR", nIterations=5, mode='max',
-                   verbose=0, device="cpu"):
+def estimate_Sigma(dataset: np.ndarray, m0: int, K: int = None, c: int = 20, n0: int = None,
+                   drawFreq_type: str = "AR", nIterations: int = 5, mode: str = 'max',
+                   verbose: Literal[0, 1, 2] = 0, device: str = "cpu") -> np.ndarray:
     """Automatically estimates the "Sigma" parameter(s) (the scale of data clusters) for generating the sketch operator.
 
     We assume here that Sigma = sigma2_bar * identity matrix.
@@ -235,31 +238,44 @@ def estimate_Sigma(dataset: np.ndarray, m0, K=None, c=20, n0=None, drawFreq_type
     with candidate values for sigma2_bar. Then, sigma2_bar is updated by fitting a Gaussian
     to the absolute values of the obtained sketch.
 
-    Arguments:
-        - dataset: (n,d) numpy array, the dataset X: n examples in dimension d
-        - m0: int, number of candidate 'frequencies' to draw (can be typically smaller than m).
-        - K:  int (default 1), number of scales to fit (if > 1 we fit a scale mixture)
-        - c:  int (default 20), number of 'boxes' (i.e. number of maxima of sketch absolute values to fit)
-        - n0: int or None, if given, n0 samples from the dataset are subsampled to be used for Sigma estimation
-        - drawType: a string indicating the sampling pattern (Lambda) to use in the pre-sketches, either:
-            -- "gaussian"       or "G"  : Gaussian sampling > Lambda = N(0,Sigma^{-1})
-            -- "foldedGaussian" or "FG" : Folded Gaussian sampling (i.e., the radius is Gaussian)
-            -- "adaptedRadius"  or "AR" : Adapted Radius heuristic
-        - nIterations: int (default 5), the maximum number of iteration (typically stable after 2 iterations)
-        - mode: 'max' (default) or 'min', describe which sketch entries per block to fit
-        - verbose: 0,1 or 2. Number of plots of the sigma estimation process.
-            0: no plot; 1: only last plot; 2: all the plots.
+    Parameters
+    ----------
+        dataset:
+            (N, D) numpy array, the dataset X: N examples in dimension D
+        m0:
+            number of candidate 'frequencies' to draw (can be typically smaller than m).
+        K:
+            (default 1), number of scales to fit (if > 1 we fit a scale mixture)
+        c:
+            (default 20), number of 'boxes' (i.e. number of maxima of sketch absolute values to fit)
+        n0:
+            if given, n0 samples from the dataset are subsampled to be used for Sigma estimation
+        drawFreq_type:
+            indicate the sampling pattern (Lambda) to use in the pre-sketches, either:
+                - "gaussian"       or "G"  : Gaussian sampling > Lambda = N(0,Sigma^{-1})
+                - "foldedGaussian" or "FG" : Folded Gaussian sampling (i.e., the radius is Gaussian)
+                - "adaptedRadius"  or "AR" : Adapted Radius heuristic
 
-    References:
-    -----------
+        nIterations:
+            (default 5), the maximum number of iteration (typically stable after 2 iterations)
+        mode:
+            'max' (default) or 'min', describe which sketch entries per block to fit
+        verbose:
+            Amount of plots of the sigma estimation process. \
+            0: no plot; 1: only last plot; 2: all the plots corresponding to each iteration of the estimation process.
+        device:
+            Torch device identifier where the computation must happen ('cpu' or 'cuda:\*').
+
+    References
+    ----------
 
     Cfr. https://arxiv.org/pdf/1606.02838.pdf, sec 3.3.3.
 
-    Returns: If K = 1:
-                - Sigma: (d,d)-numpy array, the (diagonal) estimated covariance of the clusters in the dataset;
-             If K > 1: a tuple (w,Sigma) representing the scale mixture model, where:
-                - Sigma: (K,d,d)-numpy array, the dxd covariances in the scale mixture
-                (uniformity is assumed for mixture weights)
+    Returns
+    -------
+    If K = 1: Sigma: (D,D)-numpy array, the (diagonal) estimated covariance of the clusters in the dataset;
+    If K > 1: Sigma: (K,D,D)-numpy array, the K DxD covariances in the scale mixture \
+    (uniformity is assumed for mixture weights)
     """
 
     return_format_is_matrix = K is None
@@ -305,3 +321,92 @@ def estimate_Sigma(dataset: np.ndarray, m0, K=None, c=20, n0=None, drawFreq_type
         Sigma = sigma2_bar_matrix
 
     return Sigma
+
+
+def get_sketch_entropy(z: torch.Tensor, nb_bins=10):
+    """
+    Return the entropy of the sketch coefficients modulii distribution.
+
+    The distribution is discretized by dividing the [0, 1] space into `nb_bins` and counting the sketch coefficients
+    in each bin.
+
+    Parameters
+    ----------
+    z
+        The sketch.
+    nb_bins
+        The number of bins to divide the [0, 1] space into.
+
+    Returns
+    -------
+        The sketch entropy
+    """
+
+    z = z.cpu().numpy()
+    bins = np.linspace(0, 1, nb_bins)
+    abs_z = np.absolute(z)
+    indices = np.digitize(abs_z, bins)
+    unique_ar, count_unique = np.unique(indices, return_counts=True)
+    freq_unique = count_unique / len(z)
+    return entropy(freq_unique)
+
+
+def estimate_Sigma_by_entropy(dataset, array_sigma, m0, nb_bins=10, n0=None, drawFreq_type="AR", device="cpu"):
+    """
+    Parameters
+    ----------
+    dataset
+        (N, D) numpy array, the dataset X: N examples in dimension D
+    array_sigma
+        Array of possible sigmas to evaluate.
+    m0
+        number of candidate 'frequencies' to draw (can be typically smaller than m).
+    nb_bins
+        (default 10), number of 'boxes' (i.e. number of maxima of sketch absolute values to fit)
+    n0
+        if given, n0 samples from the dataset are subsampled to be used for Sigma estimation
+    drawFreq_type
+        indicate the sampling pattern (Lambda) to use in the pre-sketches, either:
+
+            - "gaussian"       or "G"  : Gaussian sampling > Lambda = N(0,Sigma^{-1})
+            - "foldedGaussian" or "FG" : Folded Gaussian sampling (i.e., the radius is Gaussian)
+            - "adaptedRadius"  or "AR" : Adapted Radius heuristic
+
+    device
+        Torch device identifier where the computation must happen ('cpu' or 'cuda:\*').
+
+    Returns
+    -------
+        Best sigma with respect to entropy
+    """
+    arr_sigma_inv_sqrt, directions, R = drawFrequencies(drawFreq_type, dataset.shape[1], m0, array_sigma, keep_splitted=True)
+    Phi = MatrixFeatureMap("complexexponential", (arr_sigma_inv_sqrt, directions, R), device=torch.device(device))
+
+    z = computeSketch(dataset[np.random.permutation(n0 if n0 is not None else dataset.shape[0])], Phi, verbose=False)
+
+    max_entropy = -1
+    sig_max_entropy = 0
+    for i_sig, sigma in enumerate(array_sigma):
+        loaded_sketch = pick_sketch_by_indice_in_aggregated_sketch(z.numpy(), i_sig, m0)
+        sketch_entropy = get_sketch_entropy(torch.from_numpy(loaded_sketch), nb_bins)
+        if sketch_entropy > max_entropy:
+            max_entropy = sketch_entropy
+            sig_max_entropy = sigma
+
+    return sig_max_entropy
+
+
+def estimate_Sigma_by_var(dataset: torch.Tensor) -> torch.Tensor:
+    """
+    Returns the variance of the input dataset that can be used as the sketching scale.
+
+    Parameters
+    ----------
+    dataset
+        Input dataset.
+
+    Returns
+    -------
+        The variance
+    """
+    return torch.tensor(np.var(dataset.cpu().numpy()))

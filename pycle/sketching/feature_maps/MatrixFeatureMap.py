@@ -1,3 +1,7 @@
+"""
+Module containing the FeatureMap class using an *in silico* matrix with the complex exponential.
+"""
+
 from typing import Literal, Union, Callable, Optional, NoReturn, Tuple
 
 import numpy as np
@@ -28,7 +32,7 @@ class MatrixFeatureMap(FeatureMap):
         Omega:
             The random projection matrix. If it is a tuple or a list,
         device:
-            The device on which to perform the tensor operations. torch.device("cpu") or torch.device("cuda:*").
+            The device on which to perform the tensor operations. torch.device("cpu") or torch.device("cuda:\*").
         kwargs:
             Other key word arguments for FeatureMap object.
         """
@@ -135,10 +139,12 @@ class MatrixFeatureMap(FeatureMap):
 
         if self.splitted_Omega:
             result = MultiSigmaARFrequencyMatrixLinApEncDec.apply(x, self.SigFact, self.directions, self.R,
-                                                                  self.quantification, self.encoding_decoding, self.encoding_decoding_precision)
+                                                                  self.quantification, self.encoding_decoding,
+                                                                  self.encoding_decoding_precision)
         else:
             result = LinearFunctionEncDec.apply(x, self.Omega,
-                                                self.quantification, self.encoding_decoding, self.encoding_decoding_precision)
+                                                self.quantification, self.encoding_decoding,
+                                                self.encoding_decoding_precision)
 
         # return a column vector if the input was a column.
         if unsqueezed:

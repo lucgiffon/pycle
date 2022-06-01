@@ -3,7 +3,7 @@ from torch.nn import functional as f
 
 
 ## 2.2 (diagonal) GMM with Hierarchical Splitting
-from pycle.compressive_learning.CLHS import CLHS
+from pycle.legacy.CLHS import CLHS
 from pycle.utils.projectors import ProjectorClip, ProjectorLessUnit2Norm
 
 
