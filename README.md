@@ -6,14 +6,14 @@ Pycle stands for PYthon Compressive LEarning; it is a toolbox of methods to perf
 
 ## Installation instructions
 
-### Prerequisite
+### Prerequisites
 - g++ must be installed on your machine
-
+- python version = 3.9
+- install torch by following [these instructions](https://pytorch.org/get-started/locally/) according to your local configuration
 
 To work with this repository, you must:
 
-- create a clean python environment; 
-- install torch by following [these instructions](https://pytorch.org/get-started/locally/) according to your local configuration;
+- create a clean python environment;
 - clone this repository;
 - go to the root folder and type:
 
