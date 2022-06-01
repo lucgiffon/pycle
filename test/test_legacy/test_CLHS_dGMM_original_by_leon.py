@@ -1,7 +1,7 @@
 import pytest
 import matplotlib.pyplot as plt
-from pycle_gpu.cl_algo.simplified_algo import SimplifiedHierarchicalGmm
-from sgd_comp_learning import sampling_frequencies, compute_sketch
+# from pycle_gpu.cl_algo.simplified_algo import SimplifiedHierarchicalGmm
+# from sgd_comp_learning import sampling_frequencies, compute_sketch
 from pycle.utils.datasets import generatedataset_GMM
 import numpy as np
 import torch

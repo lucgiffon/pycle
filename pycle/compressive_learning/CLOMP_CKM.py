@@ -34,7 +34,7 @@ class CLOMP_CKM(CLOMP):
             The feature map used in the sketching operator.
         centroid_projector:
             A callback projector object to call on the centroids at the end of each iteration
-            in order to enforce some constrains.
+            in order to enforce some constrains. See :mod:`pycle.utils.projectors`
         args
         kwargs
         """

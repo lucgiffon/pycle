@@ -8,3 +8,8 @@ numpy
 scipy
 matplotlib
 loguru
+pytest
+plotly
+tensorboard
+fht
+protobuf==3.20

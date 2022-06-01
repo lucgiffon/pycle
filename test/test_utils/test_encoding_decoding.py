@@ -39,7 +39,7 @@ def test_enc_dec_fct_no_change(opu, dim):
     x = np.random.choice([0, 1], (1, dim))
     output_normal = opu.linear_transform(x)
     output_enc_dec = enc_dec_fct(opu.linear_transform, x)
-    assert (output_normal == output_enc_dec).all()
+    assert np.isclose(output_normal, output_enc_dec).all()
 
 
 def test_only_quantification_fct(opu, dim):

@@ -36,7 +36,7 @@ def X(dim, nb_clust):
 @pytest.fixture
 def bounds(dim):
     # Bounds on the dataset, necessary for compressive k-means
-    bounds = torch.tensor([-np.ones(dim), np.ones(dim)])  # We assumed the data is normalized between -1 and 1
+    bounds = torch.tensor(np.array([-np.ones(dim), np.ones(dim)]))  # We assumed the data is normalized between -1 and 1
     return bounds
 
 

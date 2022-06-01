@@ -4,7 +4,11 @@ Pycle stands for PYthon Compressive LEarning; it is a toolbox of methods to perf
 - to learn from (very) large-scale datasets with drastically reduced computational resources;
 - to learn on an untrusted machine without disclosing confidential data.
 
-## Installation instruction
+## Installation instructions
+
+### Prerequisite
+- g++ must be installed on your machine
+
 
 To work with this repository, you must:
 
@@ -17,45 +21,56 @@ To work with this repository, you must:
 pip install -r requirements.txt
 ```
 
-## Contents of this repo:
-For documentation:
-* A "Guide" folder with semi-detailed introductory guide to this toolbox.
-* A series of "DEMO_i" jupyter notebooks, that illustrate some core concepts of the toolbox in practice.
+To test that your installation works properly, you can do
 
-If you're new here, I suggest you start by opening either of those items first to get a hang of what this is all about.
+```
+pytest test -v
+```
+
+And make sure no test is FAILED. If one is, maybe try running the test suite again. If it persists, then raise an issue on github. It is normal behavior that you get a bunch of warnings.
+
+## Build documentation
+
+To build the documentation, you must have installed `pickle` first then go in the `$REPOSITORY_ROOT/docs/` directory and then type
+
+```
+make html
+```
+
+You can then view the documentation in your browser by opening `/docs/_build/html/index.html`.
 
 
-The code itself, located in the "pycle" folder, structured into 3 main files:
-* `sketching.py` contains everything related to building a feature map and sketching a dataset with it;
-* `compressive_learning.py` contains the actual learning algorithms from that sketch, for k-means and GMM fitting for example;
-* `utils.py` contains a diverse set of functions that can be useful, e.g., for generating synthetic datasets, or evaluating the learned models through different metrics and visualization utilities.
-
-Note that if you want to use the core code of `pycle` direcltly without downloading this entire repository, you can install it directly from PyPI by typing
-`pip install pycle`
-
-## Todo documentation:
+## TODOS:
 
 ### Major
-- Make sure installation is working from github
-- add useful datasets to evaluate compressive learning (kddcup, breast-cancer, covtype) (dont forget to talk about normalization) (using.rst?)
+- Make sure installation is working from github (add all the requirements in requirements.txt)
+- add useful datasets to evaluate compressive learning (kddcup, breast-cancer, covtype) (dont forget to talk about normalization (and add normalization functions to the module -> say in docstring that normalization is important)) (using.rst?)
 - Explanation of the feature maps and how to implement new ones + make an example of custom feature map (using.rst?)
 - Explanation of the frequencies sampling methods -> notebook presenting the methods (using.rst?)
 - Explanation for the CLOMP decoders + make an example of custom solver (using.rst?)
-
+- Add a make test and add it to the installation instructions
   
 ### Minor
 - UML diagram of the classes
 - Quick demo video: overview of the code and possibilities (who is the target? what is the purpose?)
 - Explanation of the projectors and how to implement new ones
-- add Command to generate the doc in readme
 - set the docs online
 - Make sure vincent is ok with hosting the project on his github and giving me the maintainer right
-- pip installable
+- see with vincent to make it pip installable
 - Check the demos
+- Add tests to the notebooks (see nbmake online)
+- Add usage example of all classes and functions in docstring
+- Make the missing test see #cleaning todos
 - differential privacy -> fix existing notebook (add functional tests)
-- find coherence in numpy / torch dependence in functions
+- find coherence in numpy / torch dependence in functions (for instance: dataset module, )
 - add "sep" method for sigma estimation (add functional tests)
 - Maybe add emphasis somewhere on the OPU (feature maps? in using.rst)
+- Estimate_sigma_by_entropy lacks docstring
+- update guide.tex with most recent changes in architecture (or  remove it if there is redundancy with online doc).
+- add doc to the vizualization module and functions
+- should there be an "attribute" section in some classes docstring (CLOMP?)?
+- make pytest ignore third party warnings i have no control over
+- find a solution for all the maptlotlib windows opening during tests execution
 
 ### TODOS FOR SKETCHING.PY
 
