@@ -211,7 +211,7 @@ class SolverTorch(metaclass=ABCMeta):
     @abstractmethod
     def randomly_initialize_several_mixture_components(self, nb_mixture_components):
         """
-        Define how to initialize a number mixture components.
+        Define how to initialize a given number of mixture components.
 
         Parameters
         ----------

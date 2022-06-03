@@ -38,8 +38,8 @@ def X(my_dim):
     # np.random.seed(722233)
     nb_sample = 2000  # Number of samples we want to generate
     # We use the generatedataset_GMM method from pycle (we ask that the entries are <= 1, and imbalanced clusters)
-    X = generatedataset_GMM(my_dim, nb_clust, nb_sample, normalize='l_inf-unit-ball', balanced=False)
-    X = torch.from_numpy(X).double()
+    X = generatedataset_GMM(my_dim, nb_clust, nb_sample, normalize='l_inf-unit-ball', imbalance=1/3)
+    X = X.double()
 
     return X
 

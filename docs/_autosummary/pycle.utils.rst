@@ -46,6 +46,7 @@
    pycle.utils.encoding_decoding
    pycle.utils.intermediate_storage
    pycle.utils.metrics
+   pycle.utils.normalization
    pycle.utils.projectors
    pycle.utils.torch_functions
    pycle.utils.vizualization

@@ -31,7 +31,7 @@ And make sure no test is FAILED. If one is, maybe try running the test suite aga
 
 ## Build documentation
 
-To build the documentation, you must have installed `pickle` first then go in the `$REPOSITORY_ROOT/docs/` directory and then type
+To build the documentation, you must have installed `pycle` first then go in the `$REPOSITORY_ROOT/docs/` directory and then type
 
 ```
 make html
@@ -41,16 +41,7 @@ You can then view the documentation in your browser by opening `/docs/_build/htm
 
 
 ## TODOS:
-
-### Major
-- Make sure installation is working from github (add all the requirements in requirements.txt)
-- add useful datasets to evaluate compressive learning (kddcup, breast-cancer, covtype) (dont forget to talk about normalization (and add normalization functions to the module -> say in docstring that normalization is important)) (using.rst?)
-- Explanation of the feature maps and how to implement new ones + make an example of custom feature map (using.rst?)
-- Explanation of the frequencies sampling methods -> notebook presenting the methods (using.rst?)
-- Explanation for the CLOMP decoders + make an example of custom solver (using.rst?)
-- Add a make test and add it to the installation instructions
   
-### Minor
 - UML diagram of the classes
 - Quick demo video: overview of the code and possibilities (who is the target? what is the purpose?)
 - Explanation of the projectors and how to implement new ones
@@ -71,23 +62,19 @@ You can then view the documentation in your browser by opening `/docs/_build/htm
 - should there be an "attribute" section in some classes docstring (CLOMP?)?
 - make pytest ignore third party warnings i have no control over
 - find a solution for all the maptlotlib windows opening during tests execution
-
-### TODOS FOR SKETCHING.PY
-
-Short-term:
-- Add utility function for the entropy based criterion
+- remove dependency to matplotlib and keep only pyplot figures
 - Add support for GMM: test + exemple
 - Add support for triple rademacher sketching op: test + exemple
 - Add support for asymmetric feature map (rpf): test + exemple
 - Add support of private sketching for the real variants of the considered maps
 - Add the square nonlinearity, for sketching for PCA for example
-- See with Titouan if the abstraction level of Solver is enough for his code.
+- unbalanced case in generateCirclesDataset dataset function
+- torchify somehow generateSpiralDataset (maybe also build-in the torch feature in all dataset generation procedures)
 
-Long-term:
-- Fast sketch computation
+## Acknowledgement:
 
-## Citing this toolbox:
-If you publish research using this toolbox, please follow this link for to get citation references (e.g., to generate BibTeX export files)
+This toolbox is a fork from https://github.com/schellekensv/pycle where the original work have been produced. Some features of the original toolbox
+have been lost in the process. 
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3855114.svg)](https://doi.org/10.5281/zenodo.3855114)
+This repository is essentially a port from `numpy` to `torch` of the original work. A lot of documentation have been added too.
 

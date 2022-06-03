@@ -19,7 +19,20 @@ class CLOMP(SolverTorch):
     """
     Implementation of the CLOMP algorithm to fit the sketch of a mixture model to the sketch z of a distribution.
 
-    CLOMP is an instance of the class SolverTorch.
+    CLOMP is an instance of the class :class:`pycle.compressive_learning.SolverTorch.SolverTorch`.
+
+    This class can use gradient descent through `torch` to find the components of the mixture model
+    or it can use derivative free optimization through the `pdfo` library.
+    Derivative free optimization is slower and it doesn't support too high dimension (>100) but doesn't need the
+    feature map to be derivable.
+
+    To create a subclass inheriting from CLOMP algorithm, some methods must be overriden:
+
+    - `randomly_initialize_several_mixture_components(self, int)` to define how to initialize a given number of mixture components.
+    - `sketch_of_mixture_components(self, (KxD) tensor )` to define how to get the feature map of a single or K mixture components
+    - `set_bounds_thetas(bounds)` to define the bounding box where to look for the mixture components.
+
+    To have a better understanding, look at the code of the class :class:`pycle.compressive_learning.CLOMP_CKM.CLOMP_CKM`
 
     References
     ----------
