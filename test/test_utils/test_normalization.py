@@ -26,4 +26,3 @@ def test_get_normalization_factor_from_string_l2_unit_ball():
 
     assert np.isclose(float(get_normalization_factor_from_string(obj, 'l_2-unit-ball')), float(l2_normalization))
     assert np.isclose(float(get_normalization_factor_from_string(torch.from_numpy(obj), 'l_2-unit-ball')), float(l2_normalization))
-
