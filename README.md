@@ -70,6 +70,7 @@ You can then view the documentation in your browser by opening `/docs/_build/htm
 - Add the square nonlinearity, for sketching for PCA for example
 - unbalanced case in generateCirclesDataset dataset function
 - torchify somehow generateSpiralDataset (maybe also build-in the torch feature in all dataset generation procedures)
+- add `gfortran` dependencies to installation instruction for pdfo
 
 ## Acknowledgement:
 

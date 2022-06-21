@@ -310,7 +310,7 @@ class OPUFeatureMap(FeatureMap):
         if calibration_param_estimation is None and not self.light_memory:
             calibration_param_estimation = True
         else:
-            calibration_param_estimation = calibration_param_estimation
+            calibration_param_estimation = calibration_param_estimation or False
         self.nb_iter_calibration = nb_iter_calibration
         self.nb_iter_linear_transformation = nb_iter_linear_transformation
 
@@ -344,9 +344,9 @@ class OPUFeatureMap(FeatureMap):
 
         else:
             # todo choisir le n_iter dynamiquement et utiliser une autre methode que "ones"
-            mu = torch.from_numpy(self.distribution_estimator.mu_estimation(method="ones")).to(self.device)
-            std = torch.from_numpy(np.sqrt(self.distribution_estimator.var_estimation(method="ones"))).to(self.device)
-            col_norm = torch.sqrt(self.d) * torch.ones(self.opu.n_components).to(self.device)
+            mu = self.distribution_estimator.mu_estimation(method="ones").to(self.device)
+            std = torch.sqrt(self.distribution_estimator.var_estimation(method="ones")).to(self.device)
+            col_norm = np.sqrt(self.d) * torch.ones(self.opu.n_components).to(self.device)
 
         return mu, std, col_norm
 
@@ -487,7 +487,9 @@ class OPUFeatureMap(FeatureMap):
         -------
             result
         """
+        reshaped_1_ndim = False
         if x.ndim == 1:
+            reshaped_1_ndim = True
             x = x.reshape(1, -1)
 
         if self.bool_sigfact_a_matrix:
@@ -504,6 +506,8 @@ class OPUFeatureMap(FeatureMap):
             y_dec = y_dec.reshape((x.shape[0], self.m))
 
         out = y_dec
+        if reshaped_1_ndim:
+            out = out.squeeze()
         return out
 
     @property

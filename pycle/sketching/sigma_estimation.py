@@ -228,9 +228,9 @@ def estimate_Sigma_from_sketch(z: np.ndarray, Phi: MatrixFeatureMap, K=1, c=20, 
     return sigma2_bar
 
 
-def estimate_Sigma(dataset: np.ndarray, m0: int, K: int = None, c: int = 20, n0: int = None,
+def estimate_Sigma(dataset: torch.Tensor, m0: int, K: int = None, c: int = 20, n0: int = None,
                    drawFreq_type: str = "AR", nIterations: int = 5, mode: str = 'max',
-                   verbose: Literal[0, 1, 2] = 0, device: str = "cpu") -> np.ndarray:
+                   verbose: Literal[0, 1, 2] = 0, device: str = "cpu") -> torch.Tensor:
     """Automatically estimates the "Sigma" parameter(s) (the scale of data clusters) for generating the sketch operator.
 
     We assume here that Sigma = sigma2_bar * identity matrix.
@@ -299,7 +299,7 @@ def estimate_Sigma(dataset: np.ndarray, m0: int, K: int = None, c: int = 20, n0:
     sigma2_bar = np.random.uniform(0.3, 1.6, K)
     weights_bar = np.ones(K) / K
 
-    X = torch.from_numpy(X).to(torch.device(device))
+    X = X.to(torch.device(device))
     # Actual algorithm
     for i in range(nIterations):
         # Draw frequencies according to current estimate
@@ -320,7 +320,7 @@ def estimate_Sigma(dataset: np.ndarray, m0: int, K: int = None, c: int = 20, n0:
         sigma2_bar_matrix = np.outer(sigma2_bar, np.eye(d)).reshape(K, d, d)  # covariances in (K,d,d) format
         Sigma = sigma2_bar_matrix
 
-    return Sigma
+    return torch.from_numpy(Sigma)
 
 
 def get_sketch_entropy(z: torch.Tensor, nb_bins=10):

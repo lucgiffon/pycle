@@ -187,7 +187,8 @@ def test_fit_once_pdfo(X, dim, nb_clust, bounds, Phi_emp):
         "opt_method_step_34": "nnls",
         "opt_method_step_5": "pdfo",
     }
-    ckm_solver = CLOMP_CKM(phi=Phi_emp, size_mixture_K=nb_clust, bounds=bounds, sketch_z=z, store_objective_values=False, dct_optim_method_hyperparameters=dct_pdfo)
+    ckm_solver = CLOMP_CKM(phi=Phi_emp, size_mixture_K=nb_clust,
+                           bounds=bounds, sketch_z=z, store_objective_values=False, dct_optim_method_hyperparameters=dct_pdfo)
 
     # Launch the CLOMP optimization procedure
     ckm_solver.fit_once()

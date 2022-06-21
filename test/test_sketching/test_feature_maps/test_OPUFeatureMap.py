@@ -67,6 +67,36 @@ def test_enc_dec_opu_transform():
     assert np.isclose(res_lin_comb, lin_comb_res, atol=1e-2).all()
 
 
+def test_OPUFeatureMap_call(my_dim):
+    sampling_method = "ARKM"
+    sketch_dim = my_dim * 2
+    Sigma = 0.876
+    seed = 0
+
+    opu = OPU(n_components=sketch_dim, opu_device=SimulatedOpuDevice(),
+              max_n_features=my_dim)
+    opu.fit1d(n_features=my_dim)
+    lst_omega = [sifact, _, R] = pycle.sketching.frequency_sampling.drawFrequencies(sampling_method, my_dim, sketch_dim,
+                                                                                    Sigma,
+                                                                                    seed=seed, keep_splitted=True,
+                                                                                    return_torch=True)
+    OFM = OPUFeatureMap(f="none",
+                        dimension=my_dim, SigFact=sifact, R=R,
+                        opu=opu,
+                        calibration_param_estimation=True,
+                        calibration_forward=False,
+                        calibrate_always=True,
+                        nb_iter_linear_transformation=1,
+                        nb_iter_calibration=1
+                        )
+
+    rand_vec_1 = torch.from_numpy(np.random.randn(my_dim))
+    assert tuple(OFM(rand_vec_1).shape) == (sketch_dim, )
+
+    MFM = MatrixFeatureMap("none", tuple(lst_omega), encoding_decoding=True)
+    assert tuple(MFM(rand_vec_1).shape) == (sketch_dim, )
+
+
 def test_calibration_OPUFeatureMap(my_dim):
     sampling_method = "ARKM"
     sketch_dim = my_dim * 2
